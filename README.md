@@ -25,7 +25,7 @@ A small desk display that shows how much **Claude and Codex** usage you have lef
 
 The fun is in how it tells you: city windows go dark as you spend your quota, fighting-game health bars drop all the way to a KO, and waves roll onto a beach while you try not to check how many tokens you've burned. We can't promise it'll make you use less AI. We're doing our best to make it look good, though.
 
-It started as a customization of **[TokenTV, by click6067-ship-it](https://github.com/click6067-ship-it/token-tv)** and grew into a collection of animated scenes for an ESP32 touchscreen. This repo includes the host application, firmware and tools to keep tinkering.
+It started as a customization of **[TokenTV, by click6067-ship-it](https://github.com/click6067-ship-it/token-tv)** and grew into a collection of animated scenes for the **2.8-inch NerdMiner V2 touchscreen** (ESP32-2432S028R). This repo includes the host application, firmware and tools to keep tinkering.
 
 ## Eight screens, zero boredom
 
@@ -87,7 +87,11 @@ The command is still called `token-tv` for compatibility with the original proje
 
 ## Okay, I want this on my desk
 
-The eight-scene experience targets an **ESP32-2432S028R / Cheap Yellow Display, 320×240**, with ILI9341 and ST7789 controller variants. Support for GeekMagic clocks is also retained, with different capabilities: they are not the same platform and do not run this ESP32 firmware.
+**Got a NerdMiner V2 with the 2.8-inch touchscreen? That's the display used in this project.** Give it a new job: watching your AI quota instead of mining.
+
+The reference setup uses the **NerdMiner V2 touchscreen variant based on ESP32-2432S028R**, also known as the **Cheap Yellow Display (CYD), 320×240**. Firmware configurations are included for ILI9341 and ST7789 controllers. NerdMiner V2 also runs on other boards, so check the board model and display controller rather than relying on the NerdMiner name alone. Installing this firmware replaces the mining application.
+
+Support for GeekMagic clocks is also retained, with different capabilities: they are not the same platform and do not run this ESP32 firmware.
 
 1. Try the gallery and check your display's exact model.
 2. For the touchscreen board, follow the [hardware guide](docs/hardware.md) and [firmware instructions](firmware/board/README.md). Flashing replaces whatever program is currently on the board.
