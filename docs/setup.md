@@ -1,6 +1,6 @@
 # Instalar AI Desk Display
 
-Empieza por la [demo sin cuentas](../README.md#pruébalo-sin-pantalla-ni-cuentas). El paquete público conserva el comando `token-tv`, pero se instala desde **este repositorio**, no desde PyPI ni desde el proyecto upstream.
+Empieza por la [demo sin cuentas](../README.md#try-it-without-a-display-or-an-account). El paquete público conserva el comando `token-tv`, pero se instala desde **este repositorio**, no desde PyPI ni desde el proyecto upstream.
 
 ## Crear tu configuración privada
 

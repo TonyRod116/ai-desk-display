@@ -2,57 +2,59 @@
 
 # AI Desk Display
 
-### Tus límites de IA, con bastante más personalidad que una barra de progreso.
+### Your AI limits deserve more personality than a progress bar.
 
-Una Game Boy. Una ciudad cyberpunk. Una playa. Un combate entre Claude y Codex.
-**Tu escritorio ya tenía suficientes números aburridos.**
+A Game Boy. A cyberpunk city. A beach. Claude and Codex in a fighting game.
+**Your desk already had enough boring numbers.**
 
 [![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python&logoColor=white)](pyproject.toml)
-[![License: MIT](https://img.shields.io/badge/código-MIT-green)](LICENSE)
-[![Local rendering](https://img.shields.io/badge/renderizado-local-7c3aed)](#local-no-significa-magia)
+[![License: MIT](https://img.shields.io/badge/code-MIT-green)](LICENSE)
+[![Local rendering](https://img.shields.io/badge/rendering-local-7c3aed)](#local-not-magic)
 
-[Descargar ZIP](https://github.com/TonyRod116/ai-desk-display/archive/refs/heads/main.zip) · [Ver las pantallas](#ocho-pantallas-cero-aburrimiento) · [Probar sin hardware](#pruébalo-sin-pantalla-ni-cuentas) · [Montarlo](#vale-lo-quiero-en-mi-escritorio) · [Hacerlo tuyo](#hazlo-tuyo-con-o-sin-ia)
+[Download ZIP](https://github.com/TonyRod116/ai-desk-display/archive/refs/heads/main.zip) · [Meet the screens](#eight-screens-zero-boredom) · [Try without hardware](#try-it-without-a-display-or-an-account) · [Build yours](#okay-i-want-this-on-my-desk) · [Make it your own](#make-it-yours-with-or-without-ai)
 
-![Las ocho escenas de AI Desk Display con datos ficticios](docs/images/gallery.png)
+![All eight AI Desk Display scenes with fictional usage data](docs/images/gallery.png)
 
-*Capturas reales del renderizador. Cifras de ejemplo, ninguna cuenta personal.*
+*Rendered by the actual app. Sample numbers, no personal accounts.*
 
 </div>
 
-## ¿Qué es esto?
+## What's this?
 
-Una pequeña pantalla de escritorio que te enseña cuánto uso de **Claude y Codex** te queda, cuándo se renueva y, cuando la cuenta lo permite, cuántos resets guardados tienes.
+A small desk display that shows how much **Claude and Codex** usage you have left, when your limits reset and, where supported, how many saved resets are available.
 
-La gracia está en cómo lo cuenta: las ventanas de una ciudad se apagan conforme gastas cuota, las barras de un juego de lucha bajan hasta el KO y una playa se mueve mientras tú intentas no mirar cuánto llevas consumido. No prometemos que te haga gastar menos. Que quede bonito, sí lo intentamos.
+The fun is in how it tells you: city windows go dark as you spend your quota, fighting-game health bars drop all the way to a KO, and waves roll onto a beach while you try not to check how many tokens you've burned. We can't promise it'll make you use less AI. We're doing our best to make it look good, though.
 
-Nació como una personalización de [TokenTV](https://github.com/click6067-ship-it/token-tv), de **click6067-ship-it**, y terminó convirtiéndose en una colección de escenas animadas para una pantalla táctil ESP32. Aquí tienes el código del ordenador, el firmware y las herramientas para seguir jugando con él.
+It started as a customization of **[TokenTV, by click6067-ship-it](https://github.com/click6067-ship-it/token-tv)** and grew into a collection of animated scenes for an ESP32 touchscreen. This repo includes the host application, firmware and tools to keep tinkering.
 
-## Ocho pantallas, cero aburrimiento
+## Eight screens, zero boredom
 
 | | |
 |:---:|:---:|
-| **Game Boy** · verde LCD, píxeles y nostalgia.<br>![Game Boy](docs/images/game-boy.png) | **Paradise** · una escapadita tropical entre prompts.<br>![Paradise](docs/images/paradise.png) |
-| **Neon City** · luces de ciudad que representan tu cuota semanal.<br>![Neon City](docs/images/code-forge.png) | **Tidal Rush** · surf retro, tubo y ganas de vacaciones.<br>![Tidal Rush](docs/images/surf.png) |
-| **Token Run** · carretera con sabor a arcade.<br>![Token Run](docs/images/dials.png) | **Versus** · Claude contra Codex. A cero, KO.<br>![Versus](docs/images/arcade.png) |
-| **Cockpit** · tu pequeño puesto de mando espacial.<br>![Cockpit](docs/images/cockpit.png) | **Quota City** · edificios isométricos que reflejan lo que queda.<br>![Quota City](docs/images/countdown.png) |
+| **Game Boy** · green LCD, pixels and nostalgia.<br>![Game Boy — simulated quota updates](docs/images/game-boy.gif) | **Paradise** · a tiny tropical break between prompts.<br>![Paradise — moving ocean](docs/images/paradise.gif) |
+| **Neon City** · city lights that reflect your weekly quota.<br>![Neon City — flying traffic](docs/images/code-forge.gif) | **Tidal Rush** · retro surfing, a barrel wave and vacation cravings.<br>![Tidal Rush — surfing animation](docs/images/surf.gif) |
+| **Token Run** · an arcade road trip for your desk.<br>![Token Run — driving scene](docs/images/dials.gif) | **Versus** · Claude vs. Codex. Run out of quota, get knocked out.<br>![Versus — fighters and moving city](docs/images/arcade.gif) |
+| **Cockpit** · your own little space command center.<br>![Cockpit — twinkling stars](docs/images/cockpit.gif) | **Quota City** · an isometric skyline that shows what's left.<br>![Quota City — city animation](docs/images/countdown.gif) |
 
-Las imágenes de arriba son estáticas; en la placa compatible hay coches voladores, olas, surf, carretera y otros movimientos. Las animaciones se ejecutan **en la placa**: el ordenador no tiene que subir una imagen nueva por cada fotograma.
+These looping GIFs use **fictional readings**. Moving scenes are captured from the firmware simulator; Cockpit reproduces the firmware's star effect. The Game Boy screen is normally static: its GIF demonstrates **accelerated sample quota updates**, not a constantly moving LCD. GIFs have a limited color palette; the display receives RGB565 frames.
 
-### Un toque y cambias de mundo
+On compatible hardware, animations run **on the board**. Your computer doesn't have to upload a new picture for every frame. Prefer still images? [Open the PNG gallery](docs/images/gallery.png).
 
-En el firmware táctil incluido, las acciones se aplican al soltar:
+### One tap, another world
 
-| Gesto | Qué hace |
+With the included touch firmware, gestures take effect when you release:
+
+| Gesture | What happens |
 |---|---|
-| Toque corto | Cambia de pantalla. |
-| Mantener entre 2 y menos de 5 segundos | Alterna pantalla fija, rotación cada 30 minutos o cada hora. |
-| Mantener 5 segundos o más | Abre la pantalla de conexión. |
+| Quick tap | Switch to the next screen. |
+| Hold for 2 to less than 5 seconds | Cycle between fixed, every 30 minutes and every hour. |
+| Hold for 5 seconds or more | Open the connection screen. |
 
-La rotación sucede a las **:00 y :30**, o solo a las **:00**. Un indicador pequeño te recuerda el modo y la placa conserva la pantalla y el modo al reiniciar.
+Rotation happens at **:00 and :30**, or just **:00**. A tiny indicator shows the mode, and the board remembers your selected screen and mode after a restart.
 
-## Pruébalo sin pantalla ni cuentas
+## Try it without a display or an account
 
-Solo necesitas Python 3.10 o superior. Esto genera las ocho escenas con **datos inventados**, sin iniciar sesión ni conectar ningún dispositivo:
+You'll need Python 3.10 or newer. These commands render all eight scenes with **made-up data**, without signing in or connecting to a device:
 
 ```bash
 git clone https://github.com/TonyRod116/ai-desk-display.git
@@ -63,78 +65,86 @@ pip install -e .
 python scripts/render_gallery.py --out preview
 ```
 
-Abre `preview/gallery.png`. Listo: ya tienes el pequeño multiverso en tu ordenador.
+Open `preview/gallery.png`. Your tiny desk multiverse is ready to browse.
 
-En Windows puedes crear el entorno con `py -m venv .venv` y activarlo con `.venv\Scripts\Activate.ps1`. Para la integración completa con lectores de cuentas, la instalación de referencia utiliza **Linux/WSL**; Windows nativo y macOS no tienen el mismo nivel de validación.
+Want the animated previews too? With `g++` installed:
 
-También puedes generar las caras clásicas del reloj:
+```bash
+python scripts/render_animations.py --out preview
+```
+
+This runs the firmware animation simulator locally and writes GIFs. It doesn't contact your accounts or hardware.
+
+On Windows, create the environment with `py -m venv .venv` and activate it with `.venv\Scripts\Activate.ps1`. The reference installation for the full account-reader integration uses **Linux/WSL**; native Windows and macOS have not received the same level of testing. WSL is also the simplest route for the C++ preview simulator on Windows.
+
+You can also render the classic clock faces:
 
 ```bash
 token-tv demo --out preview/clock
 ```
 
-El comando sigue llamándose `token-tv` para mantener compatibilidad con el proyecto original. No necesitas una clave API para ver las demos. La instalación sí descarga dependencias.
+The command is still called `token-tv` for compatibility with the original project. No API key is needed for the demos. Installation does download dependencies.
 
-## Vale, lo quiero en mi escritorio
+## Okay, I want this on my desk
 
-La experiencia de ocho escenas está preparada para una **ESP32-2432S028R / Cheap Yellow Display de 320×240**, con variantes de controlador ILI9341 y ST7789. También se conserva soporte para relojes GeekMagic, con sus propias limitaciones: no son la misma plataforma ni ejecutan este firmware ESP32.
+The eight-scene experience targets an **ESP32-2432S028R / Cheap Yellow Display, 320×240**, with ILI9341 and ST7789 controller variants. Support for GeekMagic clocks is also retained, with different capabilities: they are not the same platform and do not run this ESP32 firmware.
 
-1. Prueba primero la galería y comprueba el modelo exacto de tu pantalla.
-2. Para la placa táctil, sigue la [guía de hardware](docs/hardware.md) y las [instrucciones del firmware](firmware/board/README.md). Flashear sustituye el programa que tenga la placa.
-3. Configura tus propias cuentas y el dispositivo siguiendo la [guía de instalación](docs/setup.md). No hay cuentas, contraseñas ni emparejamientos preconfigurados.
-4. Consulta las opciones con `token-tv --help` y `token-tv board --help`.
+1. Try the gallery and check your display's exact model.
+2. For the touchscreen board, follow the [hardware guide](docs/hardware.md) and [firmware instructions](firmware/board/README.md). Flashing replaces whatever program is currently on the board.
+3. Configure your own accounts and device using the [setup guide](docs/setup.md) *(currently in Spanish)*. No accounts, passwords or private pairing files are bundled.
+4. Explore the options with `token-tv --help` and `token-tv board --help`.
 
-**Es un proyecto para trastear, no todavía un instalador de “siguiente, siguiente, terminado”.** Las consultas de uso dependen del cliente, el plan y los datos que exponga cada proveedor. El lector opcional de resets de Claude requiere [emparejar una extensión local](docs/claude-bank-local.md); esa parte es avanzada y puede necesitar ajustes si cambia el proveedor.
+**This is a tinkering project, not yet a “next, next, finish” installer.** Usage readings depend on the client, plan and information each provider exposes. Claude's optional saved-reset reader requires [pairing a local extension](docs/claude-bank-local.md); that's an advanced integration and may need adjustments when the provider changes things.
 
-## Local no significa magia
+## Local, not magic
 
-- El ordenador prepara las escenas y envía los datos a la pantalla por tu red local. El panel de control escucha en localhost.
-- Para obtener cifras nuevas, los lectores habilitados consultan los servicios oficiales de la cuenta. **“Local” no significa que las cuotas se puedan consultar sin Internet.**
-- Necesitas el ordenador y el servicio funcionando para actualizar las lecturas. La placa anima lo que ya tiene, pero marca los datos como no disponibles si deja de recibir señales del ordenador.
-- No hace falta dejar abierto este chat ni pedir a una IA que dibuje cada actualización.
-- Un dato ausente se muestra como desconocido; no se inventa un cero. Los resets guardados tampoco se deducen del porcentaje.
-- Usa la placa en una red de confianza: su conexión local es HTTP. No expongas sus puertos ni el panel a Internet.
+- Your computer renders the scenes and sends updates over your local network. The dashboard listens on localhost.
+- Enabled account readers contact the official services for fresh numbers. **Local rendering doesn't mean you can fetch current quotas without Internet access.**
+- Your computer and service need to be running to refresh readings. The board animates the scenes it already has, but marks data unavailable when it stops hearing from the host.
+- You don't need to keep an AI chat open or ask an AI to draw each update.
+- Missing data stays unknown. It isn't quietly turned into zero, and saved resets aren't guessed from your usage percentage.
+- Keep the board on a trusted network: its local connection uses HTTP. Don't expose the board or dashboard ports to the Internet.
 
-## Hazlo tuyo, con o sin IA
+## Make it yours, with or without AI
 
-**Este proyecto está hecho para que lo cambies.** Puedes pedirle a una IA que retoque colores, recolocar los porcentajes, diseñar otra escena o modificar las animaciones. Muchas de estas pantallas nacieron precisamente así: probando, mirando el resultado y diciendo “vale… pero más cyberpunk”.
+**This project is meant to be changed.** Ask an AI to tweak the colors, rearrange the percentages, design another scene or adjust an animation. Many of these screens were built exactly that way: try something, look at it, then say “okay… but more cyberpunk.”
 
-También puedes usar la IA para **adaptarlo a otras pantallas**. El dibujo y el envío al dispositivo están separados, así que hay una buena base para cambiar la resolución o añadir otro método de conexión. Eso sí: no es compatible automáticamente con cualquier pantalla; según el hardware habrá que ajustar el controlador, el protocolo o el firmware.
+You can also use AI to **adapt it to other displays**. Rendering and device communication are separate, so there's a useful starting point for a different resolution or connection method. That doesn't make every display automatically compatible: depending on your hardware, you may need to adapt the driver, protocol or firmware.
 
-Un buen primer encargo:
+A good first request:
 
-> “Lee AGENTS.md y el renderizador de Tidal Rush. Quiero cambiar la paleta a un atardecer violeta. Conserva los porcentajes, no accedas a mis cuentas y genera una previsualización con datos ficticios antes de tocar la placa.”
+> “Read AGENTS.md and the Tidal Rush renderer. I'd like a purple sunset palette. Keep the usage readings intact, don't access my accounts, and generate a preview with fictional data before touching the board.”
 
-Otro, para los más aventureros:
+Feeling adventurous?
 
-> “Quiero adaptar estas escenas a mi pantalla de [modelo y resolución]. Revisa primero cómo se dibuja y cómo se envían las imágenes. Explícame qué se puede reutilizar y qué hay que implementar.”
+> “I'd like to adapt these scenes to my [model and resolution] display. First inspect the rendering and image-transfer code. Explain what can be reused and what needs to be implemented.”
 
-Mapa rápido para orientarte:
+A quick map:
 
-| Quiero cambiar… | Mira aquí |
+| I want to change… | Start here |
 |---|---|
-| Las escenas y su orden | `token_tv/board_pages.py` y `token_tv/board_*.py` |
-| Las luces de la ciudad | `token_tv/board_neon_realistic.py` |
-| Las animaciones de la placa | `token_tv/board_anim.py`, `token_tv/board_wave.py` y `firmware/board/` |
-| Las caras del reloj clásico | [Crear una cara](docs/clock-faces.md) |
-| La galería del README | `scripts/render_gallery.py` |
+| Scenes and their order | `token_tv/board_pages.py` and `token_tv/board_*.py` |
+| City lighting | `token_tv/board_neon_realistic.py` |
+| Board animations | `token_tv/board_anim.py`, `token_tv/board_wave.py` and `firmware/board/` |
+| Classic clock faces | [Make a face](docs/clock-faces.md) |
+| README previews | `scripts/render_gallery.py` and `scripts/render_animations.py` |
 
-## ¿Has creado una pantalla chula?
+## Made something cool?
 
-Enséñala en un [issue](https://github.com/TonyRod116/ai-desk-display/issues). Una escena nueva, una adaptación a otro display o una mejora pequeña también cuentan. Si añades capturas, usa datos ficticios: tus cuentas no necesitan salir de excursión a GitHub.
+Show it off in an [issue](https://github.com/TonyRod116/ai-desk-display/issues). A new scene, support for another display or a small improvement all count. Use fictional readings in your screenshots: your accounts don't need a field trip to GitHub.
 
-Para ejecutar las pruebas locales:
+Run the local tests with:
 
 ```bash
 python -m unittest discover -s tests
 ```
 
-Algunas pruebas de firmware necesitan un compilador C++ y Node para las comprobaciones JavaScript. No ejecutes `scripts/e2e_live.py` como prueba rutinaria: está pensado para un dispositivo real.
+Some firmware tests need a C++ compiler; JavaScript checks need Node. Don't run `scripts/e2e_live.py` as a routine test: it is intended for a real device.
 
-## Créditos y licencia
+## Credits and license
 
-Basado en **[TokenTV, de click6067-ship-it](https://github.com/click6067-ship-it/token-tv)**. Se conserva su aviso de copyright y su licencia MIT. Esta distribución añade escenas, animación nativa y mejoras de integración desarrolladas por Tony con ayuda de IA.
+Based on **[TokenTV, by click6067-ship-it](https://github.com/click6067-ship-it/token-tv)**. The original copyright notice and MIT license are preserved. This distribution adds scenes, native animation and integration improvements developed by Tony with AI assistance.
 
-Código bajo [MIT](LICENSE). Las tipografías conservan sus licencias en `token_tv/web/`. Consulta [ASSETS.md](ASSETS.md) para la procedencia y condiciones de los recursos visuales. No es un producto oficial ni está afiliado a OpenAI, Anthropic, Nintendo o Atari.
+Code is licensed under [MIT](LICENSE). Fonts retain their license files in `token_tv/web/`. See [ASSETS.md](ASSETS.md) for visual-asset provenance and permissions. This is not an official product and is not affiliated with OpenAI, Anthropic, Nintendo or Atari.
 
-Si acaba en tu escritorio, misión cumplida. 🌊
+If it ends up on your desk, mission accomplished. 🌊
