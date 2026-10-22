@@ -19,6 +19,14 @@ A Game Boy. A cyberpunk city. A beach. Claude and Codex in a fighting game.
 
 </div>
 
+## From lottery miner to quota watcher
+
+I had a NerdMiner V2. Then I checked the odds: even giving it a generous **1 million hashes per second**, the illustrative average wait to find a Bitcoin block was about **19 billion years**.[^mining-math]
+
+Turns out my patience wasn't covered by the warranty.
+
+So I gave it a better job: watching my AI limits. At least those reset this week.
+
 ## What's this?
 
 A small desk display that shows how much **Claude and Codex** usage you have left, when your limits reset and, where supported, how many saved resets are available.
@@ -87,7 +95,7 @@ The command is still called `token-tv` for compatibility with the original proje
 
 ## Okay, I want this on my desk
 
-**Got a NerdMiner V2 with the 2.8-inch touchscreen? That's the display used in this project.** Give it a new job: watching your AI quota instead of mining.
+**Got a NerdMiner V2 with the 2.8-inch touchscreen? That's the display used in this project.** Your lottery miner might enjoy a career change, too.
 
 The reference setup uses the **NerdMiner V2 touchscreen variant based on ESP32-2432S028R**, also known as the **Cheap Yellow Display (CYD), 320×240**. Firmware configurations are included for ILI9341 and ST7789 controllers. NerdMiner V2 also runs on other boards, so check the board model and display controller rather than relying on the NerdMiner name alone. Installing this firmware replaces the mining application.
 
@@ -152,3 +160,5 @@ Based on **[TokenTV, by click6067-ship-it](https://github.com/click6067-ship-it/
 Code is licensed under [MIT](LICENSE). Fonts retain their license files in `token_tv/web/`. See [ASSETS.md](ASSETS.md) for visual-asset provenance and permissions. This is not an official product and is not affiliated with OpenAI, Anthropic, Nintendo or Atari.
 
 If it ends up on your desk, mission accomplished. 🌊
+
+[^mining-math]: Back-of-the-envelope estimate checked on 2026-10-23: Bitcoin difficulty **140,577,680,051,919.6**, from [mempool.space's mining API](https://mempool.space/api/v1/mining/hashrate/3d). Expected years ≈ `difficulty × 2^32 ÷ hashes_per_second ÷ 31,557,600` = **19.13 billion** at an assumed **1 MH/s**. That's a generous illustrative rate, not a measurement of this board; modified CYD firmware [reports roughly 990 kH/s](https://github.com/HenrysCat/NerdMiner-Modded). The calculation assumes continuous operation and unchanged difficulty forever. It's a statistical mean, not a countdown, guarantee or prediction: a lucky block could arrive sooner, and future difficulty changes the odds. [Solo mining wins a block reward plus fees](https://developer.bitcoin.org/devguide/mining.html#solo-mining), not exactly 1 BTC. The network figure above is a dated snapshot; the linked API changes over time.
