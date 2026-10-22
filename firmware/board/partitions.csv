@@ -1,0 +1,9 @@
+# Name,   Type, SubType, Offset,   Size,     Flags
+# Two 1 MB application slots (over-the-wifi updates) and ~1.9 MB for eight raw 320x240 pages.
+# NVS stays at 0x9000 so the wifi settings and token survive an update flash.
+nvs,      data, nvs,     0x9000,   0x5000,
+otadata,  data, ota,     0xe000,   0x2000,
+app0,     app,  ota_0,   0x10000,  0x100000,
+app1,     app,  ota_1,   0x110000, 0x100000,
+spiffs,   data, spiffs,  0x210000, 0x1E0000,
+coredump, data, coredump,0x3F0000, 0x10000,

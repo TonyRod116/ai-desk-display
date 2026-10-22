@@ -1,0 +1,28 @@
+{
+  "name": "TokenTV board 7 (ST7789)",
+  "version": "7",
+  "new_install_prompt_erase": false,
+  "builds": [
+    {
+      "chipFamily": "ESP32",
+      "parts": [
+        {
+          "path": "../dist/tokentv-board-cyd_st7789-bootloader.bin",
+          "offset": 4096
+        },
+        {
+          "path": "../dist/tokentv-board-cyd_st7789-partitions.bin",
+          "offset": 32768
+        },
+        {
+          "path": "../dist/boot_app0.bin",
+          "offset": 57344
+        },
+        {
+          "path": "../dist/tokentv-board-cyd_st7789-firmware.bin",
+          "offset": 65536
+        }
+      ]
+    }
+  ]
+}

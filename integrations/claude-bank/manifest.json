@@ -1,0 +1,21 @@
+{
+  "manifest_version": 3,
+  "name": "Reloj local · Claude",
+  "description": "Consulta de solo lectura de los resets guardados de la cuenta autorizada para el reloj local.",
+  "version": "1.0.0",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAx19BL+6ZnQrJcTkyLHfVn/iFvD5fx+Z3rzTilpWDnnAbfRs7JqMxjP0IAXCF4AlrfZaUMmIEgUF+e+EwJ1Q//0EG/de1ux3H2s60PQVsKgB5szE9DA/BzVBa5YIBJyMwhAkn0QKrnqOEvRl3FPaC6SU33999DZ41yrwMYoqVuWUbIniC5X0IPIHIkEiz5bLjFSt49WwkfSZKgwJwvK+mdApONAW/XDhiX8qqVT7Oh77sOg6MA/vSKDyDcMM51RlRKPyVHrv4wcgY//05UUPIXKUzcMTMjECH16YWdus/5jFZWkprB7qHC19bjaOnlLbjxG1sFBplNo49DkR8hnTn2wIDAQAB",
+  "permissions": [
+    "alarms"
+  ],
+  "host_permissions": [
+    "https://claude.ai/*",
+    "http://127.0.0.1/*"
+  ],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'none'; connect-src https://claude.ai http://127.0.0.1:8787"
+  }
+}

@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="es">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>TokenTV · instalar en la placa táctil</title>
+<style>
+  body{font:16px/1.5 system-ui,sans-serif;max-width:720px;margin:32px auto;padding:0 16px;background:#0d1115;color:#d9dde1}
+  h1{font-size:24px} h2{font-size:18px;margin-top:28px}
+  code{background:#172028;padding:2px 6px;border-radius:4px}
+  .card{background:#172028;border:1px solid #303b46;border-radius:10px;padding:16px;margin:14px 0}
+  .warn{border-color:#d1b275}
+  esp-web-install-button button{font:inherit;padding:10px 18px;border-radius:6px;border:0;background:#93c9b9;color:#10151b;cursor:pointer;font-weight:650}
+</style>
+<script type="module" src="vendor/esp-web-tools/install-button.js"></script>
+
+<h1>Instalar o actualizar TokenTV en la placa táctil</h1>
+<p>Esto <strong>sustituye el programa del minero</strong> por el de TokenTV. Es reversible: se puede volver a
+instalar el firmware del NerdMiner cuando quieras. Funciona en Chrome o Edge; <em>no</em> en Firefox ni Safari.
+Esta página y todo lo que instala están en tu ordenador, sin internet.</p>
+
+<div class="card warn">
+  <strong>Antes de empezar</strong>
+  <ul>
+    <li>Apunta la dirección de Bitcoin y la wifi del minero si quieres volver a usarlo.</li>
+    <li>Conecta la placa por USB a <strong>este PC</strong> (no a un hub sin alimentación).</li>
+    <li>Cierra cualquier otro programa que use el puerto serie.</li>
+  </ul>
+</div>
+
+<h2>1. Instalar o actualizar</h2>
+<div class="card">
+  <p><strong>Pantalla normal (ILI9341).</strong> Empieza por aquí. Si ya la tenías instalada, esto la
+  <strong>actualiza y conserva la wifi y el token</strong>: no hay que volver a configurar nada.</p>
+  <esp-web-install-button manifest="manifest-cyd.json">
+    <span slot="unsupported">Este navegador no puede grabar por USB: abre esta página en Chrome o Edge.</span>
+    <span slot="not-allowed">Abre esta página como http://127.0.0.1:8790/flasher/</span>
+  </esp-web-install-button>
+  <p>Elige el puerto de la placa (suele aparecer como <code>CH340</code> o <code>CP210x</code>) y espera a que termine
+  (unos 2 minutos). Si no aparece ningún puerto, mantén pulsado el botón <code>BOOT</code> de la placa mientras la
+  conectas.</p>
+</div>
+<div class="card">
+  <p><strong>Solo si la pantalla se queda en blanco o con colores raros</strong> tras instalar la normal: tu placa es
+  de la revisión con pantalla ST7789. Instala esta otra encima.</p>
+  <esp-web-install-button manifest="manifest-cyd_st7789.json">
+    <span slot="unsupported">Este navegador no puede grabar por USB: abre esta página en Chrome o Edge.</span>
+  </esp-web-install-button>
+</div>
+
+<h2>2. Poner la wifi (con el móvil)</h2>
+<div class="card">
+  <ol>
+    <li>La placa crea una wifi llamada <code>TokenTV-Display</code>. Conéctate desde el móvil.</li>
+    <li>Se abre sola una página: elige tu wifi y escribe su contraseña. (La contraseña va de tu móvil a la placa;
+    este PC nunca la ve.)</li>
+    <li>La pantalla muestra una dirección <code>http://192.168.…</code> y un <strong>token de 16 caracteres</strong>.</li>
+  </ol>
+</div>
+
+<h2>3. Decírselo al PC (solo la dirección)</h2>
+<div class="card">
+  <p>En la terminal de WSL, con la dirección que muestra la pantalla:</p>
+  <p><code>cd ~/code/token-tv &amp;&amp; .venv/bin/token-tv board --url http://192.168.…</code></p>
+  <p>El PC elige el token, se lo pone a la placa y lo recuerda: <strong>no hay que teclear nada más</strong>.
+  Si reinstalas o formateas la placa, el servicio la vuelve a adoptar solo.</p>
+  <p>Si la dirección cambia: <code>.venv/bin/token-tv board --find</code> la busca y la guarda otra vez.</p>
+  <p>Para ver la dirección de nuevo: mantén el dedo 2 segundos sobre la pantalla.
+  Para que la placa olvide su emparejamiento: 8 segundos.</p>
+</div>
+
+<h2>Actualizar sin cable</h2>
+<div class="card">
+  <p>Con el firmware 3 o posterior ya no hace falta este grabador ni el USB. Mantén el dedo 2 segundos en la placa
+  (así muestra su dirección: es la confirmación de que estás delante) y, en la terminal:</p>
+  <p><code>.venv/bin/token-tv board --update</code></p>
+</div>
+
+<h2>Si la imagen sale mal</h2>
+<div class="card">
+  <p>Cuando la placa ya tiene wifi y está guardada en el PC (paso 3) se corrige sin volver a grabar:</p>
+  <ul>
+    <li>Del revés: <code>.venv/bin/token-tv board --rotation 3</code></li>
+    <li>Colores como un negativo: <code>.venv/bin/token-tv board --invert 1</code></li>
+    <li>Rojo y azul cambiados: <code>.venv/bin/token-tv board --swap-rb 1</code></li>
+    <li>Colores revueltos o "ruido": <code>.venv/bin/token-tv board --swap-bytes 1</code></li>
+    <li>En blanco o con basura: instala la segunda variante (ST7789) de arriba.</li>
+  </ul>
+</div>
+
+<h2>Uso</h2>
+<ul>
+  <li><strong>Toque corto:</strong> siguiente variante: Game Boy verde → Game Boy gris → Pixel Retro → Terminal ámbar → Orbit → detalle de Claude con las barras de 5 h.</li>
+  <li><strong>Toque largo (2 s):</strong> muestra la dirección y el token.</li>
+  <li>Si el PC deja de actualizar durante 3 minutos, la placa lo dice con <strong>SIN DATOS</strong> y oculta las cifras.</li>
+</ul>
