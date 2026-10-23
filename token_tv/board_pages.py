@@ -108,7 +108,7 @@ def render_board_pages(snapshot, stars=False, anim=False, waves=False):
     # Every face is drawn at the screen's own width, so nothing is left as black margin.
     from token_tv.board_arcade import render_arcade
     from token_tv.board_dials import render_dials
-    from token_tv.board_neon_realistic import render_neon_realistic as render_forge
+    from token_tv.board_neon_bridge import render_neon_bridge as render_forge
     from token_tv.board_surf import render_surf
     from token_tv.board_paradise import render_paradise
     from token_tv.board_art import free_stars, render_cockpit, render_countdown

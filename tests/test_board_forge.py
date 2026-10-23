@@ -49,7 +49,7 @@ class CodeForgeTests(unittest.TestCase):
                              original.convert('RGB').tobytes())
 
     def test_forge_replaces_orbit_in_the_third_board_slot_only(self):
-        from token_tv.board_neon_realistic import render_neon_realistic as render_forge
+        from token_tv.board_neon_bridge import render_neon_bridge as render_forge
         self.assertEqual(PAGE_NAMES, ('game-boy', 'paradise', 'code-forge', 'surf', 'dials',
                                       'arcade', 'cockpit', 'countdown'))
         self.assertIn('orbit', FACES)  # the clock's separate album is unchanged

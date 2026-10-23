@@ -1,4 +1,4 @@
-"""Fine local architectural lighting inspired by the reference original city palette.
+"""Fine local architectural lighting inspired by Tony's original city palette.
 
 The underlying photograph is unchanged. Small supersampled window banks follow
 facade planes, with sparse uneven occupancy and restrained optical glow. This is
@@ -34,22 +34,63 @@ NEONS = (
     ((8,143,25,143),(70,230,255)), ((302,174,315,177),(255,92,186)),
 )
 
+# Small ambient fixtures, independent of quota; also animated by the existing board engine.
+AMBIENT_ACCENTS = ((58, 32, 2, (255, 216, 150)),
+                   (276, 66, 6, (242, 127, 218)))
 
-def enrich_city(source):
+
+def inhabit_city(source):
+    """Leave a few bright occupied rooms, clustered along the same facade planes."""
+    scale = 4
+    layer = Image.new('RGB', (source.width * scale, source.height * scale))
+    draw = ImageDraw.Draw(layer)
+    rng = random.Random(81173)
+    palette = ((255, 220, 151), (255, 211, 128), (255, 225, 175),
+               (140, 245, 255), (255, 150, 218))
+    for x, y, w, h, slope, sx, sy in PANES[:11]:
+        rows, cols = int(h / sy), int(w / sx)
+        groups = max(1, round(rows * cols * .10 / 2))
+        for group in range(groups):
+            row = min(rows - 1, int((group + rng.random()) * rows / groups))
+            col = rng.randrange(max(1, cols - 1))
+            color = palette[0] if group == 0 else rng.choice(palette)
+            for offset in range(2 if rng.random() < .8 else 1):
+                px = x + (col + offset) * sx + .8
+                py = y + row * sy + (col + offset) * sx * slope
+                draw.rectangle((round(px * scale), round(py * scale),
+                                round((px + 1.6) * scale), round((py + 1.25) * scale)),
+                               fill=color)
+    for x, y, width, color in AMBIENT_ACCENTS:
+        draw.rectangle((x * scale, y * scale, (x + width) * scale - 1, (y + 2) * scale - 1),
+                       fill=color)
+    detail = layer.resize(source.size, Image.Resampling.LANCZOS)
+    # A local pool of light reveals the sill/wall without washing the whole facade.
+    glow = detail.filter(ImageFilter.GaussianBlur(.85)).point(lambda v: round(v * .7))
+    return ImageChops.screen(ImageChops.screen(source, detail), glow)
+
+
+def enrich_city(source, powered=False):
     scale = 4
     layer = Image.new('RGB', (source.width * scale, source.height * scale))
     draw = ImageDraw.Draw(layer)
     rng = random.Random(6067)
-    for x,y,w,h,slope,sx,sy in PANES:
+    # Carry the window banks to the foot of each tower so small balances remain visible.
+    panes = PANES + ((54,217,29,10,-.1,3.1,3.6), (261,214,31,11,.02,3.1,3.5)) if powered else PANES
+    for index,(x,y,w,h,slope,sx,sy) in enumerate(panes):
+        strong = powered and (index < 11 or index >= len(PANES))
         for row in range(int(h/sy)):
             for col in range(int(w/sx)):
-                if rng.random() > .82:
+                if rng.random() > (.94 if strong else .82):
                     continue
                 px,py = x + col*sx + .8, y + row*sy + col*sx*slope
                 color = COLORS[rng.randrange(len(COLORS))]
-                strength = rng.uniform(.65,1.0)
+                if strong:
+                    color = tuple(round(c + (255-c)*.18) for c in color)
+                strength = rng.uniform(.9 if strong else .65,1.0)
                 color = tuple(round(c*strength) for c in color)
                 ww,hh = rng.uniform(.65,1.35),rng.uniform(.6,.95)
+                if strong:
+                    ww,hh = ww + .85,hh + .6
                 draw.rectangle((round(px*scale),round(py*scale),round((px+ww)*scale),round((py+hh)*scale)),fill=color)
     for (x0,y0,x1,y1),color in NEONS:
         # Small breaks and unequal intensities keep signs from becoming HUD bars.
@@ -59,7 +100,8 @@ def enrich_city(source):
             t0,t1=segment/7,(segment+.72)/7
             xy=(round((x0+(x1-x0)*t0)*scale),round((y0+(y1-y0)*t0)*scale),
                 round((x0+(x1-x0)*t1)*scale),round((y0+(y1-y0)*t1)*scale))
-            draw.line(xy,fill=color,width=3)
+            draw.line(xy,fill=color,width=6 if powered else 3)
     detail=layer.resize(source.size,Image.Resampling.LANCZOS)
-    glow=detail.filter(ImageFilter.GaussianBlur(.75)).point(lambda v:round(v*.48))
+    glow=detail.filter(ImageFilter.GaussianBlur(1 if powered else .75)).point(
+        lambda v:round(v*(.85 if powered else .48)))
     return ImageChops.screen(ImageChops.screen(source,detail),glow)

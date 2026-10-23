@@ -88,10 +88,11 @@ class AnimationEngineTests(unittest.TestCase):
         self.assertEqual(result.stderr.strip(), '', result.stderr[-1500:])      # no sanitizer report
         return out
 
-    def expected(self, step, background=None, spec=None):
+    def expected(self, step, background=None, spec=None, elapsed_ms=None):
         words = list(self.background if background is None else background)
         for sprite in (self.spec if spec is None else spec)['sprites']:
-            frame, dx, dy = sprite['script'][step % len(sprite['script'])]
+            tick = step if elapsed_ms is None else elapsed_ms // sprite['step_ms']
+            frame, dx, dy = sprite['script'][tick % len(sprite['script'])]
             data = sprite['frames'][frame]
             for sy in range(sprite['h']):
                 for sx in range(sprite['w']):
@@ -106,7 +107,7 @@ class AnimationEngineTests(unittest.TestCase):
         return words
 
     def test_smooth_city_air_traffic_preserves_background_and_quota_pixels(self):
-        from token_tv.board_neon_realistic import render_neon_realistic as render_neon_smooth
+        from token_tv.board_neon_bridge import render_neon_bridge as render_neon_smooth
         for missing in (False, True):
             with patch('time.time', return_value=NOW):
                 data=snapshot()
@@ -116,10 +117,11 @@ class AnimationEngineTests(unittest.TestCase):
                 image,payload=render_neon_smooth(data,animated=True)
             spec=board_anim.decode(payload)
             background=list(struct.unpack('<76800H',rgb565_frame(image)[8:]))
-            out=self.run_engine(payload,8960,image=image,capture_ms=140)
-            for step in range(64):
+            # Two full cycles of the slow neon, including independent window/traffic clocks.
+            out=self.run_engine(payload,44800,image=image,capture_ms=140)
+            for step in range(320):
                 self.assertEqual((out/f'screen_{step}.bin').read_bytes(),
-                    struct.pack('<76800H',*self.expected(step,background,spec)))
+                    struct.pack('<76800H',*self.expected(step,background,spec,elapsed_ms=step*140)))
 
     def test_every_pose_is_exactly_the_background_plus_that_pose_and_nothing_is_left_behind(self):
         out = self.run_engine(self.payload(True), 3100)                           # a whole cycle of 12 steps

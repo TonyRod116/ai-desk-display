@@ -1,9 +1,11 @@
 """Weekly facade ownership, honest data states, and continuous occluded traffic."""
 import copy
+import struct
 import unittest
 from unittest.mock import patch
 from PIL import ImageChops
-from test_board_forge import sample, NOW
+from test_board_forge import compose, sample, NOW
+from token_tv.board_pages import rgb565_frame
 from token_tv.board_neon_realistic import render_neon_realistic, backdrop
 from token_tv import board_anim
 
@@ -12,6 +14,47 @@ class RealisticCityTests(unittest.TestCase):
     def render(self, data):
         with patch('time.time', return_value=NOW):
             return render_neon_realistic(data)
+
+    def test_consumed_towers_keep_sparse_bright_rooms_at_every_height(self):
+        from token_tv.board_neon_realistic import illuminate, facade_pixels
+        full = backdrop()
+        for provider in ('codex', 'claude'):
+            empty = full.copy()
+            illuminate(empty, provider, 0)
+            points = facade_pixels(provider)
+            bright = [p for p in points if max(empty.getpixel(p)) >= 190]
+            full_bright = [p for p in points if max(full.getpixel(p)) >= 190]
+            self.assertGreater(len(bright), 12, 'The exhausted tower still looks abandoned')
+            self.assertLess(len(bright), len(full_bright) * .22,
+                            'Ambient rooms must not hide the weekly depletion')
+            for top, bottom in ((17, 80), (80, 150), (150, 218)):
+                self.assertGreaterEqual(sum(top <= y < bottom for x, y in bright), 3)
+            warm = [p for p in bright if empty.getpixel(p)[0] > 190
+                    and empty.getpixel(p)[1] > 120
+                    and empty.getpixel(p)[2] < empty.getpixel(p)[0] * .8]
+            self.assertGreater(len(warm), 6, 'Warm occupied rooms must survive at zero quota')
+
+    def test_ambient_motion_is_small_slow_and_independent_of_quota(self):
+        from token_tv.board_neon_realistic import facade_pixels
+        payloads = []
+        for used in (0, 100):
+            with patch('time.time', return_value=NOW):
+                background, payload = render_neon_realistic(sample(used=used), animated=True)
+                still = render_neon_realistic(sample(used=used))
+            spec = board_anim.decode(payload)
+            self.assertEqual(struct.pack('<76800H', *compose(background, spec, 0)), rgb565_frame(still)[8:])
+            lights = [s for s in spec['sprites'] if all(dx == dy == 0 for _, dx, dy in s['script'])]
+            self.assertEqual(len(lights), 2)
+            for provider, light in zip(('codex', 'claude'), lights):
+                self.assertLessEqual(light['w'] * light['h'] * 4, 12)
+                self.assertGreaterEqual(light['step_ms'] * len(light['script']), 8000)
+                self.assertGreater(len({tuple(f) for f in light['frames']}), 1)
+                facade = set(facade_pixels(provider))
+                self.assertTrue(all((x, y) in facade
+                    for x in range(light['x'], light['x'] + light['w'] * 2)
+                    for y in range(light['y'], light['y'] + light['h'] * 2)))
+            payloads.append(payload)
+        self.assertEqual(payloads[0], payloads[1])
 
     def test_week_changes_only_the_owning_facade(self):
         full = sample(used=0)
@@ -43,7 +86,9 @@ class RealisticCityTests(unittest.TestCase):
         with patch('time.time', return_value=NOW):
             _, payload = render_neon_realistic(sample(), animated=True)
         specs = board_anim.decode(payload)['sprites']
-        for s in specs:
+        cars = [s for s in specs if any(dx for _, dx, _ in s['script'])]
+        self.assertEqual(len(cars), 2)
+        for s in cars:
             for frame, dx, dy in s['script']:
                 x = s['x'] + dx
                 if 148 <= x <= 220:
@@ -74,7 +119,7 @@ class RealisticCityTests(unittest.TestCase):
             _, payload = render_neon_realistic(sample(), animated=True)
         specs = board_anim.decode(payload)['sprites']
         boxes = []
-        for sprite in specs:
+        for sprite in (s for s in specs if any(dx for _, dx, _ in s['script'])):
             boxes.append((sprite['y'], sprite['y'] + 2 * sprite['h']))
             visible_positions = []
             for frame, dx, dy in sprite['script']:
@@ -101,10 +146,11 @@ class RealisticCityTests(unittest.TestCase):
             facade = facade_pixels(provider)
             changed = [(x,y) for x,y in facade if original.getpixel((x,y)) != empty.getpixel((x,y))]
             self.assertGreater(len(changed), 30)
-            # Unlit construction must remain exactly the original photo, not greyed out.
-            for x,y in facade:
-                if max(photograph().getpixel((x,y))) <= 40:
-                    self.assertEqual(photograph().getpixel((x,y)), empty.getpixel((x,y)))
+            # Most dark material is unchanged; local window spill may brighten its surroundings.
+            material = [p for p in facade if max(photograph().getpixel(p)) <= 40]
+            retained = sum(max(abs(a-b) for a,b in zip(photograph().getpixel(p), empty.getpixel(p))) <= 8
+                           for p in material)
+            self.assertGreater(retained / len(material), .85)
             # The foreground buildings must never act as either weekly gauge.
             self.assertIsNone(ImageChops.difference(original.crop((0,150,46,240)),
                                                     empty.crop((0,150,46,240))).getbbox())
@@ -137,18 +183,32 @@ class RealisticCityTests(unittest.TestCase):
             self.assertGreater(sum(enriched.crop(box).convert('L').tobytes()),
                                sum(original.crop(box).convert('L').tobytes()))
 
-    def test_57_and_4_leave_no_live_lamps_above_weekly_height(self):
-        from token_tv.board_neon_realistic import illuminate, facade_pixels, TOWER_HEIGHTS, unlit_photograph
+    def test_57_and_4_leave_only_residential_lights_above_weekly_height(self):
+        from token_tv.board_neon_realistic import illuminate, facade_pixels, TOWER_HEIGHTS, inhabited_backdrop
         for provider,remaining in [('codex',57),('claude',4)]:
             image=backdrop().copy()
             illuminate(image,provider,remaining)
             top,bottom=TOWER_HEIGHTS[provider]
             boundary=bottom-(bottom-top)*remaining/100
             upper=[p for p in facade_pixels(provider) if p[1]<boundary-3]
-            self.assertTrue(all(image.getpixel(p)==unlit_photograph().getpixel(p) for p in upper),
-                            'Generated windows/glow escaped the ambient restoration layer')
+            self.assertTrue(all(image.getpixel(p)==inhabited_backdrop().getpixel(p) for p in upper),
+                            'Dense quota lights escaped the residential restoration layer')
             lower=[p for p in facade_pixels(provider) if p[1]>boundary+3]
             self.assertTrue(any(max(image.getpixel(p))>100 for p in lower))
+
+    def test_last_available_storeys_still_have_a_visible_bank_of_bright_windows(self):
+        from token_tv.board_neon_realistic import illuminate, facade_pixels, TOWER_HEIGHTS
+        for provider in ('codex', 'claude'):
+            for remaining in (4, 5):
+                with self.subTest(provider=provider, remaining=remaining):
+                    image = backdrop().copy()
+                    illuminate(image, provider, remaining)
+                    top, bottom = TOWER_HEIGHTS[provider]
+                    boundary = bottom - (bottom - top) * remaining / 100
+                    available = [p for p in facade_pixels(provider) if p[1] >= boundary + 1]
+                    bright = sum(max(image.getpixel(p)) >= 190 for p in available)
+                    self.assertGreaterEqual(bright, 16,
+                        'The last available storeys must not disappear into ambient lighting')
 
     def test_unlit_plate_preserves_ambient_material_instead_of_black_clamping(self):
         from token_tv.board_neon_realistic import photograph,unlit_photograph,facade_pixels

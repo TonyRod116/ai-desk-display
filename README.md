@@ -31,7 +31,7 @@ So I gave it a better job: watching my AI limits. At least those reset this week
 
 A small desk display that shows how much **Claude and Codex** usage you have left, when your limits reset and, where supported, how many saved resets are available.
 
-The fun is in how it tells you: city windows go dark as you spend your quota, fighting-game health bars drop all the way to a KO, and waves roll onto a beach while you try not to check how many tokens you've burned. We can't promise it'll make you use less AI. We're doing our best to make it look good, though.
+The fun is in how it tells you: neon bridge lights retreat as you spend your quota, fighting-game health bars drop all the way to a KO, and waves roll onto a beach while you try not to check how many tokens you've burned. We can't promise it'll make you use less AI. We're doing our best to make it look good, though.
 
 It started as a customization of **[TokenTV, by click6067-ship-it](https://github.com/click6067-ship-it/token-tv)** and grew into a collection of animated scenes for the **2.8-inch NerdMiner V2 touchscreen** (ESP32-2432S028R). This repo includes the host application, firmware and tools to keep tinkering.
 
@@ -40,13 +40,15 @@ It started as a customization of **[TokenTV, by click6067-ship-it](https://githu
 | | |
 |:---:|:---:|
 | **Game Boy** · green LCD, pixels and nostalgia.<br>![Game Boy — simulated quota updates](docs/images/game-boy.gif) | **Paradise** · a tiny tropical break between prompts.<br>![Paradise — moving ocean](docs/images/paradise.gif) |
-| **Neon City** · city lights that reflect your weekly quota.<br>![Neon City — flying traffic](docs/images/code-forge.gif) | **Tidal Rush** · retro surfing, a barrel wave and vacation cravings.<br>![Tidal Rush — surfing animation](docs/images/surf.gif) |
+| **Neon City** · flying cars, neon bridges and a suspiciously useful skyline.<br>![Neon City — animated traffic and bridge quota lights](docs/images/code-forge.gif) | **Tidal Rush** · retro surfing, a barrel wave and vacation cravings.<br>![Tidal Rush — surfing animation](docs/images/surf.gif) |
 | **Token Run** · an arcade road trip for your desk.<br>![Token Run — driving scene](docs/images/dials.gif) | **Versus** · Claude vs. Codex. Run out of quota, get knocked out.<br>![Versus — fighters and moving city](docs/images/arcade.gif) |
 | **Cockpit** · your own little space command center.<br>![Cockpit — twinkling stars](docs/images/cockpit.gif) | **Quota City** · an isometric skyline that shows what's left.<br>![Quota City — city animation](docs/images/countdown.gif) |
 
 These looping GIFs use **fictional readings**. Moving scenes are captured from the firmware simulator; Cockpit reproduces the firmware's star effect. The Game Boy screen is normally static: its GIF demonstrates **accelerated sample quota updates**, not a constantly moving LCD. GIFs have a limited color palette; the display receives RGB565 frames.
 
 On compatible hardware, animations run **on the board**. Your computer doesn't have to upload a new picture for every frame. Prefer still images? [Open the PNG gallery](docs/images/gallery.png).
+
+Neon City's bridge is doing the accounting: **amber lights on the left for Codex, cyan on the right for Claude**. As weekly quota runs down, each strip retreats toward its outer end. Tiny signs show the exact percentages; Claude also gets two small five-hour bars. The buildings get to stay pretty. [See how it works, or grab the full-resolution artwork](docs/board-neon-city.md).
 
 ### One tap, another world
 
@@ -136,7 +138,7 @@ A quick map:
 | I want to change… | Start here |
 |---|---|
 | Scenes and their order | `token_tv/board_pages.py` and `token_tv/board_*.py` |
-| City lighting | `token_tv/board_neon_realistic.py` |
+| Neon City artwork and bridge lights | `token_tv/board_neon_bridge.py` and [the scene guide](docs/board-neon-city.md) |
 | Board animations | `token_tv/board_anim.py`, `token_tv/board_wave.py` and `firmware/board/` |
 | Classic clock faces | [Make a face](docs/clock-faces.md) |
 | README previews | `scripts/render_gallery.py` and `scripts/render_animations.py` |

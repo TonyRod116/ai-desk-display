@@ -9,7 +9,7 @@ from token_tv import board_anim
 from token_tv.board_art import _row
 from token_tv.personal_faces import remaining_reading, session_pace
 from token_tv.themes import face
-from token_tv.board_neon_lighting import enrich_city
+from token_tv.board_neon_lighting import AMBIENT_ACCENTS, enrich_city, inhabit_city
 
 # Hand-traced architectural silhouettes, never the sky/street or the other account.
 FACADES = {
@@ -37,7 +37,14 @@ def photograph():
 
 @lru_cache(maxsize=1)
 def backdrop():
-    return enrich_city(photograph())
+    image = enrich_city(photograph())
+    powered = enrich_city(photograph(), powered=True).load()
+    pixels = image.load()
+    # Stronger quota light belongs only to the two towers, never the surrounding city.
+    for provider in ('codex', 'claude'):
+        for point in facade_pixels(provider):
+            pixels[point] = powered[point]
+    return inhabit_city(image)
 
 
 @lru_cache(maxsize=2)
@@ -88,17 +95,22 @@ def unlit_photograph():
     return image
 
 
+@lru_cache(maxsize=1)
+def inhabited_backdrop():
+    return inhabit_city(unlit_photograph())
+
+
 def illuminate(image, provider, remaining):
     """Remove upper light circuits with a soft six-pixel height transition.
 
-    Restoring the ambient photo also removes all added windows and their glow.
+    Only the dense quota lighting goes out; sparse residential lights stay on.
     Material stays visible; missing data leaves the scenery untouched.
     """
     if remaining is None or remaining >= 100:
         return
     top, bottom = TOWER_HEIGHTS[provider]
     boundary = bottom - (bottom - top) * max(0, remaining) / 100
-    dark = unlit_photograph().load()
+    dark = inhabited_backdrop().load()
     pixels = image.load()
     for x, y in facade_pixels(provider):
         weight = 1 if remaining <= 0 else max(0, min(1, (boundary + 3 - y) / 6))
@@ -181,6 +193,21 @@ def city_motion():
             _lane(88, 4, far, 140, 264, reverse=True))
 
 
+@lru_cache(maxsize=1)
+def ambient_motion():
+    lights = []
+    for index, (x, y, width, color) in enumerate(AMBIENT_ACCENTS):
+        levels = (.8, .9, 1, .9) if index == 0 else (.9, .72, 1, .5)
+        frames = tuple(Image.new('RGBA', (width // 2, 1),
+                                tuple(round(c * level) for c in color) + (255,))
+                       for level in levels)
+        phases = [i // 8 for i in range(32)] if index == 0 else [0] * 27 + [1, 0, 3, 2, 0]
+        lights.append({'x': x, 'y': y, 'frames': frames,
+                       'script': [(phase, 0, 0) for phase in phases],
+                       'step_ms': 280 if index == 0 else 700})
+    return tuple(lights)
+
+
 def render_neon_realistic(snapshot, animated=False):
     image = backdrop().copy()
     for provider in ('codex', 'claude'):
@@ -191,6 +218,9 @@ def render_neon_realistic(snapshot, animated=False):
         illuminate(image, provider, value)
         pace = session_pace(row) if provider == 'claude' and not old else None
         sign(image, provider, value, pace)
+    for light in ambient_motion():
+        first = light['frames'][0].resize((light['frames'][0].width * 2, 2), Image.Resampling.NEAREST)
+        image.paste(first, (light['x'], light['y']), first)
     if animated:
-        return image, board_anim.encode(city_motion())
+        return image, board_anim.encode(city_motion() + ambient_motion())
     return image
