@@ -1,15 +1,8 @@
-"""TOKEN RUN scenery: an original, Out Run-style daytime coast road on a 160x120 console grid.
+"""Original coastal arcade scenery, drawn locally on a 160x120 console grid.
 
-The look of the 1986 arcade game, redrawn from scratch (nothing here is a copy of its art): a blue sky with
-puffy clouds, pale mountains, a sea strip, sand on the left and grass on the right, a road in perspective
-whose bands alternate, red and white kerbs, a dashed centre line, palms that rush past and a red convertible
-seen from behind with two people in it.
-
-`scene(phase)` returns the whole 160x120 picture for one of four phases. The road, the kerbs, the palms
-and the car are the only things that change between phases; the loop closes because every moving thing
-repeats with the same period as the road bands, so nothing jumps when the four stored poses start again.
-The caller animates the `WINDOW` rectangle only (the whole road below the far distance). Nothing here depends
-on the clock, an account or randomness that changes between calls.
+Sea, beach and a three-lane bend share one horizon. Four stored road poses carry
+the advancing scenery; separate small sprites move cloud, water and gull. No game
+assets, live account data, wall-clock animation or new firmware are needed.
 """
 from functools import lru_cache
 import math
@@ -23,18 +16,18 @@ W, H = 160, 120
 HORIZON = 52
 CENTRE = 80
 WINDOW = (46, 53, 115, 120)          # x0, y0, x1, y1 (exclusive): the part that is animated, 34 px each side of the centre
-STEP_MS = 160
+STEP_MS = 120
 PHASES = 4
 DIALS = ((29, 92), (131, 92))        # the two usage dials set into the bottom corners (see board_dials.py)
 DIAL_RADIUS = 28.0
 
-SKY = [(-2, '#2b66cf'), (9, '#3b7de0'), (18, '#5593ea'), (27, '#78b1f1'), (35, '#9fcdf7'), (42, '#c6e6fc'), (47, '#e2f3ff')]
-HAZE = '#e2f3ff'
-RED, WHITE = '#d9392b', '#f6f4ee'
-ASPHALT = ('#565566', '#6c6b7c')      # dark band, light band
+SKY = [(-2, '#075bd1'), (16, '#087de8'), (29, '#159cf0'), (41, '#53c3f4'), (50, '#a3e4f5')]
+HAZE = '#bedfe3'
+RED, WHITE = '#ef3939', '#fff3d8'
+ASPHALT = ('#555d6d', '#687184')
 
 
-# The slow things of the sky. They are NOT in the picture the board stores: each is a small transparent sprite that
+# The slow cloud, water glints and gull are NOT in the picture the board stores: each is a transparent sprite that
 # the board moves a little (all at STEP_MS), so the sky is quietly alive. Their restoration boxes are disjoint, stay
 # clear of the scoreboard (canvas rows 0-16) and of the road window, and every script starts at offset (0, 0).
 def _gull_frames():
@@ -56,7 +49,7 @@ def _gull_frames():
 
 @lru_cache(maxsize=1)
 def ambient():
-    """Sprites for the sky: dicts with x, y (final px), frames (RGBA, canvas pixels, unfiltered) and script."""
+    """Ambient sprites: x/y in screen pixels, unfiltered RGBA frames and scripts."""
     out = []
     layer = Image.new('RGBA', (W, H), (0, 0, 0, 0))
     _cumulus(layer, 92, 29, 32, 13)
@@ -64,13 +57,19 @@ def ambient():
     cloud = layer.crop(box)
     out.append({'name': 'cloud', 'x': box[0] * 2, 'y': box[1] * 2, 'frames': [cloud],
                 'script': [(0, 2 * round(4 * math.sin(2 * math.pi * k / 32)), 0) for k in range(32)]})
-    layer = Image.new('RGBA', (W, H), (0, 0, 0, 0))
-    _balloon(ImageDraw.Draw(layer), 40, 26)
-    box = layer.getbbox()
-    out.append({'name': 'balloon', 'x': box[0] * 2, 'y': box[1] * 2, 'frames': [layer.crop(box)],
-                'script': [(0, 2 * round(2 * math.sin(2 * math.pi * k / 16)), -4 * (1 if 4 <= k < 12 else 0))
+    waves = []
+    for phase in range(PHASES):
+        wave = Image.new('RGBA', (22, 4), (0, 0, 0, 0))
+        wd = ImageDraw.Draw(wave)
+        for x, y, length in ((1, 0, 5), (13, 0, 3), (6, 2, 5), (16, 3, 4)):
+            offset = (phase + y) % 3
+            wd.line((x + offset, y, min(21, x + length + offset), y),
+                    fill='#baf9ee' if phase % 2 == y % 2 else '#65e2dd')
+        waves.append(wave)
+    out.append({'name': 'water', 'x': 21 * 2, 'y': 58 * 2, 'frames': waves,
+                'script': [(k // 4 % PHASES, 2 * round(2 * math.sin(2 * math.pi * k / 16)), 0)
                            for k in range(16)]})
-    out.append({'name': 'gull', 'x': 134 * 2, 'y': 28 * 2, 'frames': _gull_frames(),
+    out.append({'name': 'gull', 'x': 44 * 2, 'y': 23 * 2, 'frames': _gull_frames(),
                 'script': [((0, 1, 2, 1)[k % 4], 2 * round(6 * math.sin(2 * math.pi * k / 32)),
                             4 * round(.5 * (1 - math.cos(2 * math.pi * k / 32)))) for k in range(32)]})
     return out
@@ -105,6 +104,15 @@ def _half(t):
     return 1.6 + t * 0.42
 
 
+def _centre(t):
+    """A gentle right-hand bend in the distance, straight under the car."""
+    return CENTRE + 12 * max(0, 1 - t / (H - HORIZON - 1)) ** 2
+
+
+def _shore(t):
+    return _centre(t) - _half(t) - 9 - t * .35
+
+
 def _cumulus(im, cx, cy, width, height):
     """A puffy white cloud: round tops, a flat bottom and a blue-grey underside (flat tones, no gradient)."""
     d = ImageDraw.Draw(im)
@@ -127,77 +135,17 @@ def _cumulus(im, cx, cy, width, height):
         for x in range(im.width):
             if not px[x, y]:
                 continue
+            light = max(((py - y) / r + .22 * (puff_x - x) / r
+                         for puff_x, py, r in puffs if (x - puff_x) ** 2 + (y - py) ** 2 <= r * r), default=-1)
             if y > cy + 1:
-                out[x, y] = (154, 190, 232)           # the flat shaded bottom
-            elif y > cy - 2:
-                out[x, y] = (206, 226, 248)           # the soft underside edge
+                out[x, y] = (145, 187, 218)
+            elif light < -.50:
+                out[x, y] = (194, 216, 230)
+            elif light < -.16:
+                out[x, y] = (229, 237, 239)
             else:
-                out[x, y] = (255, 255, 255)
+                out[x, y] = (255, 253, 240)
     d.line((cx - width // 2 + 2, cy + 3, cx + width // 2 - 3, cy + 3), fill='#8fb2e0')
-
-
-def _ridge(d, base, seed, amplitude, colour, edge, step=5):
-    """A mountain range as a jagged silhouette, with a lighter ridge line along its crest."""
-    rnd = random.Random(seed)
-    heights = [rnd.uniform(.25, 1) for _ in range(W // step + 3)]
-    prev = None
-    tops = []
-    for x in range(W):
-        i, f = divmod(x, step)
-        h = heights[i] + (heights[i + 1] - heights[i]) * f / step
-        top = base - round(amplitude * (.35 + .65 * h))
-        d.line((x, top, x, base), fill=colour)
-        d.point((x, top), fill=edge)
-        if prev is not None and abs(top - prev) > 1:
-            d.line((x, min(top, prev), x, max(top, prev)), fill=edge)
-        prev = top
-        tops.append(top)
-    return tops
-
-
-def _snow(d, tops, depth=4):
-    """White caps on the highest peaks of a range, with a pale blue shaded side."""
-    limit = min(tops) + depth
-    for x, top in enumerate(tops):
-        if top >= limit:
-            continue
-        for k, y in enumerate(range(top, min(limit, top + 4))):
-            d.point((x, y), fill='#ffffff' if k < 2 else '#cfe0f6')
-        if x + 1 < len(tops) and tops[x + 1] < top:                       # the lee side of a peak is in shade
-            d.point((x, top + 1), fill='#cfe0f6')
-
-
-def _balloon(d, cx, cy):
-    """A hot-air balloon with striped panels, a lit left side, ropes and a basket."""
-    stripes = ('#d9392b', '#f6f4ee', '#2f6fd0', '#f6f4ee')
-    for y in range(cy - 6, cy + 6):
-        reach = round(5 * math.sqrt(max(0.0, 1 - ((y - cy + .5) / 6.2) ** 2)) + (0 if y < cy + 3 else -(y - cy - 2) * .6))
-        for x in range(cx - reach, cx + reach + 1):
-            colour = stripes[((x - cx + 5) // 2) % 4]
-            if x - cx > 2:
-                colour = _mix(colour, '#1b2a5c', .28)
-            elif x - cx < -2 and y < cy:
-                colour = _mix(colour, '#ffffff', .25)
-            d.point((x, y), fill=colour)
-    d.line((cx - 2, cy + 6, cx - 1, cy + 8), fill='#4a3320')
-    d.line((cx + 2, cy + 6, cx + 1, cy + 8), fill='#4a3320')
-    d.rectangle((cx - 1, cy + 8, cx + 1, cy + 9), fill='#9a6a38')
-
-
-def _plane(d, x, y):
-    """A little propeller plane flying left and towing a striped banner."""
-    d.line((x, y, x + 7, y), fill='#d9392b')                       # fuselage
-    d.line((x + 1, y + 1, x + 6, y + 1), fill='#f6f4ee')
-    d.rectangle((x + 7, y - 2, x + 8, y), fill='#d9392b')           # tail fin
-    d.line((x + 2, y - 2, x + 5, y - 2), fill='#2f6fd0')            # upper wing
-    d.line((x + 2, y + 2, x + 5, y + 2), fill='#2f6fd0')            # lower wing
-    d.line((x + 3, y - 1, x + 3, y + 1), fill='#8a8aa0')            # strut
-    d.line((x - 1, y - 1, x - 1, y + 1), fill='#bfc7d8')            # the propeller disc
-    d.line((x + 8, y + 1, x + 11, y + 1), fill='#8a8aa0')           # the tow line
-    for k in range(18):                                             # banner: alternating red and cream blocks
-        d.rectangle((x + 12 + k, y - 1, x + 12 + k, y + 3), fill='#d9392b' if (k // 3) % 2 == 0 else '#f6f4ee')
-    d.line((x + 12, y - 1, x + 29, y - 1), fill='#8f2a22')
-    d.line((x + 12, y + 3, x + 29, y + 3), fill='#a8a49a')
 
 
 def _boat(d, x, y, size):
@@ -208,21 +156,6 @@ def _boat(d, x, y, size):
     d.polygon([(x + 1, y - 2 * size), (x + 1, y - 1), (x + size + 1, y - 1)], fill='#ffffff')
     d.polygon([(x - 1, y - 2 * size + 1), (x - 1, y - 1), (x - size, y - 1)], fill='#d6e2f2')
     d.point((x, y - 2 * size - 1), fill='#d9392b')
-
-
-def _lighthouse(d, cx, base):
-    """A small rocky islet with a striped lighthouse and a lamp."""
-    d.ellipse((cx - 9, base - 3, cx + 9, base + 1), fill='#6c7a72')
-    d.ellipse((cx - 8, base - 4, cx + 8, base - 1), fill='#4f8a4f')
-    d.line((cx - 7, base - 3, cx - 2, base - 4), fill='#79b36c')
-    for y in range(base - 11, base - 3):
-        width = 1 if y < base - 9 else 2
-        d.line((cx - width + 1, y, cx + width - 1 + (1 if width == 2 else 0), y),
-               fill='#d9392b' if (y - base) % 4 in (0, 1) else '#f6f4ee')
-    d.rectangle((cx - 1, base - 13, cx + 1, base - 12), fill='#2b2b3a')
-    d.point((cx, base - 13), fill='#ffe98a')
-    d.point((cx - 2, base - 13), fill='#fff6c8')
-    d.point((cx + 2, base - 13), fill='#fff6c8')
 
 
 def _tree(d, x, base, r):
@@ -244,64 +177,81 @@ def _streak(d, x, y, width):
     d.line((x + width // 3, y - 1, x + width - 6, y - 1), fill='#e4f2fe')
 
 
-SEA_HORIZON = 40
-
-
 @lru_cache(maxsize=1)
 def _backdrop():
-    """Everything that never moves: sky, clouds, mountains, sea, the two roadsides and their texture."""
+    """A level sea meets the road, with a beach reaching toward the viewer.
+
+    Large peripheral palms belong to the distant resort. Near roadside palms
+    live in the animated window; the two must not leave frozen sprite pieces.
+    """
     im = Image.new('RGB', (W, H), HAZE)
     d = ImageDraw.Draw(im)
-    _bands(d, SKY, 0, HORIZON, 0.9, seed=4)
-    _streak(d, 4, 20, 26)
-    _streak(d, 118, 18, 30)
-    _streak(d, 66, 33, 22)
-    for cx, cy, w, h in ((22, 38, 26, 10), (146, 40, 22, 8), (60, 43, 16, 6), (126, 24, 18, 7)):
+    _bands(d, SKY, 0, HORIZON, 0.0, seed=4)
+    for cx, cy, w, h in ((13, 34, 34, 18), (52, 44, 62, 12), (124, 40, 24, 9)):
         _cumulus(im, cx, cy, w, h)
-    far = _ridge(d, HORIZON, 2, 20, '#86a9d6', '#a9c6ea', 6)         # far range, hazy, with snow
-    _snow(d, far)
-    _ridge(d, HORIZON, 5, 11, '#5f89c4', '#86abdb', 4)               # near range
-    # The bay on the left: a high horizon, three tones of water, glints, boats and an islet with a lighthouse.
-    bay = [(0, SEA_HORIZON), (56, SEA_HORIZON), (66, 46), (76, HORIZON), (0, HORIZON)]
-    d.polygon(bay, fill='#2a9fc0')
-    d.polygon([(0, 44), (60, 44), (68, 47), (76, HORIZON), (0, HORIZON)], fill='#27b3c9')
-    d.polygon([(0, 48), (68, 48), (76, HORIZON), (0, HORIZON)], fill='#44d1d8')
-    d.line((0, SEA_HORIZON, 56, SEA_HORIZON), fill='#8fe4ee')
-    rnd = random.Random(11)
-    for _ in range(40):
-        x, y = rnd.randint(0, 66), rnd.randint(SEA_HORIZON + 1, HORIZON - 1)
-        if (x, y) in {(a, b) for a, b in ()} or x > 56 + (y - SEA_HORIZON) * 1.4:
-            continue
-        d.line((x, y, x + rnd.randint(1, 4), y), fill='#c4f6fb')
-    _lighthouse(d, 30, SEA_HORIZON + 1)
-    _boat(d, 12, 47, 3)
-    _boat(d, 46, 44, 2)
-    _boat(d, 52, 49, 3)
-    for x, y in ((8, 28), (14, 31), (56, 19)):
+    _streak(d, 44, 18, 22)
+    # Only the right-hand headland rises above the water. There is no mountain
+    # wall behind a strip of sea suspended above a second ground horizon.
+    d.polygon([(81, 52), (98, 47), (108, 39), (118, 42), (130, 33),
+               (139, 36), (151, 30), (159, 33), (159, 53)], fill='#438c9f')
+    d.polygon([(93, 52), (108, 44), (113, 46), (130, 37), (136, 41),
+               (150, 35), (159, 37), (159, 54)], fill='#367c72')
+    d.polygon([(103, 52), (118, 47), (132, 45), (147, 42), (159, 45), (159, 55)], fill='#48a54c')
+    for y in range(HORIZON, H):
+        t = y - HORIZON
+        shore = round(_shore(t))
+        road_edge = round(_centre(t) + _half(t))
+        # The wet strip is narrow in the distance and widens with perspective.
+        d.line((0, y, W - 1, y), fill='#66bf43' if (y // 6) % 2 else '#59af39')
+        d.line((0, y, road_edge + 2, y), fill='#f5db91')
+        d.line((0, y, shore, y), fill='#248fbd' if t < 2 else '#1dbabf' if t < 8 else '#35d4cc')
+        d.line((shore + 1, y, shore + max(1, round(1 + t * .05)), y), fill='#e5fff1')
+        d.point((shore + max(2, round(2 + t * .06)), y), fill='#d9bc76')
+    d.line((0, HORIZON, round(_shore(0)), HORIZON), fill='#4cd6e1')
+    # Distant waves shrink to horizontal strokes; the nearer glints animate.
+    for x, y, width in ((3, 54, 9), (25, 54, 6), (46, 55, 7), (58, 57, 5),
+                        (0, 63, 13), (43, 62, 8), (5, 68, 14), (35, 69, 6)):
+        d.line((x, y, min(x + width, round(_shore(y - HORIZON)) - 4), y), fill='#9af2e4')
+    _boat(d, 14, 56, 2)
+    # A tall foreground windsurf sail and a smaller distant one ground the
+    # left side in the sea. Palms stand on the sand, never in open water.
+    d.line((15, 64, 15, 35), fill='#243764')
+    d.polygon([(14, 37), (14, 60), (2, 60)], fill='#d72b80')
+    d.polygon([(12, 42), (12, 50), (8, 50)], fill='#ffd7dd')
+    d.polygon([(7, 52), (13, 52), (13, 57), (4, 57)], fill='#f8e7d8')
+    d.line((3, 59, 13, 59), fill='#ff74ac')
+    d.line((8, 64, 20, 64), fill='#fff4cf')
+    d.line((10, 66, 19, 66), fill='#1588a8')
+    d.line((16, 59, 18, 63), fill='#2b4272')
+    d.point((16, 58), fill='#f5c28c')
+    d.line((53, 55, 53, 43), fill='#26346b')
+    d.polygon([(52, 44), (52, 53), (47, 53)], fill='#e93486')
+    d.line((49, 49, 52, 48), fill='#ffb4d3')
+    d.line((47, 54, 55, 54), fill='#fff0d4')
+    d.line((48, 56, 55, 56), fill='#167caa')
+    # White resort blocks, balcony slots, terracotta roofs, beach parasols.
+    for x, base, width, height in ((114, 53, 7, 7), (124, 52, 8, 10), (136, 53, 9, 7), (152, 55, 8, 9)):
+        d.rectangle((x, base - height, x + width, base), fill='#f5eee0')
+        d.rectangle((x + width - 2, base - height + 1, x + width, base), fill='#cbbcb3')
+        d.line((x - 1, base - height, x + width + 1, base - height), fill='#ca5a42')
+        for yy in range(base - height + 3, base, 3):
+            d.line((x + 1, yy, x + width - 3, yy), fill='#467386')
+        d.point((x + 3, base), fill='#244e5e')
+    for x, y, shade in ((109, 58, '#f5a2c6'), (120, 61, '#fff0b5'), (151, 63, '#ef6478')):
+        d.line((x, y - 4, x, y), fill='#736447')
+        d.polygon([(x - 3, y - 3), (x, y - 5), (x + 3, y - 3)], fill=shade)
+        d.line((x - 3, y - 2, x + 3, y - 2), fill='#9c635b')
+    for x, base, size in ((68, 65, 23), (146, 67, 29), (119, 58, 15)):
+        _palm(d, x, base, size)
+    # Far palms repeat toward the vanishing point; foreground ones move.
+    for x, base, size in ((82, 54, 4), (86, 53, 3), (89, 53, 2), (102, 53, 4), (108, 54, 6)):
+        _palm(d, x, base, size)
+    for x, y in ((24, 23), (29, 25)):
         _bird(d, x, y)
-    _plane(d, 118, 20)
-    d.polygon([(100, HORIZON), (110, HORIZON - 6), (124, HORIZON - 8), (140, HORIZON - 5), (160, HORIZON - 7),
-               (160, HORIZON)], fill='#3f9a4a')                          # green hills on the right
-    d.line([(100, HORIZON), (110, HORIZON - 6), (124, HORIZON - 8), (140, HORIZON - 5), (160, HORIZON - 7)], fill='#6fc766')
-    for hx, hy in ((116, HORIZON - 7), (128, HORIZON - 8), (146, HORIZON - 6), (154, HORIZON - 7)):
-        _tree(d, hx, hy + 4, 2)                                           # a row of tiny round trees on the crest
-    d.rectangle((134, HORIZON - 6, 138, HORIZON - 3), fill='#f6f4ee')    # a white villa with a red roof
-    d.rectangle((133, HORIZON - 8, 139, HORIZON - 7), fill='#c8442f')
-    d.point((136, HORIZON - 4), fill='#2f6fd0')
-    # The two roadsides: pale sand with the sea behind it on the left, bright grass on the right.
-    d.rectangle((0, HORIZON + 1, W - 1, H - 1), fill='#5cb73e')
-    d.polygon([(0, HORIZON + 1), (CENTRE - 2, HORIZON + 1), (CENTRE - 2, H - 1), (0, H - 1)], fill='#ecd08a')
-    rnd = random.Random(23)
-    for _ in range(190):                                                 # sand grain and grass speckle, all static
-        x, y = rnd.randint(0, W - 1), rnd.randint(HORIZON + 2, H - 1)
-        if x < CENTRE:
-            d.point((x, y), fill=rnd.choice(('#dcb870', '#f6e2a8', '#d4ae66')))
-        else:
-            d.point((x, y), fill=rnd.choice(('#4aa433', '#74cd54', '#439a2e')))
     return im
 
 
-PALM_TONES = ('#1d6a2c', '#35a043', '#7ad86e')
+PALM_TONES = ('#134d3e', '#258d45', '#8bd747')
 
 
 def _palm_top(base, size):
@@ -341,7 +291,7 @@ def _palm(d, x, base, size):
 
 
 def _road(d, phase):
-    """The road in perspective: bands that alternate in depth, red and white kerbs and a dashed centre line.
+    """A three-lane bend: advancing depth bands, kerbs and two dashed lane dividers.
 
     A row at depth t has world position w = 70 / (t + 4); the band colour flips every half unit of w and
     shifting w by a quarter per phase makes the bands run towards the viewer. Four phases close the loop."""
@@ -350,8 +300,9 @@ def _road(d, phase):
         p = phase if y >= WINDOW[1] else 0                                   # the far strip is the same in every pose
         dark = ((70 / (t + 4) + p / PHASES) % 1.0) < .5
         half = _half(t)
-        x0, x1 = round(CENTRE - half), round(CENTRE + half)
-        haze = max(0.0, 1 - t / 24) * .65                                    # distance fades into the sky's haze
+        centre = _centre(t)
+        x0, x1 = round(centre - half), round(centre + half)
+        haze = max(0.0, 1 - t / 22) * .35
         tarmac = _mix(ASPHALT[0] if dark else ASPHALT[1], HAZE, haze)
         d.line((x0, y, x1, y), fill=tarmac)
         kerb = max(1, round(1 + t * 0.045))
@@ -359,8 +310,10 @@ def _road(d, phase):
         d.line((x0 - kerb, y, x0 - 1, y), fill=colour)
         d.line((x1 + 1, y, x1 + kerb, y), fill=colour)
         if not dark:
-            dash = max(1, round(t * 0.03))
-            d.line((CENTRE - dash // 2, y, CENTRE + (dash - 1) // 2, y), fill=_mix('#f0f0e8', HAZE, haze))
+            dash = max(1, round(t * 0.025))
+            for side in (-1, 1):
+                x = round(centre + side * half / 3)
+                d.line((x - dash // 2, y, x + (dash - 1) // 2, y), fill=_mix('#fff7e4', HAZE, haze))
         edge = _mix('#f4f4ec', HAZE, haze)
         d.point((x0 + 1, y), fill=edge)                                       # a thin white line inside each kerb
         d.point((x1 - 1, y), fill=edge)
@@ -380,7 +333,7 @@ def _roadside(d, phase):
         y = round(HORIZON + t)
         half = _half(t)
         size = max(2, round(2 + t * 0.34))
-        px = round(CENTRE - half - 6 - t * 0.14)
+        px = round(_centre(t) - half - 4 - t * 0.10)
         if _palm_top(y, size) >= top_row and y <= H + 8 and _shows_cleanly(_palm_box(px, y, size)):
             _palm(d, px, y, size)
         w2 = w + .5                                                              # half a unit apart from the palms
@@ -388,90 +341,125 @@ def _roadside(d, phase):
         y2 = round(HORIZON + t2)
         half2 = _half(t2)
         r = max(1, round(1 + t2 * 0.07))
-        bx = round(CENTRE + half2 + 5 + t2 * 0.14)
+        bx = round(_centre(t2) + half2 + 4 + t2 * 0.10)
         if y2 - 2 * r >= top_row and y2 <= H + 6 and _shows_cleanly((bx - 2 * r, y2 - 2 * r, bx + 2 * r, y2)):
             d.ellipse((bx - r * 2, y2 - r * 2, bx + r * 2, y2), fill='#2f8a3c')
             d.ellipse((bx - r * 2 + 1, y2 - r * 2, bx + r, y2 - r), fill='#56bf55')
             size2 = max(2, round(2 + t2 * 0.34))                                 # a second palm further out on the sand
-            px2 = round(CENTRE - half2 - 13 - t2 * 0.22)
+            px2 = round(_shore(t2) + max(2, t2 * .04))
             if _palm_top(y2, size2) >= top_row and _shows_cleanly(_palm_box(px2, y2, size2)):
                 _palm(d, px2, y2, size2)
         w3 = w + .25                                                             # taller round trees on the far grass
         t3 = _depth(w3)
         y3 = round(HORIZON + t3)
         rt = max(2, round(1 + t3 * 0.1))
-        tx = round(CENTRE + _half(t3) + 12 + t3 * 0.4)
+        tx = round(_centre(t3) + _half(t3) + 12 + t3 * 0.4)
         if y3 - 3 * rt >= top_row and y3 <= H + 6 and _shows_cleanly((tx - rt, y3 - 2 * rt - 1, tx + rt, y3)):
             _tree(d, tx, y3, rt)
+        # White reflector posts punctuate the curve and make forward travel
+        # readable even when a nearer palm is hidden behind a quota dial.
+        for side in (-1, 1):
+            post_x = round(_centre(t2) + side * (_half(t2) + 3 + t2 * .07))
+            height = max(1, round(t2 * .12))
+            box = (post_x - 1, y2 - height, post_x + 1, y2)
+            if top_row <= box[1] and 6 <= t2 and y2 < H and _shows_cleanly(box):
+                d.line((post_x, y2 - height, post_x, y2), fill='#fff3d6', width=2 if height > 4 else 1)
+                d.point((post_x, y2 - height + 1), fill='#e64b36')
 
 
 def _rival(d, cx, by, width, body, light, lift):
     """Another car seen from behind, further up the road: tyres, a lit body, a dark rear window and taillights."""
     half = width // 2
+    height = max(3, round(width * .48))
     by -= lift
+    if width < 7:
+        d.rectangle((cx - half, by - 2, cx + half, by), fill='#263142')
+        d.line((cx - half + 1, by - 3, cx + half - 1, by - 3), fill=light)
+        d.line((cx - half + 1, by - 1, cx + half - 1, by - 1), fill=body)
+        return
     d.line((cx - half, by + 1, cx + half, by + 1), fill='#40404e')
     d.rectangle((cx - half, by - 2, cx - half + 1, by), fill='#16161e')
     d.rectangle((cx + half - 1, by - 2, cx + half, by), fill='#16161e')
-    d.rectangle((cx - half + 1, by - 5, cx + half - 1, by - 1), fill=body)
-    d.line((cx - half + 1, by - 5, cx + half - 1, by - 5), fill=light)
-    d.rectangle((cx - half + 3, by - 8, cx + half - 3, by - 5), fill=body)
-    d.line((cx - half + 3, by - 8, cx + half - 3, by - 8), fill=light)
-    d.rectangle((cx - half + 4, by - 7, cx + half - 4, by - 6), fill='#1d2640')
-    d.rectangle((cx - half + 1, by - 4, cx - half + 2, by - 3), fill='#ff4332')
-    d.rectangle((cx + half - 2, by - 4, cx + half - 1, by - 3), fill='#ff4332')
+    d.polygon([(cx - half + 1, by - 1), (cx - half + 1, by - height + 2),
+               (cx - half + 3, by - height), (cx + half - 3, by - height),
+               (cx + half - 1, by - height + 2), (cx + half - 1, by - 1)], fill=body)
+    d.line((cx - half + 3, by - height, cx + half - 3, by - height), fill=light)
+    d.line((cx - half + 3, by - height + 1, cx + half - 3, by - height + 1), fill='#18334c')
+    d.line((cx - half + 1, by - 3, cx + half - 1, by - 3), fill=light)
+    for side in (-1, 1):
+        d.point((cx + side * (half - 1), by - 2), fill='#ff644d')
+    d.point((cx, by - 1), fill='#fff7db')
 
 
 def _traffic(d, phase):
-    """Two cars ahead in their own lanes. They hold their place on the road (they run at our speed), so only
+    """Three cars ahead in their own lanes. They hold their place on the road (they run at our speed), so only
     their bounce changes, and they sit inside the animated window."""
-    _rival(d, CENTRE - 4, 67, 9, '#2f6fd0', '#7aa8ee', phase % 2)
-    _rival(d, CENTRE + 8, 82, 15, '#f2c230', '#ffe79a', 1 - phase % 2)
+    phase %= PHASES
+    _rival(d, round(_centre(10)), 62, 5, '#f4e9ca', '#ffffff', 0)
+    _rival(d, round(_centre(19) - _half(19) * .64), 71, 9, '#1e74bc', '#55d3ed', phase // 2)
+    _rival(d, round(_centre(32) + _half(32) * .62), 84, 13, '#e3a524', '#ffe77e', phase % 2)
 
 
 def _car(d, phase):
     """An original red convertible seen from behind, with a blonde passenger and a dark-haired driver.
 
     Wide low body, black tail panel with slats, taillights, a plate, two headrests and the occupants' heads.
-    The body rises a pixel on the odd phases and the tyre treads alternate, so the car feels alive."""
-    cx, by = CENTRE, 114
-    lift = 1 if phase % 2 else 0
-    d.ellipse((cx - 19, by - 1, cx + 19, by + 4), fill='#40404e')              # the shadow on the road
-    for side in (-1, 1):                                                       # tyres with alternating tread
-        x0 = cx + side * 14 - 3
-        d.rectangle((x0, by - 9, x0 + 6, by), fill='#16161e')
-        for k in range(0, 10, 2):
-            if (k // 2 + phase) % 2:
-                d.line((x0 + 1, by - 9 + k, x0 + 5, by - 9 + k), fill='#2f2f3a')
-    y = by - lift
-    d.polygon([(cx - 18, y - 11), (cx + 18, y - 11), (cx + 19, y - 5), (cx + 17, y - 1), (cx - 17, y - 1), (cx - 19, y - 5)], fill='#e03121')
-    d.line((cx - 17, y - 11, cx + 17, y - 11), fill='#ff7a5c')                  # light catching the rear deck
-    d.line((cx - 18, y - 10, cx - 18, y - 6), fill='#ff5a3c')
-    d.line((cx - 17, y - 2, cx + 17, y - 2), fill='#a31a17')                    # the shaded lower edge
-    d.rectangle((cx - 16, y - 1, cx + 16, y), fill='#1b1b24')                   # black bumper
-    d.rectangle((cx - 10, y - 9, cx + 10, y - 4), fill='#17171f')               # the tail panel with red slats
-    for yy in (y - 8, y - 6):
-        d.line((cx - 9, yy, cx + 9, yy), fill='#e03121')
-    for side in (-1, 1):                                                       # taillights
-        x0 = cx + side * 14
-        d.rectangle((x0 - 3, y - 9, x0 + 3, y - 6), fill='#ff4332')
-        d.line((x0 - 2, y - 8, x0 + 2, y - 8), fill='#ffd8b0')
-    d.rectangle((cx - 3, y - 5, cx + 3, y - 3), fill='#f6f2dc')                 # the plate
-    d.point((cx - 1, y - 4), fill='#3a3a48'); d.point((cx + 1, y - 4), fill='#3a3a48')
-    # the cockpit: a dark inside, two headrests, shoulders and heads
-    d.polygon([(cx - 14, y - 12), (cx + 14, y - 12), (cx + 12, y - 17), (cx - 12, y - 17)], fill='#2a1a1c')
-    for side, hair, top in ((-1, '#f4cc58', '#f6f0dc'), (1, '#4a2f1c', '#2c68c8')):
+    The body settles by one pixel per loop and the tyre treads alternate."""
+    phase %= PHASES
+    cx, by = CENTRE, 115
+    # The suspension settles once per loop; no sideways wobble or bouncing
+    # heads. Tyres and shadow stay planted while the body moves one pixel.
+    y = by - (1 if phase in (1, 2) else 0)
+    d.ellipse((cx - 23, by - 4, cx + 23, by + 3), fill='#3c4659')
+    d.ellipse((cx - 18, by - 3, cx + 18, by + 2), fill='#252e40')
+    for side in (-1, 1):
+        x = cx + side * 18
+        d.rectangle((x - 3, by - 9, x + 3, by), fill='#111a26')
+        d.line((x + side * 2, by - 7, x + side * 2, by - 2), fill='#3b4655')
+        d.point((x, by - 1 - phase % 2), fill='#59636b')
+    # Deep red flanks and tapered rear deck give a lower, wider silhouette.
+    outline = [(cx - 20, y - 11), (cx - 16, y - 18), (cx + 15, y - 18),
+               (cx + 21, y - 11), (cx + 22, y - 4), (cx + 18, y),
+               (cx - 19, y), (cx - 22, y - 4)]
+    d.polygon(outline, fill='#701d36')
+    d.polygon([(cx - 20, y - 11), (cx - 15, y - 18), (cx + 14, y - 18),
+               (cx + 20, y - 11), (cx + 20, y - 4), (cx - 20, y - 4)], fill='#ef343d')
+    d.line((cx - 19, y - 11, cx - 14, y - 17), fill='#ffb389')
+    d.line((cx + 15, y - 16, cx + 19, y - 10), fill='#b8223d')
+    d.line((cx - 19, y - 5, cx + 19, y - 5), fill='#ff7059')
+    # Windshield rim, pale reflected sky, dark cabin and two original riders.
+    d.polygon([(cx - 13, y - 18), (cx - 10, y - 23), (cx + 10, y - 23),
+               (cx + 14, y - 18)], fill='#771f33')
+    d.polygon([(cx - 11, y - 19), (cx - 9, y - 22), (cx + 9, y - 22),
+               (cx + 12, y - 19)], fill='#85c9d4')
+    d.line((cx - 9, y - 22, cx + 9, y - 22), fill='#e7f7dc')
+    d.rectangle((cx - 12, y - 19, cx + 12, y - 15), fill='#3a2438')
+    for side, hair, shirt in ((-1, '#f5ca55', '#faf0d2'), (1, '#492f35', '#55a1c7')):
         hx = cx + side * 6
-        d.rectangle((hx - 3, y - 15, hx + 3, y - 12), fill=top)                  # shoulders
-        d.rectangle((hx - 2, y - 20, hx + 2, y - 16), fill='#ffd4a0')            # head
-        d.rectangle((hx - 3, y - 21, hx + 3, y - 18), fill=hair)                 # hair
-        d.point((hx + (1 if side > 0 else -1), y - 18), fill='#2a2438')          # a side glance
-    d.line((cx - 13, y - 12, cx + 13, y - 12), fill='#8a1d18')
-    if phase % 2 == 0:                                                         # exhaust puffs, alternating
-        for dx, dy in ((-8, 3), (-9, 4), (8, 3), (9, 4)):
-            d.point((cx + dx, by + dy), fill='#a9a9b8')
-    else:
-        for dx, dy in ((-9, 3), (-10, 3), (9, 3), (10, 3)):
-            d.point((cx + dx, by + dy), fill='#c8c8d6')
+        d.ellipse((hx - 3, y - 20, hx + 3, y - 15), fill='#9c4d43')
+        d.line((hx - 2, y - 17, hx + 3, y - 17), fill=shirt, width=2)
+        d.rectangle((hx - 2, y - 22, hx + 2, y - 19), fill='#edac7c')
+        d.line((hx - 2, y - 22, hx + 1, y - 22), fill=hair, width=2)
+        d.line((hx - 2, y - 21, hx - 2, y - 19), fill=hair)
+        if side < 0:
+            d.point((hx - 3 - phase // 2, y - 20), fill='#ffdf78')
+    for side in (-1, 1):
+        d.line((cx + side * 15, y - 17, cx + side * 19, y - 17), fill='#f44843')
+        d.point((cx + side * 19, y - 18), fill='#ffe3b5')
+    # Dark louvres across the rear deck, with highlights on the ribs.
+    for row, half in ((14, 10), (12, 11), (10, 12)):
+        d.line((cx - half, y - row, cx + half, y - row), fill='#681e35')
+        d.point((cx - half, y - row - 1), fill='#ff9169')
+    d.rectangle((cx - 19, y - 8, cx + 19, y - 3), fill='#261f32')
+    d.line((cx - 18, y - 9, cx + 18, y - 9), fill='#ff8a6d')
+    for dx in (-16, -11, 11, 16):
+        d.ellipse((cx + dx - 1, y - 7, cx + dx + 1, y - 5), fill='#ff633e')
+        d.point((cx + dx, y - 7), fill='#ffd092')
+    d.rectangle((cx - 3, y - 6, cx + 3, y - 4), fill='#f7ebc4')
+    d.line((cx - 1, y - 5, cx + 1, y - 5), fill='#4b4b5c')
+    d.line((cx - 17, y - 2, cx + 17, y - 2), fill='#f24440')
+    for dx in (-12, -9, 9, 12):
+        d.point((cx + dx, y), fill='#c3ccd0')
 
 
 @lru_cache(maxsize=PHASES)

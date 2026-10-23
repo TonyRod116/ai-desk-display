@@ -4,7 +4,7 @@ import struct
 import unittest
 from unittest.mock import patch
 
-from PIL import ImageChops
+from PIL import Image, ImageChops
 
 from token_tv import board_anim, board_drive
 from token_tv.board import MAX_PAGE_BYTES
@@ -43,6 +43,16 @@ def compose(background, spec, step):
 
 
 class DrivingSceneTests(unittest.TestCase):
+    def test_the_sea_continues_below_the_road_horizon_instead_of_floating_above_it(self):
+        # The old bay ended at the vanishing point and became sand underneath,
+        # so it looked like a shelf of water in the sky. The coast must reach
+        # toward the viewer, visibly beside the road, before the left dial.
+        image = board_drive.scene(0)
+        pixels = [image.getpixel((x, y)) for y in range(board_drive.HORIZON + 2, board_drive.HORIZON + 12)
+                  for x in range(3, 37)]
+        water = sum(g > r * 1.35 and b > r * 1.25 for r, g, b in pixels)
+        self.assertGreater(water, len(pixels) * .5)
+
     def test_first_pose_matches_static_fallback_and_payload_is_stable_without_account_activity(self):
         with patch('time.time', return_value=NOW):
             data = sample()
@@ -118,10 +128,11 @@ class DrivingSceneTests(unittest.TestCase):
                 block = {image.getpixel((x, y)), image.getpixel((x + 1, y)),
                          image.getpixel((x, y + 1)), image.getpixel((x + 1, y + 1))}
                 self.assertEqual(len(block), 1, (x, y))
-        # Scan lines: over a wide stretch of sand every other canvas row is a little darker, and only in that one
-        # direction (no matching dark columns, which would make the panel shimmer). the user found a stronger effect too much.
+        # Test the CRT on a flat field: scenery can now contain water, palms or
+        # boats here. Horizontal shading must stay subtle, without a column grid.
+        flat = board_dials._crt(Image.new('RGB', (160, 120), '#ecd08a')).resize((320, 240), Image.Resampling.NEAREST)
         def average(rows, columns):
-            return sum(sum(image.getpixel((x, y))) / 3 for y in rows for x in columns) / (len(rows) * len(columns))
+            return sum(sum(flat.getpixel((x, y))) / 3 for y in rows for x in columns) / (len(rows) * len(columns))
         bright, dark = average(range(104, 116, 4), range(8, 40, 2)), average(range(106, 118, 4), range(8, 40, 2))
         self.assertLess(dark, bright * 0.95)
         self.assertGreater(dark, bright * 0.80)
