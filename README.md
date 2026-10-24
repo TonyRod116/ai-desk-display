@@ -41,7 +41,7 @@ The fun is in how it tells you: neon bridge lights retreat as you spend your quo
 |:---:|:---:|
 | **Game Boy** · green LCD, pixels and nostalgia.<br>![Game Boy — simulated quota updates](docs/images/game-boy.gif) | **Paradise** · a tiny tropical break between prompts.<br>![Paradise — moving ocean](docs/images/paradise.gif) |
 | **Neon City** · flying cars, neon bridges and a suspiciously useful skyline.<br>![Neon City — animated traffic and bridge quota lights](docs/images/code-forge.gif) | **Tidal Rush** · ride the barrel, chase the foam, forget the next prompt.<br>![Tidal Rush — flowing wave and animated breaking foam](docs/images/surf.gif)<br>[Still image](docs/images/surf.png) · [Under the hood](docs/board-surf.md) |
-| **Token Run** · three lanes, turquoise water and a red convertible.<br>![Token Run — animated coastal road and red convertible](docs/images/dials.gif)<br>[Still image](docs/images/dials.png) · [Under the hood](docs/board-run.md) | **Versus** · a rooftop train fight with Claude and Codex. Empty quota? KO.<br>![Versus — fighting stances on a train, layered city and shooting star](docs/images/arcade.gif)<br>[Still image](docs/images/arcade.png) · [Under the hood](docs/board-versus.md) |
+| **Token Run** · coastal cruising, approaching palms and a red convertible.<br>![Token Run — coastal road with palms growing closer and passing on the right](docs/images/dials.gif)<br>[Still image](docs/images/dials.png) · [Under the hood](docs/board-run.md) | **Versus** · a rooftop train fight with Claude and Codex. Empty quota? KO.<br>![Versus — fighting stances on a train, layered city and shooting star](docs/images/arcade.gif)<br>[Still image](docs/images/arcade.png) · [Under the hood](docs/board-versus.md) |
 | **Cockpit** · deep space, ringed planets and the occasional UFO. Probably friendly.<br>![Cockpit — twinkling stars and an animated UFO flyby](docs/images/cockpit.gif)<br>[Still image](docs/images/cockpit.png) · [Under the hood](docs/board-cockpit.md) | **Quota City** · an isometric skyline that shows what's left.<br>![Quota City — city animation](docs/images/countdown.gif) |
 
 These looping GIFs use **fictional readings**. Moving scenes, including Cockpit's UFO and stars, are captured from the firmware simulator. The Game Boy screen is normally static: its GIF demonstrates **accelerated sample quota updates**, not a constantly moving LCD. GIFs have a limited color palette; the display receives RGB565 frames.
@@ -49,6 +49,8 @@ These looping GIFs use **fictional readings**. Moving scenes, including Cockpit'
 On compatible hardware, animations run **on the board**. Your computer doesn't have to upload a new picture for every frame. Prefer still images? [Open the PNG gallery](docs/images/gallery.png).
 
 Neon City's bridge is doing the accounting: **amber lights on the left for Codex, cyan on the right for Claude**. As weekly quota runs down, each strip retreats toward its outer end. Tiny signs show the exact percentages; Claude also gets two small five-hour bars. The buildings get to stay pretty. [See how it works, or grab the full-resolution artwork](docs/board-neon-city.md).
+
+Token Run gets a little more road-trip energy: **resort palms grow closer and pass on the right**, while the nearby roadside scenery rushes past faster. No swaying back to where they started. Just a coastal drive, a red convertible and two AI quotas pretending to be dashboard instruments. The still, GIF and overview above show the updated scene. [Take the scenic route](docs/board-run.md).
 
 ### One tap, another world
 
@@ -107,6 +109,8 @@ Support for GeekMagic clocks is also retained, with different capabilities: they
 2. For the touchscreen board, follow the [hardware guide](docs/hardware.md) and [firmware instructions](firmware/board/README.md). Flashing replaces whatever program is currently on the board.
 3. Configure your own accounts and device using the [setup guide](docs/setup.md) *(currently in Spanish)*. No accounts, passwords or private pairing files are bundled.
 4. Explore the options with `ai-desk-display --help` and `ai-desk-display board --help`.
+
+**Updating an existing board?** Token Run's approaching resort palms need **firmware 14**, built from the source in this repo. Follow the [firmware guide](firmware/board/README.md); for a Wi-Fi update, hold the screen for five seconds and release to open the connection screen first. Older firmware gets a complete static Token Run image; the other seven scenes keep their existing animation.
 
 **This is a tinkering project, not yet a “next, next, finish” installer.** Usage readings depend on the client, plan and information each provider exposes. Claude's optional saved-reset reader requires [pairing a local extension](docs/claude-bank-local.md); that's an advanced integration and may need adjustments when the provider changes things.
 
