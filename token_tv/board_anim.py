@@ -15,7 +15,8 @@ Payload, little endian:
 import struct
 
 KEY = 0xF81F
-MAX_PAYLOAD = 40000
+MAX_PAYLOAD = 80000
+MAX_FRAMES = 8  # firmware 14+; older boards receive a static Token Run page
 MAX_SPRITES, MAX_STARS, MAX_STEPS = 4, 48, 32
 
 
@@ -50,7 +51,7 @@ def encode(sprites=(), stars=(), meteor=None):
         frames = sprite['frames']
         w, h = frames[0].size
         script = sprite['script']
-        if not 1 <= len(frames) <= 4 or not 1 <= len(script) <= MAX_STEPS or any(f.size != (w, h) for f in frames):
+        if not 1 <= len(frames) <= MAX_FRAMES or not 1 <= len(script) <= MAX_STEPS or any(f.size != (w, h) for f in frames):
             raise ValueError('Unexpected sprite')
         if any(not 0 <= frame < len(frames) or not -128 <= dx <= 127 or not -128 <= dy <= 127
                for frame, dx, dy in script):

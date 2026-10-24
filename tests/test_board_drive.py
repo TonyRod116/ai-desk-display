@@ -54,17 +54,35 @@ class DrivingSceneTests(unittest.TestCase):
         green = [p for p in pixels if p[1] > p[0] * 1.2 and p[1] > p[2] * 1.1]
         self.assertEqual(green, [])
 
-    def test_resort_palms_move_more_slowly_than_the_road_without_a_loop_jump(self):
+    def test_resort_palms_approach_continuously_and_repeat_by_world_spacing(self):
         palms = [s for s in board_drive.ambient() if s['name'].startswith('palm')]
         self.assertEqual(len(palms), 2)
         for palm in palms:
-            offsets = [(dx, dy) for _, dx, dy in palm['script']]
-            self.assertGreaterEqual(len(set(offsets)), 3)
-            self.assertGreaterEqual(len(offsets) * palm['step_ms'], board_drive.PHASES * board_drive.STEP_MS * 16)
-            self.assertGreaterEqual(palm['step_ms'], board_drive.STEP_MS * 4)
-            # At most one console pixel per tick, including the loop seam.
-            for before, after in zip(offsets, offsets[1:] + offsets[:1]):
-                self.assertLessEqual(math.dist(before, after), 2)
+            self.assertEqual(len({f.tobytes() for f in palm['frames']}), 8)
+            self.assertEqual(palm['step_ms'], board_drive.STEP_MS * 2)
+        # Track a single tree through a whole pass, including the loop seam.
+        # It never moves back or shrinks; the next tree replaces it naturally.
+        poses = [dict((k, (x, y, size)) for k, x, y, size in board_drive._resort_positions(p))
+                 for p in range(board_drive.RESORT_PHASES + 1)]
+        for k in (0, 1, 2):
+            track = [pose[k] for pose in poses if k in pose]
+            for before, after in zip(track, track[1:]):
+                self.assertTrue(all(a >= b for b, a in zip(before, after)), (before, after))
+            self.assertGreater(track[-1][0], track[0][0])
+            self.assertGreater(track[-1][2], track[0][2])
+        self.assertEqual(board_drive._resort_pose(0).tobytes(),
+                         board_drive._resort_pose(board_drive.RESORT_PHASES).tobytes())
+
+    def test_older_firmware_gets_a_complete_static_driving_page_only(self):
+        with patch('time.time', return_value=NOW):
+            current = render_board_pages(sample(), anim=True)
+            legacy = render_board_pages(sample(), anim=True, anim_frames=4)
+            for name, before, after in zip(PAGE_NAMES, current, legacy):
+                if name == 'dials':
+                    self.assertEqual(after, rgb565_frame(render_dials(sample())))
+                    self.assertNotEqual(before, after)
+                else:
+                    self.assertEqual(before, after, name)
 
     def test_the_sea_continues_below_the_road_horizon_instead_of_floating_above_it(self):
         # The old bay ended at the vanishing point and became sand underneath,
@@ -187,8 +205,8 @@ class DrivingSceneTests(unittest.TestCase):
             self.assertEqual(sprite['script'][0][1:], (0, 0))                     # the static picture is step zero
             if number:
                 self.assertGreaterEqual(boxes[-1][1], 36, 'the scoreboard strip must stay free')
-                self.assertGreaterEqual(len({offset[1:] for offset in sprite['script']}), 3, 'it should really move')
-                self.assertLessEqual(max(abs(v) for v in xs + ys), 16, 'only a little')
+                self.assertGreaterEqual(len({tuple(f) for f in sprite['frames']}) *
+                                        len({offset[1:] for offset in sprite['script']}), 3, 'it should really move')
         for i, a in enumerate(boxes):
             for b in boxes[i + 1:]:
                 self.assertTrue(a[2] <= b[0] or b[2] <= a[0] or a[3] <= b[1] or b[3] <= a[1], (a, b))

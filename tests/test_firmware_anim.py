@@ -202,7 +202,7 @@ class AnimationEngineTests(unittest.TestCase):
         self.assertLess(sum(moving),30)  # Most of the time the meteor is absent.
         self.assertFalse(moving[-1])   # Restored sky, no permanent trail.
 
-    def test_driving_scene_repeats_cleanly_and_preserves_every_instrument_pixel_on_firmware_seven(self):
+    def test_driving_scene_repeats_cleanly_and_preserves_every_instrument_pixel_on_firmware_fourteen(self):
         for data in (snapshot(), {'accounts': {}}):
             with self.subTest(known=bool(data['accounts'])), patch('time.time', return_value=NOW):
                 image, payload = render_dials(data, animated=True)

@@ -19,7 +19,7 @@ from urllib.request import Request
 
 from token_tv.http import open_direct
 
-MAX_PAGE_BYTES = 8 + 320 * 240 * 2 + 40960  # one full-screen RGB565 frame and an optional star or animation trailer
+MAX_PAGE_BYTES = 8 + 320 * 240 * 2 + 81920  # pixels plus the firmware 14 animation allowance
 PAGES = 8  # what this PC can send; the board says how many it holds (older firmware: 6)
 TOKEN = re.compile(r'[0-9a-f]{16}')
 
@@ -50,6 +50,7 @@ class BoardDisplay:
         self.capacity = 6  # until the board says otherwise: the first firmware had six slots
         self.stars = False  # firmware 4+ can make the stars of a page twinkle (5 flares them as a cross)
         self.anim = False  # firmware 7+ moves sprites over a page (ANIM trailer)
+        self.anim_frames = 4  # firmware 14 advertises eight-frame scenery
         self.waves = False  # firmware 8+ moves the whole photographic sea at native resolution
         self.remembers_selection = False
         self.active = None  # how many page slots the board cycles; None on firmware without the setting
@@ -100,6 +101,7 @@ class BoardDisplay:
         self.remembers_selection = info.get('selection_memory') is True
         self.stars = info.get('stars') is True
         self.anim = info.get('anim') in (1, True)
+        self.anim_frames = 8 if type(info.get('anim_frames')) is int and info['anim_frames'] == 8 else 4
         self.waves = info.get('waves') in (1, True)
         active = info.get('active')
         self.active = active if type(active) is int and 1 <= active <= PAGES else None

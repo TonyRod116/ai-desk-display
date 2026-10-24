@@ -134,6 +134,15 @@ class BoardTests(unittest.TestCase):
             BoardDisplay(board.base_url, 'f' * 16).ping()
         self.assertEqual(caught.exception.code, 401)
 
+    def test_eight_frame_scenery_requires_an_explicit_board_capability(self):
+        board = BoardDisplay(self.serve(), TOKEN)
+        for reported, expected in ((None, 4), (True, 4), ('8', 4), (9, 4), (8, 8)):
+            FakeBoard.diagnostics = {'anim': 1}
+            if reported is not None:
+                FakeBoard.diagnostics['anim_frames'] = reported
+            board.ensure_paired()
+            self.assertEqual(board.anim_frames, expected)
+
     def test_slow_page_transfers_finish_without_relaxing_control_requests(self):
         board = BoardDisplay(self.serve(), TOKEN)
         direct = board_module.open_direct
@@ -471,6 +480,12 @@ class BoardTests(unittest.TestCase):
         self.assertIsNone(frame_size(rgb565_frame(small, anim=payload)))   # only full-screen pages animate
         with self.assertRaises(ValueError):
             board_anim.encode([{'x': 0, 'y': 0, 'frames': [sprite], 'script': [(3, 0, 0)], 'step_ms': 250}])
+        eight = {'x': 0, 'y': 36, 'frames': [sprite] * 8, 'script': [(k, 0, 0) for k in range(8)], 'step_ms': 240}
+        self.assertEqual(len(board_anim.decode(board_anim.encode([eight]))['sprites'][0]['frames']), 8)
+        with self.assertRaises(ValueError):
+            board_anim.encode([{**eight, 'frames': [sprite] * 9}])
+        with self.assertRaisesRegex(ValueError, 'too large'):
+            board_anim.encode([{**eight, 'frames': [Image.new('RGBA', (96, 96))] * 8}])
 
     def test_versus_goes_out_as_a_clean_background_plus_sprites_that_rebuild_the_static_page(self):
         import struct

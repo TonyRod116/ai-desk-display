@@ -33,16 +33,25 @@ and open `http://127.0.0.1:8790/flasher/` in Chrome or Edge with the board on US
 
 | Call | Token | Purpose |
 |---|---|---|
-| `GET /info` | no | model, firmware, page slots, `active` (slots cycled), `paired`, `stars` (can twinkle a page's stars), `anim` (`ANIM` sprites), `waves` (`WAVE` photographic ocean), `wave_us`/`wave_max_us` (last/maximum ocean frame microseconds), plus uptime, last reset reason, taps, wifi signal, PC silence and current page |
+| `GET /info` | no | model, firmware, page slots, `active` (slots cycled), `paired`, `stars`, `anim`, `anim_frames` (maximum stored poses), `anim_active` (engine loaded), `free_heap`, `waves`, `wave_us`/`wave_max_us`, plus uptime, last reset reason, taps, wifi signal, PC silence and current page |
 | `POST /pair?token=<16 hex>` | only if already paired | an unpaired board is claimed by the first caller (the PC chooses the token) |
 | `POST /update` multipart `file` | yes **and** address screen showing | install a firmware image (`firmware.bin`) over the wifi |
-| `POST /page?n=0..7` multipart `file` | yes | store page n (`TVF1` + w,h u16 LE + RGB565 LE, then optional `STAR`, `ANIM` or `WAVE`; at most 194568 bytes) |
+| `POST /page?n=0..7` multipart `file` | yes | store page n (`TVF1` + w,h u16 LE + RGB565 LE, then optional `STAR`, `ANIM` or `WAVE`; at most 235528 bytes on firmware 14) |
 | `GET /page?n=` | yes | read it back (the PC verifies every upload) |
 | `POST /ping` | yes | heartbeat, answers one character per page (`1` = stored); without one for 3 minutes the board shows SIN DATOS |
 | `POST /show?n=` | yes | select a page |
 | `POST /config?rotation=1\|3&invert=0\|1&swaprb=0\|1&swapbytes=0\|1&pages=1..8` | yes | panel options and how many page slots are cycled, kept across reboots |
 
 The PC chooses the token and claims an unpaired board, so reflashing needs nothing typed.
+
+Firmware 14 accepts up to eight poses per sprite and an 80,000-byte ANIM payload.
+Token Run uses this for continuously approaching resort palms: eight perspective
+poses at 240 ms, alongside the unchanged four road poses at 120 ms. Its 77,648-byte
+payload remains stored locally and runs without PC streaming or flash writes.
+The host checks `anim_frames: 8`; earlier firmware receives a complete static
+Token Run page, while the other seven scenes retain their existing animation.
+Update through the normal paired, physical connection-screen gate. No erase,
+account access or pairing reset is needed.
 
 ## Touch and wall-clock rotation (firmware 10)
 
@@ -75,7 +84,7 @@ it receives a timestamp. This changes neither quota queries nor account access.
 
 ## Panel colours
 
-The panel of the reference board shows a photographic negative unless the display is inverted, so the firmware
+The panel of Tony's board shows a photographic negative unless the display is inverted, so the firmware
 defaults to inverted (`TOKENTV_INVERT_DEFAULT`, stored value `inv` in NVS overrides it). To diagnose any
 other panel, push a screen of named colour swatches and compare: complementary colours mean `--invert 1`,
 only red and blue swapped means `--swap-rb 1`, scrambled colours mean `--swap-bytes 1`.

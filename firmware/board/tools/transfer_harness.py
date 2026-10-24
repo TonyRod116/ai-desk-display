@@ -27,7 +27,7 @@ static bool haveBeat = true, showingInfo = false, stale = false, updateStarted =
 static bool auth = true, connected = true, stall = false, failSend = false;
 static const unsigned long STALE_MS = 180000;
 static const int PAGES = 8;
-static const size_t MAX_PAGE_BYTES = 194568;
+static const size_t MAX_PAGE_BYTES = 235528;
 static int page = 5, uploadPage = 5;
 static bool uploadAllowed = false, uploadOk = false, redrawPending = false;
 static size_t uploadBytes = 0, contentLength = 0;
@@ -103,7 +103,7 @@ static int send(int,const void* p,size_t n,int) {
 MAIN = r'''
 int main(int argc,char** argv) {
   String mode=argv[1];
-  std::vector<uint8_t> expected(193076);
+  std::vector<uint8_t> expected(231368);
   for(size_t i=0;i<expected.size();i++) expected[i]=uint8_t(i*31);
   files[pagePath(page)]=expected;
   if(mode=="unauthorized") auth=false;

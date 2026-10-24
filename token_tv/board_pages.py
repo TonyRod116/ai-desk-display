@@ -81,7 +81,8 @@ def frame_size(frame):
             return width, height
     if extra >= 12 and frame[base:base + 4] == b'ANIM':         # optional scene-animation trailer
         length = struct.unpack('<I', frame[base + 4:base + 8])[0]
-        if extra == 8 + length and 4 <= length <= 40000 and (width, height) == PAGE_SIZE:
+        from token_tv.board_anim import MAX_PAYLOAD
+        if extra == 8 + length and 4 <= length <= MAX_PAYLOAD and (width, height) == PAGE_SIZE:
             return width, height
     if extra >= 20 and frame[base:base + 4] == b'WAVE' and (width, height) == PAGE_SIZE:
         length = struct.unpack('<I', frame[base + 4:base + 8])[0]
@@ -95,12 +96,13 @@ def frame_size(frame):
     return None
 
 
-def render_board_pages(snapshot, stars=False, anim=False, waves=False):
+def render_board_pages(snapshot, stars=False, anim=False, waves=False, anim_frames=8):
     """One frame per page, in PAGE_NAMES order, keeping the clock's separate album unchanged.
 
     `stars` adds the twinkling-star trailer to the pages that draw the starfield; `anim` lets PARADISE,
     Neon City, TIDAL RUSH, the driving CRT, VERSUS, cockpit and city use ANIM (otherwise their first poses are drawn in).
-    `waves` uses the native WAVE engine for PARADISE only; its other seven pages are unchanged."""
+    `waves` uses the native WAVE engine for PARADISE only; its other seven pages are unchanged.
+    `anim_frames` comes from /info: eight-pose Token Run requires firmware 14; older boards get its static pose."""
     from token_tv.personal_faces import RENDERERS as PERSONAL
     from token_tv.themes import RENDERERS as THEMES
     from token_tv.board_gameboy import render_gameboy_board
@@ -134,7 +136,7 @@ def render_board_pages(snapshot, stars=False, anim=False, waves=False):
     else:
         surf = render_surf(snapshot)
     images.append(surf)
-    if anim:
+    if anim and anim_frames >= 8:
         dials, payloads['dials'] = render_dials(snapshot, animated=True)
     else:
         dials = render_dials(snapshot)

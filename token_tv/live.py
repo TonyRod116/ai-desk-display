@@ -381,7 +381,7 @@ def main():
             # Independent of the clock: a missing board never delays or fails the clock's cycle.
             try:
                 board.ensure_paired()  # a reflashed board is claimed again without anyone typing
-                pages = render_board_pages(snapshot, stars=board.stars, anim=board.anim,
+                pages = render_board_pages(snapshot, stars=board.stars, anim=board.anim, anim_frames=board.anim_frames,
                                            waves=getattr(board, 'waves', False))
                 receipts = publish_pages(board, pages, board_sent)
                 board.set_active_pages(len(pages))  # a page that was deleted is no longer cycled

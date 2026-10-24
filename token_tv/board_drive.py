@@ -2,7 +2,8 @@
 
 Sea, beach and a three-lane bend share one horizon. Four stored road poses carry
 the advancing scenery; separate small sprites move resort palms and a gull. No game
-assets, live account data, wall-clock animation or new firmware are needed.
+assets, live account data or wall-clock animation are used. Eight-pose resort
+palms require firmware 14; older boards receive the complete static scene.
 """
 from functools import lru_cache
 import math
@@ -18,6 +19,8 @@ CENTRE = 80
 WINDOW = (46, 53, 115, 120)          # x0, y0, x1, y1 (exclusive): the part that is animated, 34 px each side of the centre
 STEP_MS = 120
 PHASES = 4
+RESORT_PHASES = 8
+RESORT_STEP_MS = STEP_MS * 2
 DIALS = ((29, 92), (131, 92))        # the two usage dials set into the bottom corners (see board_dials.py)
 DIAL_RADIUS = 28.0
 
@@ -28,7 +31,7 @@ ASPHALT = ('#555d6d', '#687184')
 
 
 # The resort palms and gull are NOT in the picture the board stores: each is a transparent sprite that
-# the board moves a little (all at STEP_MS). Their restoration boxes are disjoint, stay
+# the board animates independently. Their restoration boxes are disjoint, stay
 # clear of the scoreboard (canvas rows 0-16) and of the road window, and every script starts at offset (0, 0).
 def _gull_frames():
     shapes = ('XX.....XX/.XXX.XXX./...XXX.../.........',
@@ -51,24 +54,42 @@ def _gull_frames():
 def ambient():
     """Ambient sprites: x/y in screen pixels, unfiltered RGBA frames and scripts."""
     out = []
-    # One tiny texture per palm keeps all four road poses and the original
-    # 120 ms road cadence. Resort palms tick only every 480 ms: repeatedly
-    # restoring their tall rectangles on the fast road clock wastes flash I/O.
-    # Both take sixteen road cycles to follow the bend and return. Clouds
-    # and glints now belong to the backdrop to stay within four sprite slots.
-    for name, x, base, size, reach in (('palm-far', 123, 58, 15, 2),
-                                      ('palm-near', 152, 67, 29, 6)):
-        layer = Image.new('RGBA', (W, H), (0, 0, 0, 0))
-        _palm(ImageDraw.Draw(layer), x, base, size)
-        box = layer.getbbox()
+    # Two adjoining crops preserve the whole palm field without a restore
+    # rectangle crossing the road. Repeated world spacing makes the loop
+    # continuous: each approaching palm takes its predecessor's place.
+    poses = [_resort_pose(k) for k in range(RESORT_PHASES)]
+    for name, box in (('palm-crowns', (110, 18, 160, 53)),
+                      ('palm-trunks', (115, 53, 160, 70))):
         out.append({'name': name, 'x': box[0] * 2, 'y': box[1] * 2,
-                    'frames': [layer.crop(box)], 'step_ms': STEP_MS * 4,
-                    'script': [(0, 2 * round(reach * .5 * (1 - math.cos(2 * math.pi * k / 16))), 0)
-                               for k in range(16)]})
+                    'frames': [pose.crop(box) for pose in poses], 'step_ms': RESORT_STEP_MS,
+                    'script': [(k, 0, 0) for k in range(RESORT_PHASES)]})
     out.append({'name': 'gull', 'x': 44 * 2, 'y': 23 * 2, 'frames': _gull_frames(),
                 'script': [((0, 1, 2, 1)[k % 4], 2 * round(6 * math.sin(2 * math.pi * k / 32)),
                             4 * round(.5 * (1 - math.cos(2 * math.pi * k / 32)))) for k in range(32)]})
     return out
+
+
+def _resort_positions(phase):
+    """Repeated palms in world space; depth increases monotonically toward us."""
+    for k in range(-1, 9):
+        w = 4 + 3 * k - 3 * phase / RESORT_PHASES
+        t = _depth(w)
+        if 0 < t < 35:
+            yield k, round(106 + 3.1 * t), round(HORIZON + t), max(2, round(2 + 1.7 * t))
+
+
+def _resort_pose(phase):
+    layer = Image.new('RGBA', (W, H), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(layer)
+    for _, x, base, size in reversed(list(_resort_positions(phase))):
+        _palm(draw, x, base, size)
+    # Keep every dial pixel, including its bezel, out of both palm crops.
+    px = layer.load()
+    for y in range(53, 70):
+        for x in range(115, W):
+            if any(math.hypot(x - cx, y - cy) <= DIAL_RADIUS for cx, cy in DIALS):
+                px[x, y] = (0, 0, 0, 0)
+    return layer
 
 
 def _shows_cleanly(box):
