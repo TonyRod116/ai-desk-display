@@ -30,7 +30,8 @@ def compose(background, spec, step):
     """Independent reference compositor in screen pixels, after RGB565 conversion."""
     words = list(struct.unpack('<76800H', rgb565_frame(background)[8:]))
     for sprite in spec['sprites']:
-        frame, dx, dy = sprite['script'][step % len(sprite['script'])]
+        tick = step * board_drive.STEP_MS // sprite['step_ms']
+        frame, dx, dy = sprite['script'][tick % len(sprite['script'])]
         for index, word in enumerate(sprite['frames'][frame]):
             if word == board_anim.KEY:
                 continue
@@ -59,7 +60,8 @@ class DrivingSceneTests(unittest.TestCase):
         for palm in palms:
             offsets = [(dx, dy) for _, dx, dy in palm['script']]
             self.assertGreaterEqual(len(set(offsets)), 3)
-            self.assertGreaterEqual(len(offsets), board_drive.PHASES * 5)
+            self.assertGreaterEqual(len(offsets) * palm['step_ms'], board_drive.PHASES * board_drive.STEP_MS * 16)
+            self.assertGreaterEqual(palm['step_ms'], board_drive.STEP_MS * 4)
             # At most one console pixel per tick, including the loop seam.
             for before, after in zip(offsets, offsets[1:] + offsets[:1]):
                 self.assertLessEqual(math.dist(before, after), 2)
@@ -181,7 +183,7 @@ class DrivingSceneTests(unittest.TestCase):
             ys = [dy for _, _, dy in sprite['script']]
             boxes.append((sprite['x'] + min(xs), sprite['y'] + min(ys),
                           sprite['x'] + sprite['w'] * 2 + max(xs), sprite['y'] + sprite['h'] * 2 + max(ys)))
-            self.assertEqual(sprite['step_ms'], sprites[0]['step_ms'])            # one clock for all of them
+            self.assertEqual(sprite['step_ms'] % sprites[0]['step_ms'], 0)        # slower layers share the road's time grid
             self.assertEqual(sprite['script'][0][1:], (0, 0))                     # the static picture is step zero
             if number:
                 self.assertGreaterEqual(boxes[-1][1], 36, 'the scoreboard strip must stay free')

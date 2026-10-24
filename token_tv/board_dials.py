@@ -254,7 +254,8 @@ def _sprites():
                 'step_ms': board_drive.STEP_MS}]
     for thing in board_drive.ambient():
         origin = (thing['x'] // K, thing['y'] // K)
-        sprites.append({'x': thing['x'], 'y': thing['y'], 'script': thing['script'], 'step_ms': board_drive.STEP_MS,
+        sprites.append({'x': thing['x'], 'y': thing['y'], 'script': thing['script'],
+                        'step_ms': thing.get('step_ms', board_drive.STEP_MS),
                         'frames': [_crt(frame, origin) for frame in thing['frames']]})
     return sprites
 

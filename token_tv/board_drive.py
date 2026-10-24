@@ -52,8 +52,9 @@ def ambient():
     """Ambient sprites: x/y in screen pixels, unfiltered RGBA frames and scripts."""
     out = []
     # One tiny texture per palm keeps all four road poses and the original
-    # 120 ms cadence. The nearer resort palm drifts further, but both take five
-    # road cycles to follow the bend and return without teleporting. Clouds
+    # 120 ms road cadence. Resort palms tick only every 480 ms: repeatedly
+    # restoring their tall rectangles on the fast road clock wastes flash I/O.
+    # Both take sixteen road cycles to follow the bend and return. Clouds
     # and glints now belong to the backdrop to stay within four sprite slots.
     for name, x, base, size, reach in (('palm-far', 123, 58, 15, 2),
                                       ('palm-near', 152, 67, 29, 6)):
@@ -61,9 +62,9 @@ def ambient():
         _palm(ImageDraw.Draw(layer), x, base, size)
         box = layer.getbbox()
         out.append({'name': name, 'x': box[0] * 2, 'y': box[1] * 2,
-                    'frames': [layer.crop(box)],
-                    'script': [(0, 2 * round(reach * .5 * (1 - math.cos(2 * math.pi * k / 20))), 0)
-                               for k in range(20)]})
+                    'frames': [layer.crop(box)], 'step_ms': STEP_MS * 4,
+                    'script': [(0, 2 * round(reach * .5 * (1 - math.cos(2 * math.pi * k / 16))), 0)
+                               for k in range(16)]})
     out.append({'name': 'gull', 'x': 44 * 2, 'y': 23 * 2, 'frames': _gull_frames(),
                 'script': [((0, 1, 2, 1)[k % 4], 2 * round(6 * math.sin(2 * math.pi * k / 32)),
                             4 * round(.5 * (1 - math.cos(2 * math.pi * k / 32)))) for k in range(32)]})

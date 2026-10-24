@@ -209,11 +209,12 @@ class AnimationEngineTests(unittest.TestCase):
                 spec = board_anim.decode(payload)
                 background = list(struct.unpack('<76800H', rgb565_frame(image)[8:]))
                 capture = spec['sprites'][0]['step_ms']
-                steps = math.lcm(*(len(sprite['script']) for sprite in spec['sprites'])) * 2  # two complete joint cycles
+                cycle_ms = math.lcm(*(len(s['script']) * s['step_ms'] for s in spec['sprites']))
+                steps = cycle_ms // capture * 2  # two joint cycles, including independently timed palms
                 out = self.run_engine(payload, capture * steps, image=image, capture_ms=capture)
                 for step in range(steps):
                     got = struct.unpack('<76800H', (out / f'screen_{step}.bin').read_bytes())
-                    self.assertEqual(list(got), self.expected(step, background, spec), f'road step {step}')
+                    self.assertEqual(list(got), self.expected(step, background, spec, elapsed_ms=step*capture), f'road step {step}')
 
     def test_the_city_animation_repeats_cleanly_on_firmware_seven(self):
         for data in (snapshot(), {'accounts': {}}):

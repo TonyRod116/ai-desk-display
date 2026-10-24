@@ -58,8 +58,12 @@ class BoardDisplay:
         headers = dict(headers or {})
         if authorized:
             headers['X-Token'] = self.token
+        # The board keeps animating while transferring a page: a measured
+        # upload/readback took 42/24 s. Keep controls short, allow page I/O
+        # enough time, and still verify every stored byte in upload().
+        timeout = 60 if path.split('?', 1)[0] == '/page' else 20
         with open_direct(Request(self.base_url + path, data=data, headers=headers),
-                         timeout=20, no_proxy=True) as response:
+                         timeout=timeout, no_proxy=True) as response:
             return response.status, response.read()
 
     def info(self):

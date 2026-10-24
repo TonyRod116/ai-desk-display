@@ -8,7 +8,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from io import StringIO
 from pathlib import Path
 from unittest.mock import patch
-from urllib.error import HTTPError
+from urllib.error import HTTPError, URLError
 
 from PIL import Image
 
@@ -133,6 +133,32 @@ class BoardTests(unittest.TestCase):
         with self.assertRaises(HTTPError) as caught:                    # wrong token: refused
             BoardDisplay(board.base_url, 'f' * 16).ping()
         self.assertEqual(caught.exception.code, 401)
+
+    def test_slow_page_transfers_finish_without_relaxing_control_requests(self):
+        board = BoardDisplay(self.serve(), TOKEN)
+        direct = board_module.open_direct
+        controls = []
+
+        def slow_page(request, timeout, no_proxy):
+            # Model the observed 42-second upload without sleeping in tests.
+            # Both upload and authenticated readback need the larger budget.
+            if request.full_url.split('?', 1)[0].endswith('/page'):
+                if timeout < 45:
+                    raise URLError(TimeoutError())
+            else:
+                controls.append(timeout)
+            self.assertTrue(no_proxy)
+            return direct(request, timeout=timeout, no_proxy=no_proxy)
+
+        with patch('token_tv.board.open_direct', side_effect=slow_page):
+            board.info()
+            board.ping()
+            image = self.jpeg()
+            self.assertEqual(board.upload(4, image)['bytes'], len(image))
+            FakeBoard.corrupt = True
+            with self.assertRaisesRegex(ValueError, 'verification failed'):
+                board.upload(4, image)
+        self.assertEqual(controls, [20, 20])
 
     def test_panel_options_are_sent_to_the_board_and_validated_first(self):
         from token_tv.cli import main
