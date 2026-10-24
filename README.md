@@ -33,7 +33,7 @@ A small desk display that shows how much **Claude and Codex** usage you have lef
 
 The fun is in how it tells you: neon bridge lights retreat as you spend your quota, Claude and Codex face off on a moving train, and a surfer rides a foamy barrel while you try not to check how many tokens you've burned. We can't promise it'll make you use less AI. We're doing our best to make it look good, though.
 
-It started as a customization of **[TokenTV, by click6067-ship-it](https://github.com/click6067-ship-it/token-tv)** and grew into a collection of animated scenes for the **2.8-inch NerdMiner V2 touchscreen** (ESP32-2432S028R). This repo includes the host application, firmware and tools to keep tinkering.
+**AI Desk Display** is a project by Tony, built with Claude Code and Codex: eight custom scenes, on-board animation, touch controls, timed screen rotation and local usage readers. It's designed around the **2.8-inch NerdMiner V2 touchscreen** (ESP32-2432S028R). This repo includes the host application, display firmware, artwork and tools to make it your own.
 
 ## Eight screens, zero boredom
 
@@ -90,10 +90,10 @@ On Windows, create the environment with `py -m venv .venv` and activate it with 
 You can also render the classic clock faces:
 
 ```bash
-token-tv demo --out preview/clock
+ai-desk-display demo --out preview/clock
 ```
 
-The command is still called `token-tv` for compatibility with the original project. No API key is needed for the demos. Installation does download dependencies.
+No API key is needed for the demos. Installation does download dependencies.
 
 ## Okay, I want this on my desk
 
@@ -106,7 +106,7 @@ Support for GeekMagic clocks is also retained, with different capabilities: they
 1. Try the gallery and check your display's exact model.
 2. For the touchscreen board, follow the [hardware guide](docs/hardware.md) and [firmware instructions](firmware/board/README.md). Flashing replaces whatever program is currently on the board.
 3. Configure your own accounts and device using the [setup guide](docs/setup.md) *(currently in Spanish)*. No accounts, passwords or private pairing files are bundled.
-4. Explore the options with `token-tv --help` and `token-tv board --help`.
+4. Explore the options with `ai-desk-display --help` and `ai-desk-display board --help`.
 
 **This is a tinkering project, not yet a “next, next, finish” installer.** Usage readings depend on the client, plan and information each provider exposes. Claude's optional saved-reset reader requires [pairing a local extension](docs/claude-bank-local.md); that's an advanced integration and may need adjustments when the provider changes things.
 
@@ -157,7 +157,7 @@ Some firmware tests need a C++ compiler; JavaScript checks need Node. Don't run 
 
 ## Credits and license
 
-Based on **[TokenTV, by click6067-ship-it](https://github.com/click6067-ship-it/token-tv)**. The original copyright notice and MIT license are preserved. This distribution adds scenes, native animation and integration improvements developed by Tony with AI assistance.
+Created by **Tony**, with a lot of help from **Claude Code and Codex**. Original inspiration and some retained components: [TokenTV, by click6067-ship-it](https://github.com/click6067-ship-it/token-tv), whose MIT copyright notice is preserved in [LICENSE](LICENSE).
 
 Code is licensed under [MIT](LICENSE). Fonts retain their license files in `token_tv/web/`. See [ASSETS.md](ASSETS.md) for visual-asset provenance and permissions. This is not an official product and is not affiliated with OpenAI, Anthropic, Nintendo or Atari.
 

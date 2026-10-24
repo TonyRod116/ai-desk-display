@@ -15,6 +15,7 @@ dependencies = ["Pillow>=10.2,<13"]
 Homepage = "https://github.com/TonyRod116/ai-desk-display"
 
 [project.scripts]
+ai-desk-display = "token_tv.cli:main"
 token-tv = "token_tv.cli:main"
 
 [tool.setuptools]

@@ -39,7 +39,7 @@ def draw():
     d=ImageDraw.Draw(im)
     for pts,c in shapes:d.polygon([(x*s,y*s) for x,y in pts],fill=c)
     d.line([(145*s,84*s),(174*s,84*s)],fill='#f0f5ee',width=4*s)
-    d.text((160*s,149*s),'TOKEN TV',font=face('orbitron.ttf',29*s),fill='#eef7f8',anchor='mm')
+    d.text((160*s,149*s),'AI DESK DISPLAY',font=face('orbitron.ttf',26*s),fill='#eef7f8',anchor='mm')
     d.text((160*s,181*s),'CODEX  /  CLAUDE',font=face('press-start-2p.ttf',7*s),fill='#8198a7',anchor='mm')
     d.line((125*s,201*s,153*s,201*s),fill='#55efdc',width=s)
     d.line((167*s,201*s,195*s,201*s),fill='#ffb468',width=s)

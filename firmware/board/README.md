@@ -1,8 +1,9 @@
-# TokenTV board firmware
+# AI Desk Display firmware
 
-Shows the pages `token-tv` pushes (the clock's five faces, Claude's five-hour detail, and two showpiece screens) on an ESP32 touch
-board (Cheap Yellow Display, ESP32-2432S028R, 320x240). It holds no accounts or credentials and never asks
-the PC for anything; touch changes pages, rotation mode or opens the connection screen. Local only, like the clock.
+Runs eight AI Desk Display scenes on an ESP32 touch board (Cheap Yellow Display,
+ESP32-2432S028R, 320×240), with native animation, touch navigation and wall-clock
+rotation. The host sends rendered pages over the local network. The board holds
+no provider accounts or credentials and never contacts AI services itself.
 
 ## Build (isolated toolchain, nothing global)
 
@@ -82,13 +83,16 @@ only red and blue swapped means `--swap-rb 1`, scrambled colours mean `--swap-by
 ## Boot splash
 
 `tools/make_splash.py` draws the local terminal-inspired splash with Pillow and the bundled fonts,
-and writes `src/splash_data.h`: a 256-colour palette plus run-length data (about 24 KB),
-streamed row by row at boot. Firmware 11 replaces the older concentric dials with cyan/amber
-chevrons. Use `--preview /tmp/ai-desk-display-preview.png` to inspect the 320x240 artwork.
+and writes `src/splash_data.h`: a 256-colour palette plus run-length data,
+streamed row by row at boot. Firmware 13 shows **AI DESK DISPLAY** beneath the
+cyan/amber terminal chevrons, and **AI Desk Display** on the connection screen.
+Use `--preview /tmp/ai-desk-display-splash.png` to inspect the 320×240 artwork.
 This changes no connection behavior, boot delay, saved settings or rotation controls.
 Edit the drawing and run the script again; keep the band y >= 214 empty, the firmware writes its status
 line there. The application slot is 1 MB and the image uses about 92 % of it, so check `pio run` before
 adding bigger art.
+
+![AI Desk Display boot splash](../../docs/images/boot.png)
 
 Firmware 12 also polls touch between page upload/read chunks, using the same 10 ms
 poll gate as the main loop. A transfer retains its own file handle when touch changes

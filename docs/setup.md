@@ -1,14 +1,14 @@
 # Instalar AI Desk Display
 
-Empieza por la [demo sin cuentas](../README.md#try-it-without-a-display-or-an-account). El paquete público conserva el comando `token-tv`, pero se instala desde **este repositorio**, no desde PyPI ni desde el proyecto upstream.
+Empieza por la [demo sin cuentas](../README.md#try-it-without-a-display-or-an-account). Instala AI Desk Display desde **este repositorio** y utiliza el comando `ai-desk-display`. El nombre anterior sigue disponible para las instalaciones existentes.
 
 ## Crear tu configuración privada
 
 Necesitas tus propios clientes oficiales de Claude/Codex instalados y con sesión iniciada. No compartas sus archivos de autenticación.
 
 ```bash
-token-tv setup
-token-tv doctor
+ai-desk-display setup
+ai-desk-display doctor
 ```
 
 `setup` crea una configuración privada y pregunta por tus cuentas y dispositivo; no sobrescribe una configuración existente. `doctor` revisa la instalación sin consultar cuotas reales. `doctor --live` sí consulta los proveedores: ejecútalo solo si quieres hacer esa comprobación.
@@ -16,8 +16,8 @@ token-tv doctor
 Para una placa ESP32 ya preparada, añade la dirección que muestra su pantalla:
 
 ```bash
-token-tv board --url http://192.168.0.60
-token-tv board --check
+ai-desk-display board --url http://192.168.0.60
+ai-desk-display board --check
 ```
 
 La IP es un ejemplo; utiliza la tuya. No publiques el token de emparejamiento. El firmware se prepara por separado: [guía de hardware](hardware.md).
@@ -31,7 +31,7 @@ En tu configuración privada puedes habilitar `local_only: true`, `automatic_cod
 Desde el checkout y con el entorno virtual activado, en procesos separados:
 
 ```bash
-token-tv run
+ai-desk-display run
 python scripts/codex_reset_collector.py --config ~/.config/token-tv/config.json
 python scripts/claude_usage_collector.py --config ~/.config/token-tv/config.json
 ```
