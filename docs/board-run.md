@@ -31,6 +31,8 @@ back-and-forth drift. Eight perspective poses make a 1.92-second cycle, slower
 than the 0.48-second road cycle but four times quicker than the previous drift.
 The fixed palm above the left sea stays gone. The gull, static clouds, water
 glints, gentle CRT treatment and hard 2×2 pixels keep their established look.
+Only the small distant parasol remains; the two foreground parasols are gone,
+leaving a clear path for the approaching palms. The animation itself is unchanged.
 
 ## Try it locally
 

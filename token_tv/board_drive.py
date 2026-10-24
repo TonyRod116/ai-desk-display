@@ -259,7 +259,8 @@ def _backdrop():
         for yy in range(base - height + 3, base, 3):
             d.line((x + 1, yy, x + width - 3, yy), fill='#467386')
         d.point((x + 3, base), fill='#244e5e')
-    for x, y, shade in ((109, 58, '#f5a2c6'), (120, 61, '#fff0b5'), (151, 63, '#ef6478')):
+    # Keep parasols distant; foreground ones interrupt the approaching palms.
+    for x, y, shade in ((109, 58, '#f5a2c6'),):
         d.line((x, y - 4, x, y), fill='#736447')
         d.polygon([(x - 3, y - 3), (x, y - 5), (x + 3, y - 3)], fill=shade)
         d.line((x - 3, y - 2, x + 3, y - 2), fill='#9c635b')
