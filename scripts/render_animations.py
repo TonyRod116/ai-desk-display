@@ -116,7 +116,7 @@ def main():
                 # Sample each scene on its native tick, including complete surf/UFO cycles.
                 duration = {'code-forge': 140, 'dials': 120, 'surf': 150,
                             'arcade': 160, 'cockpit': 140}.get(name, 100)
-                total = {'code-forge': 22400, 'dials': 7680, 'surf': 9600,
+                total = {'code-forge': 22400, 'dials': 19200, 'surf': 9600,
                          'arcade': 15360, 'cockpit': 8960}.get(
                              name, 6400 if kind==b'WAVE' else 8000)
                 result = subprocess.run([str(engine),str(path),str(folder),str(total),str(duration)],capture_output=True,text=True)

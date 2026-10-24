@@ -38,11 +38,32 @@ def compose(background, spec, step):
             y = sprite['y'] + dy + index // sprite['w'] * 2
             for yy in (y, y + 1):
                 for xx in (x, x + 1):
-                    words[yy * 320 + xx] = word
+                    if 0 <= xx < 320 and 0 <= yy < 240:
+                        words[yy * 320 + xx] = word
     return words
 
 
 class DrivingSceneTests(unittest.TestCase):
+    def test_no_fixed_palm_crown_hangs_over_the_left_hand_sea(self):
+        image = board_drive.scene(0)
+        # Sky above the windsurf sails: the old floating palm occupied this
+        # patch. Keep the green headland and roadside trees elsewhere.
+        crown = image.crop((54, 33, 78, 46))
+        pixels = [crown.getpixel((x, y)) for y in range(crown.height) for x in range(crown.width)]
+        green = [p for p in pixels if p[1] > p[0] * 1.2 and p[1] > p[2] * 1.1]
+        self.assertEqual(green, [])
+
+    def test_resort_palms_move_more_slowly_than_the_road_without_a_loop_jump(self):
+        palms = [s for s in board_drive.ambient() if s['name'].startswith('palm')]
+        self.assertEqual(len(palms), 2)
+        for palm in palms:
+            offsets = [(dx, dy) for _, dx, dy in palm['script']]
+            self.assertGreaterEqual(len(set(offsets)), 3)
+            self.assertGreaterEqual(len(offsets), board_drive.PHASES * 5)
+            # At most one console pixel per tick, including the loop seam.
+            for before, after in zip(offsets, offsets[1:] + offsets[:1]):
+                self.assertLessEqual(math.dist(before, after), 2)
+
     def test_the_sea_continues_below_the_road_horizon_instead_of_floating_above_it(self):
         # The old bay ended at the vanishing point and became sand underneath,
         # so it looked like a shelf of water in the sky. The coast must reach
@@ -94,6 +115,13 @@ class DrivingSceneTests(unittest.TestCase):
                             x = sprite['x'] + dx + i % sprite['w'] * 2
                             y = sprite['y'] + dy + i // sprite['w'] * 2
                             for p in ((x, y), (x + 1, y), (x, y + 1), (x + 1, y + 1)):
+                                # Resort palms may pass behind the right bezel;
+                                # the native engine clips them at the panel edge.
+                                if p[0] >= 320:
+                                    self.assertEqual(sprite['x'], max(s['x'] for s in spec['sprites']))
+                                    self.assertLess(p[0], 320 + max(dx for _, dx, _ in sprite['script']))
+                                    self.assertTrue(36 <= p[1] < 240)
+                                    continue
                                 self.assertTrue(0 <= p[0] < 320 and (number or 2 * board_drive.WINDOW[1] <= p[1] < 240))
                                 # the dial is the whole disc, rim included, on the 160x120 grid
                                 self.assertTrue(all(math.dist((p[0] // 2, p[1] // 2), centre) > RADIUS
@@ -141,7 +169,7 @@ class DrivingSceneTests(unittest.TestCase):
         self.assertEqual(image.getpixel((0, 0)), board_dials.BEZEL)                  # rounded screen corner
         self.assertEqual(image.getpixel((319, 239)), board_dials.BEZEL)
 
-    def test_the_slow_sky_things_move_a_little_inside_their_own_boxes(self):
+    def test_slow_palms_and_gull_keep_separate_restore_boxes(self):
         with patch('time.time', return_value=NOW):
             background, payload = render_dials(sample(), animated=True)
             static = render_dials(sample())
@@ -162,7 +190,7 @@ class DrivingSceneTests(unittest.TestCase):
         for i, a in enumerate(boxes):
             for b in boxes[i + 1:]:
                 self.assertTrue(a[2] <= b[0] or b[2] <= a[0] or a[3] <= b[1] or b[3] <= a[1], (a, b))
-        # The stored picture has none of the sky things (they would be left behind as ghosts); a board that cannot
+        # The stored picture has none of the moving palms/gull (they would be left behind as ghosts); a board that cannot
         # animate gets them in the first pose.
         changed = ImageChops.difference(background, static).getbbox()
         self.assertIsNotNone(changed)

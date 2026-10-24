@@ -1,7 +1,7 @@
 """Original coastal arcade scenery, drawn locally on a 160x120 console grid.
 
 Sea, beach and a three-lane bend share one horizon. Four stored road poses carry
-the advancing scenery; separate small sprites move cloud, water and gull. No game
+the advancing scenery; separate small sprites move resort palms and a gull. No game
 assets, live account data, wall-clock animation or new firmware are needed.
 """
 from functools import lru_cache
@@ -27,8 +27,8 @@ RED, WHITE = '#ef3939', '#fff3d8'
 ASPHALT = ('#555d6d', '#687184')
 
 
-# The slow cloud, water glints and gull are NOT in the picture the board stores: each is a transparent sprite that
-# the board moves a little (all at STEP_MS), so the sky is quietly alive. Their restoration boxes are disjoint, stay
+# The resort palms and gull are NOT in the picture the board stores: each is a transparent sprite that
+# the board moves a little (all at STEP_MS). Their restoration boxes are disjoint, stay
 # clear of the scoreboard (canvas rows 0-16) and of the road window, and every script starts at offset (0, 0).
 def _gull_frames():
     shapes = ('XX.....XX/.XXX.XXX./...XXX.../.........',
@@ -51,24 +51,19 @@ def _gull_frames():
 def ambient():
     """Ambient sprites: x/y in screen pixels, unfiltered RGBA frames and scripts."""
     out = []
-    layer = Image.new('RGBA', (W, H), (0, 0, 0, 0))
-    _cumulus(layer, 92, 29, 32, 13)
-    box = layer.getbbox()
-    cloud = layer.crop(box)
-    out.append({'name': 'cloud', 'x': box[0] * 2, 'y': box[1] * 2, 'frames': [cloud],
-                'script': [(0, 2 * round(4 * math.sin(2 * math.pi * k / 32)), 0) for k in range(32)]})
-    waves = []
-    for phase in range(PHASES):
-        wave = Image.new('RGBA', (22, 4), (0, 0, 0, 0))
-        wd = ImageDraw.Draw(wave)
-        for x, y, length in ((1, 0, 5), (13, 0, 3), (6, 2, 5), (16, 3, 4)):
-            offset = (phase + y) % 3
-            wd.line((x + offset, y, min(21, x + length + offset), y),
-                    fill='#baf9ee' if phase % 2 == y % 2 else '#65e2dd')
-        waves.append(wave)
-    out.append({'name': 'water', 'x': 21 * 2, 'y': 58 * 2, 'frames': waves,
-                'script': [(k // 4 % PHASES, 2 * round(2 * math.sin(2 * math.pi * k / 16)), 0)
-                           for k in range(16)]})
+    # One tiny texture per palm keeps all four road poses and the original
+    # 120 ms cadence. The nearer resort palm drifts further, but both take five
+    # road cycles to follow the bend and return without teleporting. Clouds
+    # and glints now belong to the backdrop to stay within four sprite slots.
+    for name, x, base, size, reach in (('palm-far', 123, 58, 15, 2),
+                                      ('palm-near', 152, 67, 29, 6)):
+        layer = Image.new('RGBA', (W, H), (0, 0, 0, 0))
+        _palm(ImageDraw.Draw(layer), x, base, size)
+        box = layer.getbbox()
+        out.append({'name': name, 'x': box[0] * 2, 'y': box[1] * 2,
+                    'frames': [layer.crop(box)],
+                    'script': [(0, 2 * round(reach * .5 * (1 - math.cos(2 * math.pi * k / 20))), 0)
+                               for k in range(20)]})
     out.append({'name': 'gull', 'x': 44 * 2, 'y': 23 * 2, 'frames': _gull_frames(),
                 'script': [((0, 1, 2, 1)[k % 4], 2 * round(6 * math.sin(2 * math.pi * k / 32)),
                             4 * round(.5 * (1 - math.cos(2 * math.pi * k / 32)))) for k in range(32)]})
@@ -189,6 +184,7 @@ def _backdrop():
     _bands(d, SKY, 0, HORIZON, 0.0, seed=4)
     for cx, cy, w, h in ((13, 34, 34, 18), (52, 44, 62, 12), (124, 40, 24, 9)):
         _cumulus(im, cx, cy, w, h)
+    _cumulus(im, 92, 29, 32, 13)
     _streak(d, 44, 18, 22)
     # Only the right-hand headland rises above the water. There is no mountain
     # wall behind a strip of sea suspended above a second ground horizon.
@@ -212,6 +208,10 @@ def _backdrop():
     for x, y, width in ((3, 54, 9), (25, 54, 6), (46, 55, 7), (58, 57, 5),
                         (0, 63, 13), (43, 62, 8), (5, 68, 14), (35, 69, 6)):
         d.line((x, y, min(x + width, round(_shore(y - HORIZON)) - 4), y), fill='#9af2e4')
+    for x, y, length in ((1, 0, 5), (13, 0, 3), (6, 2, 5), (16, 3, 4)):
+        offset = y % 3
+        d.line((21 + x + offset, 58 + y, 21 + min(21, x + length + offset), 58 + y),
+               fill='#baf9ee' if y % 2 == 0 else '#65e2dd')
     _boat(d, 14, 56, 2)
     # A tall foreground windsurf sail and a smaller distant one ground the
     # left side in the sea. Palms stand on the sand, never in open water.
@@ -241,9 +241,8 @@ def _backdrop():
         d.line((x, y - 4, x, y), fill='#736447')
         d.polygon([(x - 3, y - 3), (x, y - 5), (x + 3, y - 3)], fill=shade)
         d.line((x - 3, y - 2, x + 3, y - 2), fill='#9c635b')
-    for x, base, size in ((68, 65, 23), (146, 67, 29), (119, 58, 15)):
-        _palm(d, x, base, size)
-    # Far palms repeat toward the vanishing point; foreground ones move.
+    # No fixed palm over the left-hand sea. The two large resort palms on
+    # the right are separate slow layers; small horizon palms remain distant.
     for x, base, size in ((82, 54, 4), (86, 53, 3), (89, 53, 2), (102, 53, 4), (108, 54, 6)):
         _palm(d, x, base, size)
     for x, y in ((24, 23), (29, 25)):

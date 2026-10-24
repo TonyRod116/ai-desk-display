@@ -6,7 +6,7 @@ are two round dials set into the bottom corners, like an arcade dashboard:
 
 - the ring of twenty LED blocks is the quota left of the week (the last lit block is a paler tint of its colour, like a
   cursor), and the blocks change colour with their place on the ring like an arcade rev counter: red up to 20 %, amber up to 50 %,
-  green above (the user, 2026-10-19; the same limits as the VERSUS life bars). Empty blocks are a plain dark navy: a faint zone tint made the level hard to see at a glance;
+  green above (Tony, 2026-10-19; the same limits as the VERSUS life bars). Empty blocks are a plain dark navy: a faint zone tint made the level hard to see at a glance;
 - three pixel hearts in the gap at the foot of each dial are the saved resets, without a number;
 - Claude's five-hour session is two thin rings of five parts inside its dial (quota left outside, time left
   inside, with no marks or numbers; nothing at all while the session is unknown, so unknown never reads as empty);
@@ -239,7 +239,7 @@ def _crt(image, origin=(0, 0)):
 
 @lru_cache(maxsize=1)
 def _sprites():
-    """The road window in its four poses, with every pixel of the dials left transparent, then the slow sky things."""
+    """Four road poses, with every dial pixel left transparent, then the slow palms and gull."""
     x0, y0, x1, y1 = board_drive.WINDOW
     poses = []
     for phase in range(board_drive.PHASES):
@@ -261,7 +261,7 @@ def _sprites():
 
 def render_dials(snapshot, animated=False):
     canvas = board_drive.scene(0).copy()
-    if not animated:                                        # a board without ANIM keeps the first pose of the sky things
+    if not animated:                                        # a board without ANIM keeps the first pose of palms and gull
         for thing in board_drive.ambient():
             frame, dx, dy = thing['script'][0]
             canvas.paste(thing['frames'][frame], ((thing['x'] + dx) // K, (thing['y'] + dy) // K), thing['frames'][frame])

@@ -1,5 +1,6 @@
 """The firmware's scene-animation engine, run on the PC against a simulated board (needs g++)."""
 import copy
+import math
 import shutil
 import struct
 import subprocess
@@ -208,7 +209,7 @@ class AnimationEngineTests(unittest.TestCase):
                 spec = board_anim.decode(payload)
                 background = list(struct.unpack('<76800H', rgb565_frame(image)[8:]))
                 capture = spec['sprites'][0]['step_ms']
-                steps = max(len(sprite['script']) for sprite in spec['sprites']) * 2     # two cycles of the slowest
+                steps = math.lcm(*(len(sprite['script']) for sprite in spec['sprites'])) * 2  # two complete joint cycles
                 out = self.run_engine(payload, capture * steps, image=image, capture_ms=capture)
                 for step in range(steps):
                     got = struct.unpack('<76800H', (out / f'screen_{step}.bin').read_bytes())
