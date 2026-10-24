@@ -1,24 +1,24 @@
 """Page 7 of the touch board: the cockpit, two glass orbs in deep space (320x240).
 
-the user asked (2026-10-19) for the penultimate page, "las dos esferas con las estrellas de fondo", to be brought up to
-the level of the others: a real space for a background, with nebulae and everything, and a better page overall.
+Two quota instruments float over a detailed nebula, with a galaxy, a ringed planet and an occasional UFO.
 
 - The backdrop is a nebula built from layered smooth noise (violet, magenta, teal and blue gas, dark dust lanes), a
   small spiral galaxy and a fixed starfield, all deterministic and cached. It stays dim around the readings.
 - Each gauge is a glass orb: dark and quiet in the middle for the number, a lit rim, a highlight and an aura. The
   weekly quota left is the luminous band around it (270 degrees, 10 % steps), Codex yellow and Claude stone. Claude's
   five-hour session is the two thin five-part rings between the orb and the band, only from a fresh reading.
-- Three hearts under each name are the saved resets, as everywhere. Unknown is `--`, never zero.
+- Three rockets under each name are the saved resets. Unknown is `--`, never zero.
 
-The twinkling stars are the board's own firmware job (a `STAR` trailer from `board_art.free_stars`, built with this
-page's `space_backdrop` and `star_field`). Nothing here depends on the time of day: the page changes only when a
-reading does. Colours stay Codex yellow and Claude stone, no traffic-light colours on this page.
+The board animates a small UFO and twinkling stars through ANIM; older firmware keeps the STAR fallback.
+Nothing here depends on the time of day: the page changes only when a reading does.
+Colours stay Codex yellow and Claude stone, no traffic-light colours on this page.
 """
 import functools
 import math
 import random
 
 from PIL import Image, ImageChops, ImageDraw, ImageFilter
+from token_tv import board_anim
 
 from token_tv.board_art import (CLAUDE, CODEX, DIM, MUTED, RAMP, SS, WHITE, H, W, Scene, _resets, _hex, _mix, _rgb,
                                 _row, _session_rings)
@@ -102,9 +102,9 @@ def _nebulae():
         core = ImageChops.multiply(core, mask)
         # thin bright filaments where the gas is thick: contour lines of a second noise ("ridged" noise)
         ridged = _fbm(seed + 2, *size, grid=(6, 4), octaves=6).point([round(255 * (1 - abs(2 * v / 255 - 1))) for v in range(256)])
-        wisps = _scale(ImageChops.multiply(_band(ridged, 224, 250), mask), .42)
+        wisps = _scale(ImageChops.multiply(_band(ridged, 224, 250), mask), .58)
         sky = Image.composite(Image.new('RGB', size, _hex(_mix(colour, '#ffffff', .5))), sky, wisps)
-        sky = Image.composite(Image.new('RGB', size, _hex(_mix(colour, '#ffeaf8', .6))), sky, _scale(core, .7))
+        sky = Image.composite(Image.new('RGB', size, _hex(_mix(colour, '#ffeaf8', .6))), sky, _scale(core, .9))
     dust = _scale(_band(_fbm(77, *size, grid=(3, 2), octaves=6), 120, 190), .62)       # dark lanes cut through the gas
     lanes = Image.merge('RGB', [dust.point([255 - v for v in range(256)])] * 3)
     sky = ImageChops.multiply(sky, lanes)
@@ -134,8 +134,46 @@ def _galaxy(image, cx, cy):
             pts.append((mid[0] + sign * math.cos(ang) * r, mid[1] + sign * math.sin(ang) * r * .34))
         d.line(pts, fill=(214, 224, 255, 70), width=SS)
     d.ellipse((mid[0] - 3 * SS, mid[1] - 1.5 * SS, mid[0] + 3 * SS, mid[1] + 1.5 * SS), fill=(255, 244, 224, 230))
-    layer = layer.filter(ImageFilter.GaussianBlur(SS * .8)).rotate(-16, resample=Image.Resampling.BICUBIC, expand=True)
+    layer = layer.filter(ImageFilter.GaussianBlur(SS * .65))
+    d = ImageDraw.Draw(layer)
+    rnd = random.Random(805)
+    for sign in (-1, 1):
+        for i in range(95):
+            t = rnd.random()
+            ang = math.pi*(.15+1.1*t)+rnd.uniform(-.14,.14)
+            r = (4+22*t)*SS
+            x = mid[0]+sign*math.cos(ang)*r
+            y = mid[1]+sign*math.sin(ang)*r*.34
+            d.point((round(x),round(y)),fill=(190,217,255,rnd.randrange(80,210)))
+    layer = layer.rotate(-16, resample=Image.Resampling.BICUBIC, expand=True)
     image.alpha_composite(layer, (cx * SS - layer.width // 2, cy * SS - layer.height // 2))
+
+
+def _ringed_planet(image):
+    """An icy world in the gap between the instruments, lit from upper left."""
+    cx, cy, radius = 160 * SS, 216 * SS, 14 * SS
+    layer = Image.new('RGBA', image.size)
+    d = ImageDraw.Draw(layer)
+    rings = (cx - 23 * SS, cy - 6 * SS, cx + 23 * SS, cy + 6 * SS)
+    d.ellipse(rings, outline='#467d9e', width=2 * SS)
+    d.ellipse((rings[0]+2*SS, rings[1]+SS, rings[2]-2*SS, rings[3]-SS), outline='#8bbed0', width=SS)
+    px = layer.load()
+    for y in range(cy-radius, cy+radius+1):
+        for x in range(cx-radius, cx+radius+1):
+            nx, ny = (x-cx)/radius, (y-cy)/radius
+            rr = nx*nx+ny*ny
+            if rr > 1: continue
+            nz = math.sqrt(1-rr)
+            light = max(0, -.6*nx-.5*ny+.6*nz)
+            bands = .5+.5*math.sin(ny*25+math.sin(nx*4)*.65)
+            limb = (1-nz)**3
+            px[x,y] = (round(9+42*light+12*bands*light),
+                       round(17+101*light+17*bands*light+15*limb),
+                       round(32+136*light+15*bands*light+24*limb),255)
+    # The front half occludes the world, with a thin dark Cassini division.
+    d.arc(rings, 0, 180, fill='#c0dfdc', width=2*SS)
+    d.arc((rings[0]+2*SS,rings[1]+SS,rings[2]-2*SS,rings[3]-SS),0,180,fill='#30536d',width=SS)
+    image.alpha_composite(layer)
 
 
 def _in_calm_zone(x, y):
@@ -170,7 +208,7 @@ FEATURE_STARS = ((22, 50, '#fff3d6', 5), (304, 56, '#d6e8ff', 6), (150, 214, '#f
 def space_backdrop():
     """Nebulae, a galaxy, the twinkling field and a few bright stars, as an RGBA drawing-scale image (cached)."""
     img = _nebulae().convert('RGBA')
-    _galaxy(img, 160, 17)
+    _galaxy(img, 160, 27)
     draw = ImageDraw.Draw(img)
     for x, y, color, wide in star_field():
         draw.rectangle((x, y, x + (2 if wide else 1), y + 1), fill=color)
@@ -192,6 +230,7 @@ def space_backdrop():
                 if k < span // 3:                                  # arms are two pixels thick near the core
                     draw.point((cx + dx * k + dy, cy + dy * k + dx), fill=_rgb(color) + (alpha // 2,))
         draw.rectangle((cx - 1, cy - 1, cx + 1, cy + 1), fill='#ffffff')
+    _ringed_planet(img)
     return img
 
 
@@ -215,8 +254,9 @@ def _orb(scene, cx, cy, radius, accent):
             lam = max(0.0, dx * light[0] + dy * light[1] + nz * light[2])
             fres = (1 - nz) ** 2.3
             spec = max(0.0, 1 - math.hypot(dx + .43, dy + .47) / .26) ** 2
-            bands = .5 + .5 * math.sin(dy * 11 + math.sin(dx * 4.2) * 1.3)           # soft latitude bands: a little planet
-            colour = [deep[i] + tone[i] * (.10 * lam + .035 * bands) + rim_tone[i] * fres * (.30 + 1.05 * lam) + 255 * .6 * spec
+            bands = .5 + .5 * math.sin(dy * 20 + math.sin(dx * 5.2) * 1.8)
+            storms = (.5 + .5 * math.sin(dx * 22 + dy * 17)) * bands
+            colour = [deep[i] + tone[i] * (.10 * lam + (.035 * bands + .045 * storms) * lam) + rim_tone[i] * fres * (.30 + 1.05 * lam) + 255 * .6 * spec
                       for i in range(3)]
             edge = min(1.0, (1 - math.sqrt(rr)) * R)
             px[x, y] = tuple(min(255, round(v)) for v in colour) + (round(238 * edge),)
@@ -286,9 +326,36 @@ def _divider(scene):
         scene.d.line((160 * SS, y * SS, 160 * SS, (y + 1) * SS), fill=_rgb('#2a4574') + (alpha,), width=SS)
 
 
-def render_cockpit(snapshot):
+def _ufo():
+    """A brief flyby across clear sky; a dim approach and departure, then a pause."""
+    frames = []
+    for phase in range(3):
+        im = Image.new('RGBA', (14, 7))
+        d = ImageDraw.Draw(im)
+        d.ellipse((5, 0, 9, 4), fill='#427eaa', outline='#b2edf0')
+        d.point((6, 1), fill='#f6fff4')
+        d.ellipse((1, 2, 13, 5), fill='#465c81', outline='#a1ced7')
+        d.line((3, 3, 11, 3), fill='#e0edf4')
+        d.line((4, 5, 10, 5), fill='#177898')
+        for x in (4, 7, 10):
+            d.point((x, 4), fill='#91fff3' if (x+phase)%2 else '#ffb5dd')
+        d.line((5, 6, 9, 6), fill='#54cdd1' if phase == 1 else '#327f9f')
+        if phase == 0:
+            # RGB dimming, not semi-transparent pixels (the native key is binary).
+            im = Image.merge('RGBA', [im.getchannel(c).point(lambda v: round(v*.42)) for c in 'RGB']+[im.getchannel('A')])
+        frames.append(im)
+    frames.append(Image.new('RGBA', (14, 7)))
+    script = []
+    for i in range(32):
+        t = min(i,23)/23
+        frame = (0 if i < 2 or i > 21 else 1+i%2) if i < 24 else 3
+        script.append((frame, round(-28+56*t), round(6*math.sin(math.pi*t))))
+    return {'x':146,'y':16,'frames':frames,'script':script,'step_ms':140}
+
+
+def render_cockpit(snapshot, animated=False):
     scene = Scene(space_backdrop)
-    scene.text((12, 7), 'TOKEN COCKPIT', 'press-start-2p.ttf', 6, LABEL)
+    scene.text((12, 7), 'DEEP SPACE', 'press-start-2p.ttf', 6, LABEL)
     scene.text((308, 7), 'SEMANA RESTANTE', 'press-start-2p.ttf', 6, LABEL, anchor='ra')
     _divider(scene)
     for provider, accent in (('codex', CODEX), ('claude', CLAUDE)):
@@ -296,4 +363,19 @@ def render_cockpit(snapshot):
         value, _, _, reset = remaining_reading(row)
         pace = session_pace(row) if provider == 'claude' else None   # only Claude has a five-hour session
         _gauge(scene, provider, value, banked_hearts(row), pace, reset, accent)
-    return scene.finish()
+    image = scene.finish()
+    sprite = _ufo()
+    if not animated:
+        frame, dx, dy = sprite['script'][0]
+        pose = sprite['frames'][frame].resize((28,14),Image.Resampling.NEAREST)
+        image.paste(pose,(sprite['x']+dx,sprite['y']+dy),pose)
+        return image
+    from token_tv.board_art import free_stars
+    # Native sprites restore their entire movement rectangle; twinkling there
+    # would paint over the ship. Keep the two animation systems disjoint.
+    candidates = [(x,y,c) for x,y,c in free_stars(image,backdrop=space_backdrop,field=star_field)
+                  if not (114 <= x <= 206 and 12 <= y <= 42)
+                  and not (136 <= x <= 184 and 198 <= y <= 234)]
+    stars = [(x,y,c,board_anim.rgb565((215,239,255)),board_anim.rgb565((38,57,86)))
+             for x,y,c in candidates[::max(1,len(candidates)//48)][:48]]
+    return image, board_anim.encode([sprite],stars)

@@ -12,6 +12,58 @@ from test_board_forge import NOW, sample, compose
 
 
 class SurfTests(unittest.TestCase):
+    def test_left_break_has_visible_foam_that_churns_in_every_transition(self):
+        from token_tv.board_surf import wave_pose
+        def is_foam(color):
+            return color[0] > 180 and color[1] > 225 and color[2] > 200
+        foam = []
+        for phase in range(4):
+            image = wave_pose(phase).convert('RGB')
+            foam.append({(x,y) for y in range(29,38) for x in range(3,33)
+                         if is_foam(image.getpixel((x,y)))})
+            self.assertGreater(len(foam[-1]), 40, phase)
+        for before,after in zip(foam,foam[1:]+foam[:1]):
+            self.assertGreater(len(before ^ after), 20)
+
+    def test_outer_current_moves_down_the_face_including_the_loop_boundary(self):
+        from PIL import Image, ImageDraw, ImageColor
+        from token_tv.board_surf import _wave_motion
+        highlights = []
+        for phase in range(4):
+            image = Image.new('RGBA', (120,40))
+            _wave_motion(ImageDraw.Draw(image),phase)
+            highlights.append({(x,y) for x in range(18,59) for y in range(8,37)
+                               if image.getpixel((x,y))[:3] == ImageColor.getrgb('#82e9dc')})
+        for before,after in zip(highlights,highlights[1:]+highlights[:1]):
+            # Match painted water between frames, not just an increment sign.
+            score,dx,dy = max((len({(x+dx,y+dy) for x,y in before}&after),dx,dy)
+                             for dx in range(-6,7) for dy in range(-4,5))
+            self.assertGreater(score,8)
+            self.assertLess(dx,0)
+            self.assertGreater(dy,0)
+
+    def test_exterior_water_has_visible_flow_over_the_shoulder(self):
+        from token_tv.board_surf import wave_pose
+        frames = [wave_pose(i) for i in range(4)]
+        for i, image in enumerate(frames):
+            next_image = frames[(i+1)%4]
+            # Left shoulder only: excludes the surfer and the inside of the tube.
+            changed = sum(image.getpixel((x,y)) != next_image.getpixel((x,y))
+                          for y in range(8,37) for x in range(10,49))
+            self.assertGreater(changed, 70, i)
+
+    def test_wave_foot_blends_into_the_sea_instead_of_ending_at_an_opaque_edge(self):
+        from token_tv.board_surf import _wave_layer
+        layer = _wave_layer()
+        # The unbroken face used to end with an opaque dark outline. Its last
+        # few rows must now share the underlying sea, away from the foam bank.
+        for x in (30, 40, 50, 60):
+            alpha = [layer.getpixel((x, y))[3] for y in range(layer.height)]
+            edge = max(y for y, a in enumerate(alpha) if a)
+            self.assertLess(alpha[edge], 100, x)
+            self.assertGreater(alpha[edge - 5], 200, x)
+            self.assertGreaterEqual(len(set(alpha[edge - 5:edge + 1])), 4, x)
+
     def test_board_is_stable_while_body_articulates_relative_to_it(self):
         from token_tv.board_surf import wave_pose
         board_positions, relative_bodies = [], []

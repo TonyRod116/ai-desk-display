@@ -7,8 +7,9 @@ from unittest.mock import patch
 from PIL import Image
 
 from token_tv import board_art, board_space
+from token_tv import board_anim
 from token_tv.board_art import FLARE, free_stars
-from token_tv.board_pages import PAGE_NAMES, render_board_pages
+from token_tv.board_pages import PAGE_NAMES, render_board_pages, rgb565_frame
 from token_tv.sample import snapshot
 
 NOW = 2000000000
@@ -40,6 +41,28 @@ def bare():
 
 
 class SpaceCockpitTests(unittest.TestCase):
+    @patch('time.time', return_value=NOW)
+    def test_ufo_preserves_the_readings_and_matches_the_static_first_pose(self, _):
+        from test_board_forge import compose
+        image, payload = board_space.render_cockpit(sample(), animated=True)
+        spec = board_anim.decode(payload)
+        self.assertLess(len(payload), 40000)
+        self.assertEqual(struct.pack('<76800H',*compose(image,spec,0)),
+                         rgb565_frame(board_space.render_cockpit(sample()))[8:])
+        sprite = spec['sprites'][0]
+        self.assertEqual(len(sprite['script']),32)
+        self.assertTrue(all(w == board_anim.KEY for w in sprite['frames'][-1]))
+        for _,dx,dy in sprite['script']:
+            x0,y0 = sprite['x']+dx,sprite['y']+dy
+            x1,y1 = x0+sprite['w']*2,y0+sprite['h']*2
+            self.assertGreaterEqual(y0,15)
+            for cx,cy in board_space.CENTRES.values():
+                nearest = (max(x0,min(cx,x1)),max(y0,min(cy,y1)))
+                self.assertGreater(math.dist(nearest,(cx,cy)),73)
+        for x,y,*_ in spec['stars']:
+            self.assertFalse(114 <= x <= 206 and 12 <= y <= 42)
+        self.assertEqual(render_board_pages(sample(),stars=True,anim=True)[6],rgb565_frame(image,anim=payload))
+
     def test_the_page_is_deterministic_and_real_readings_change_it(self):
         with patch('time.time', return_value=NOW):
             first, second = board_space.render_cockpit(sample()), board_space.render_cockpit(sample())

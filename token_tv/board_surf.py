@@ -298,7 +298,9 @@ def _wave_layer():
     im = Image.new('RGBA', (W, H), (0, 0, 0, 0))
     d = ImageDraw.Draw(im)
     outer = curve([(0, 38), (23, 21), (61, -9), (99, 2)], 90)
-    shoulder = curve([(99, 2), (114, 4), (114, 34), (126, 44)], 50)
+    # The unbroken swell continues beyond the right edge, feeding the curl;
+    # it must not drop like a detached wall immediately behind the lip.
+    shoulder = curve([(99, 2), (120, 3), (130, 28), (140, 44)], 50)
     bottom = curve([(126, 44), (97, 49), (64, 44), (24, 48)], 60)
     body_pts = outer + shoulder + bottom + [(0, 38)]
     body = Image.new('L', (W, H), 0)
@@ -326,10 +328,12 @@ def _wave_layer():
                     if rnd.random() < .12:
                         colour = '#3ecdc6'
                 d.point((x, y), fill=colour)
-    for x in range(100, 125, 3):                              # vertical ripples down the shoulder wall
-        y0 = 20 + (x * 7) % 9
-        d.line((x, y0, x, y0 + 4 + (x % 4)), fill='#47d7cc')
-        d.line((x + 1, y0 + 5, x + 1, y0 + 8), fill='#1b8aa3')
+    for offset in range(0, 16, 4):                           # water bends over the shoulder into the trough
+        ripple = curve([(106 + offset, 12), (109 + offset, 22),
+                        (112 + offset, 33), (126 + offset, 39)], 24)
+        for i, point in enumerate(ripple):
+            if _inside(body, point):
+                d.point(point, fill='#3ec9c4' if i < 16 else '#239caf')
     rnd = random.Random(12)                                   # long streaks that follow the face, light and dark
     for _ in range(46):
         k = rnd.randint(7, 34)
@@ -373,8 +377,12 @@ def _wave_layer():
     d.polygon(lip + inner, fill='#6fe4d2')
     for k, colour in ((0, '#9af2e0'), (2, '#55d2c8'), (4, '#2aaebb')):
         d.line([(x - k * .6, y) for x, y in lip[len(lip) // 3:]], fill=colour, width=1)
-    d.line(outer + lip, fill='#d9fff0', width=3)
-    d.line(outer + lip, fill='#fffbe9', width=1)
+    # Foam builds up towards the breaking crest, instead of outlining the
+    # entire swell in white all the way down to otherwise calm water.
+    d.line(outer[:24], fill='#68d2cd', width=2)
+    d.line(outer[23:40], fill='#b5f3df', width=2)
+    d.line(outer[39:] + lip, fill='#d9fff0', width=3)
+    d.line(outer[46:] + lip, fill='#fffbe9', width=1)
     d.line(inner, fill='#2fb1ba', width=2)
     for x, y in curve([(80, 3), (90, 0), (104, 2), (113, 8)], 7):             # sunlit foam beads on the crest
         d.point((x, y - 2), fill='#fff6d0')
@@ -385,9 +393,14 @@ def _wave_layer():
         d.point((x + rnd.randint(1, 3), y + rnd.randint(-1, 1)), fill='#f6ffe8')
         if i % 6 == 0:
             d.point((x + rnd.randint(2, 4), y + rnd.randint(-2, 2)), fill='#bdf3e5')
-    # Where the wave meets the sea: a darker foot, a ribbon of foam and the white water of the broken shoulder.
-    d.line(bottom, fill='#0f5f7e', width=2)
-    d.line([(x, y - 2) for x, y in bottom[8:-2]], fill='#1a8ba5', width=1)
+    # The face rolls into the surrounding sea over six rows. Preserve the
+    # crest and tube; only dissolve the lower edge, before adding white water.
+    px = im.load()
+    for x in range(W):
+        edge = max((y for y in range(H) if body.getpixel((x, y))), default=-1)
+        for y in range(max(0, edge - 5), edge + 1):
+            r, g, b, a = px[x, y]
+            px[x, y] = (r, g, b, round(a * (edge - y + 1) / 6))
     rnd = random.Random(31)
     bank = [(x, y, r) for x, y, r in ((98, 46, 4), (103, 43, 5), (109, 41, 5), (115, 42, 5), (121, 44, 5),
                                       (124, 47, 4), (106, 47, 5), (113, 47, 5), (119, 49, 4), (100, 49, 4))]
@@ -402,10 +415,17 @@ def _wave_layer():
         d.point((x, y), fill='#8fdccf')
     for x, y in ((96, 51), (101, 52), (108, 52), (116, 52), (123, 52), (93, 50)):
         d.point((x, y), fill='#e4fff6')                       # flecks drifting out over the sea
-    for x in range(6, 100, 9):                                                # foam along the foot of the face
-        x0 = x + (x // 9) % 3
-        yy = min(bottom, key=lambda q: abs(q[0] - x0))[1]
-        d.line((x0, yy - 1, x0 + 3, yy - 1), fill='#d4f8ee')
+    # Whitewater at the left impact joins the animated billows to the sea,
+    # including the shared strip below the sprite's fixed perimeter.
+    for x, y, r in ((3,44,3), (8,43,4), (14,42,4), (20,41,4), (25,42,3)):
+        d.ellipse((x-r,y-r+2,x+r,y+r+1), fill='#62bebc')
+        d.ellipse((x-r,y-r,x+r,y+r-1), fill='#c5f6e6')
+        d.arc((x-r,y-r,x+r,y+r-1), 190, 310, fill='#f4fff0')
+    for x, y in ((2,48), (7,49), (13,47), (21,47), (27,46)):
+        d.line((x,y,x+2,y), fill='#b7ebde')
+    for x in range(16, 90, 15):                              # broken reflections, not an outline at the foot
+        yy = min(bottom, key=lambda q: abs(q[0] - x))[1] - 4
+        d.line((x, yy, x + 4, yy - 1), fill='#45b2b7')
     return im
 
 
@@ -500,21 +520,62 @@ def _spray(d, phase, sx, sy):
         d.line((x, sy + 12 + k % 2, x + 2 + k % 2, sy + 12 + k % 2), fill='#d9fff2' if k % 2 else '#7fd9d0')
 
 
+def _breaking_foam(d, phase):
+    """Impact billows rise, then spread left and dissolve into mint-coloured wash."""
+    for j in range(8):
+        age = (phase+j) % 4
+        x = 10 + j % 4 * 6 - age * 2
+        y = 35 + j // 4 - (0,2,1,0)[age]
+        radius = (2,3,3,2)[age]
+        d.ellipse((x-radius,y-1,x+radius+1,y+2), fill='#42aeb4')
+        d.ellipse((x-radius,y-radius,x+radius,y+1),
+                  fill=('#f4fff0','#e0fff1','#b8eddf','#76d0c8')[age])
+        if age < 2:
+            d.line((x-1,y-radius,x+1,y-radius), fill='#ffffff')
+            d.point((x-2,y-radius-2), fill='#d4fff0')
+        else:
+            d.line((x-radius-2,y+1,x-radius,y+1), fill='#b8eddf')
+    for j in range(5):
+        age = (phase+j) % 4
+        x, y = 8+j*6-age*2, 36-j%2
+        d.line((x,y,x+3+age,y), fill=('#effff2','#c5f6e6','#8adbd0','#53b9bd')[age])
+
+
 def _wave_motion(d, phase):
     """Foam running along the crest, drops falling from the roof of the tube, sunset glints on the face and
     refracted streaks flowing into the throat. Everything else about the wave is static."""
-    crest = [(x, y + 2) for x, y in curve([(8, 33), (36, 12), (68, 0), (98, 5)], 80)]
-    falling = curve([(98, 5), (111, 10), (98, 29), (80, 33)], 60)
-    path = crest + falling
-    for j in range(24):
-        x, y = path[(j * 7 + phase * 3) % len(path)]
-        d.line((x, y, x + 2, y), fill=FOAM if j % 3 else SPRAY)
-        if j % 4 == 0:
-            d.point((x + 1, y - 1), fill='#ffffff')
+    # The face drains down and left from the crest, never climbs uphill.
+    # Keep falling spray and the surfer's own timeline independent.
+    for lane in range(5):
+        path = list(dict.fromkeys(curve([(5 + lane * 4, 37),
+            (30 + lane * 3, 25), (60 + lane * 2, 4 + lane),
+            (91 + lane, 5 + lane)], 100)))
+        for start in range(-16, len(path) + 16, 16):
+            k = start - phase * 4 + lane * 3 % 16
+            stroke = path[max(0, k):max(0, k + 7)]
+            if len(stroke) > 1:
+                d.line(stroke, fill=('#48c6cb', '#82e9dc', '#2aabbc', '#b1f5df', '#4dcbc9')[lane])
+    crest = [(x, y + 1) for x, y in curve([(0, 38), (23, 21), (61, -9), (99, 2)], 90)[24:]]
+    falling = curve([(99, 2), (119, 7), (100, 35), (77, 35)], 40)
+    # A four-step travelling pattern: the last pose advances into the first,
+    # rather than every fleck jumping backwards when the four-frame loop wraps.
+    for is_lip, points in ((False, reversed(crest)), (True, falling)):
+        for i, (x, y) in enumerate(dict.fromkeys(points)):
+            if (i - phase * 2) % 8 not in (0, 1, 2):
+                continue
+            d.point((x, y), fill=FOAM if is_lip else SPRAY)
+            if is_lip:
+                d.point((x, y - 1), fill='#ddfff1')
+    # The lip breaks into a fan of froth, rather than simply ending in a line.
+    for j in range(9):
+        age = (phase + j) % 4
+        x, y = 91 + j % 3 * 4 - age * 2, 27 + j // 3 * 3 + age
+        d.line((x, y, x + 2 + age % 2, y), fill=('#f1fff1', '#baffea', '#79dfd5', '#39b1bf')[age])
     roof = curve([(43, 43), (53, 22), (69, 7), (88, 10)], 40)
     for j, (x, y) in enumerate(roof[18:38:4]):                  # drops falling from the tube's roof
         fall = (phase + j) % 4
-        d.line((x, y + 2 + fall * 3, x, y + 3 + fall * 3), fill='#c9fff4' if fall < 3 else '#6fd0c8')
+        d.line((x, y + 2, x, y + 3 + fall), fill='#289aaa')
+        d.point((x, y + 4 + fall), fill=('#8cded5', '#b2eee3', '#7acbc9', '#3b9fae')[fall])
     for j, (x, y) in enumerate(((16, 31), (24, 27), (31, 24), (39, 19), (47, 15), (55, 11), (63, 8))):
         if (j + phase) % 3 == 0:                                  # glints on the face, three of seven at a time
             d.point((x, y), fill='#fff1c4'); d.point((x + 1, y), fill='#ffd8a8')
@@ -527,6 +588,7 @@ def _wave_motion(d, phase):
         y = 25 + (j * 3 + phase) % 12
         if x < 102 - (y - 25):
             d.point((x, y), fill='#b2fff0')
+    _breaking_foam(d, phase)
 
 
 def wave_pose(phase):

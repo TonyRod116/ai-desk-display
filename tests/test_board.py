@@ -456,7 +456,7 @@ class BoardTests(unittest.TestCase):
         names = list(PAGE_NAMES)
         arcade = names.index('arcade')
         for number, (a, b) in enumerate(zip(static, moving)):
-            if names[number] not in ('arcade', 'dials', 'code-forge', 'surf', 'paradise', 'countdown'):
+            if names[number] not in ('arcade', 'dials', 'code-forge', 'surf', 'paradise', 'countdown', 'cockpit'):
                 self.assertEqual(a, b, names[number])                      # only pages with resident animation change
         self.assertEqual(frame_size(moving[arcade]), PAGE_SIZE)
         self.assertLessEqual(len(moving[arcade]), MAX_PAGE_BYTES)

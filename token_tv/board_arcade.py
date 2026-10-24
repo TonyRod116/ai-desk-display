@@ -25,6 +25,9 @@ from token_tv.personal_faces import banked_hearts, remaining_reading, session_pa
 from token_tv.themes import face
 
 LW, LH, K = 160, 120, 2          # the logical canvas and the size of one logical pixel
+SCENE_TOP, SCENE_HEIGHT, STEP_MS = 66, 30, 160
+FAR_PERIOD, NEAR_PERIOD = 48, 72
+FAR_STEP, NEAR_STEP = FAR_PERIOD // 4, NEAR_PERIOD // 4
 INK = '#06050f'                  # outline / shadow / text edge
 CREAM, PLUM, PLUM_D = '#f6e9b8', '#2a1233', '#150a22'
 STONE = {'hi': '#f1ece0', 'mid': '#cfc6b4', 'lo': '#8a8274', 'dk': '#4a4338'}
@@ -104,27 +107,43 @@ def _landmarks(d):
 
 
 def _city(d, phase):
-    # Two genuinely different silhouettes per distant tile: a slender crowned
-    # tower and a low industrial block. The 18px repeat preserves the 3-pose loop.
-    for x in range(-36,200,18):
-        x-=phase*6
-        d.polygon([(x,88),(x,65),(x+2,65),(x+2,62),(x+4,60),(x+6,62),(x+6,65),(x+8,65),(x+8,88)],fill='#665c86')
-        d.line((x+4,60,x+4,64),fill='#efbaac')
-        d.line((x,65,x,88),fill='#b89bb4')
-        d.rectangle((x+5,66,x+7,88),fill='#463d66')
-        for y in range(67,88,3):
+    # Wider blocks fit distinct architecture, not the same tower every 24px.
+    # Each advances by exactly a quarter block: the fourth-to-first step
+    # remains a forward translation, with no jump back to the start.
+    for x in range(-FAR_PERIOD*2, LW+FAR_PERIOD*2, FAR_PERIOD):
+        x-=phase*FAR_STEP
+        # Copper-crowned art-deco tower, with its narrow shadowed side.
+        d.polygon([(x,88),(x,69),(x+2,69),(x+2,67),(x+4,66),(x+6,67),(x+6,69),(x+8,69),(x+8,88)],fill='#665c86')
+        d.line((x+4,66,x+4,69),fill='#efbaac')
+        d.line((x,69,x,88),fill='#b89bb4')
+        d.rectangle((x+5,70,x+7,88),fill='#463d66')
+        for y in range(71,88,3):
             d.line((x+2,y,x+3,y),fill='#d7b0aa')
             d.point((x+6,y+1),fill='#92a9bb')
-        d.rectangle((x+10,71,x+17,88),fill='#885572')
-        d.polygon([(x+10,71),(x+10,69),(x+13,69),(x+13,67),(x+16,67),(x+16,71)],fill='#b87987')
-        d.line((x+11,72,x+16,72),fill='#edbd9f')
-        for y in (75,79,83,87):
-            d.line((x+11,y,x+13,y),fill='#b5b2c4')
-            d.point((x+16,y),fill='#e6a48b')
-    # Near tile: cantilevered glass offices, a roof-top tank, and a narrow neon
-    # hotel. Different footprint, roof, materials and window rhythms on each.
-    for x in range(-72,232,36):
-        x-=phase*12
+        d.rectangle((x+12,74,x+21,88),fill='#885572')
+        d.polygon([(x+12,74),(x+12,72),(x+15,72),(x+15,70),(x+18,70),(x+18,74)],fill='#b87987')
+        d.line((x+13,75,x+20,75),fill='#edbd9f')
+        for y in (78,82,86):
+            d.line((x+13,y,x+15,y),fill='#b5b2c4')
+            d.point((x+20,y),fill='#e6a48b')
+        # Narrow stone clock tower: spire, clock face and tall paired windows.
+        d.polygon([(x+25,88),(x+25,70),(x+27,70),(x+27,68),(x+29,66),
+                   (x+31,68),(x+31,70),(x+33,70),(x+33,88)],fill='#526c83')
+        d.line((x+29,66,x+29,69),fill='#efce93')
+        d.rectangle((x+27,71,x+31,75),fill='#b6bcc0')
+        d.line((x+29,72,x+29,73),fill='#324253');d.point((x+30,74),fill='#324253')
+        for y in (78,82,86):
+            for xx in (27,30):d.line((x+xx,y,x+xx,y+1),fill='#a1c4c9')
+        # Broad rounded glass building: horizontal floors and a darker flank.
+        d.ellipse((x+37,70,x+46,76),fill='#78959b')
+        d.rectangle((x+37,73,x+46,88),fill='#395a70')
+        d.rectangle((x+44,74,x+46,88),fill='#29384f')
+        for y in (74,78,82,86):
+            d.line((x+38,y,x+43,y),fill='#91b6bb')
+        d.line((x+39,71,x+44,71),fill='#b8cbbd')
+    for x in range(-NEAR_PERIOD*2, LW+NEAR_PERIOD*2, NEAR_PERIOD):
+        x-=phase*NEAR_STEP
+        # Cantilevered green-glass offices with inset balconies.
         d.polygon([(x,88),(x,73),(x+2,73),(x+2,70),(x+13,70),(x+13,73),(x+11,73),(x+11,88)],fill='#144354')
         d.line((x+2,70,x+13,70),fill='#58d6cf')
         d.line((x+3,71,x+12,71),fill='#b5f3dc')
@@ -132,42 +151,70 @@ def _city(d, phase):
         for y in (75,79,83,87):
             d.line((x+1,y,x+6,y),fill='#65adb6')
             d.line((x+2,y+1,x+4,y+1),fill='#f8cc88')
-        d.rectangle((x+14,81,x+23,88),fill='#59405b')
-        d.line((x+14,81,x+23,81),fill='#b77b8d')
-        d.line((x+16,80,x+16,75),fill='#ddab91');d.line((x+21,80,x+21,75),fill='#ddab91')
-        d.rectangle((x+15,72,x+22,76),fill='#697b89')
-        d.ellipse((x+15,70,x+22,73),fill='#b7b6ab')
-        d.line((x+17,74,x+17,76),fill='#d1d4bf')
-        for xx in (x+16,x+20):d.rectangle((xx,84,xx+1,86),fill='#efba75')
-        d.rectangle((x+26,76,x+34,88),fill='#2b3659')
-        d.rectangle((x+28,73,x+32,75),fill='#536783')
-        d.line((x+26,76,x+34,76),fill='#8f9dc5')
-        d.rectangle((x+33,78,x+35,85),fill='#bd427d')
-        for y in (79,81,83):d.point((x+34,y),fill='#ffd4b3')
-        for y in (79,83,87):
-            d.line((x+28,y,x+30,y),fill='#65d3d7')
+        # Brick loft with a sawtooth roof and lit workshop windows.
+        d.polygon([(x+17,88),(x+17,78),(x+21,74),(x+21,78),
+                   (x+26,74),(x+26,78),(x+30,75),(x+30,88)],fill='#734858')
+        d.line([(x+17,78),(x+21,74),(x+21,78),(x+26,74),(x+26,78),(x+30,75)],fill='#c18c8e')
+        for y in (80,84):
+            for xx in (19,24,28):
+                d.rectangle((x+xx,y,x+xx+1,y+2),fill='#edbc7c' if xx!=24 else '#a87d77')
+        d.line((x+18,83,x+29,83),fill='#482d47')
+        # Slim blue hotel with a projecting neon sign and rooftop antenna.
+        d.rectangle((x+34,73,x+41,88),fill='#293c59')
+        d.rectangle((x+36,71,x+39,72),fill='#6d859c')
+        d.line((x+38,70,x+38,71),fill='#eab9b4')
+        d.line((x+34,73,x+41,73),fill='#a5b4cc')
+        d.rectangle((x+40,76,x+43,85),fill='#b53e75')
+        for y in (77,80,83):d.line((x+41,y,x+42,y),fill='#ffceab')
+        for y in (76,80,84):d.line((x+35,y,x+37,y),fill='#76d5d7')
+        # Old utility block with cylindrical water tank and exposed supports.
+        d.rectangle((x+47,81,x+57,88),fill='#59405b')
+        d.line((x+47,81,x+57,81),fill='#b77b8d')
+        for xx in (49,54):d.line((x+xx,80,x+xx,75),fill='#bd998a')
+        d.rectangle((x+48,72,x+55,76),fill='#697b89')
+        d.ellipse((x+48,70,x+55,73),fill='#b7b6ab')
+        d.line((x+50,74,x+50,76),fill='#d1d4bf')
+        for xx in (49,54):d.rectangle((x+xx,84,x+xx+1,86),fill='#efba75')
+        # Terraced corner house, warm windows and an exterior fire escape.
+        d.polygon([(x+61,88),(x+61,77),(x+63,77),(x+63,74),(x+68,74),
+                   (x+68,78),(x+70,78),(x+70,88)],fill='#3e676c')
+        d.line((x+62,77,x+69,77),fill='#91b9ae')
+        d.line((x+63,74,x+68,74),fill='#d3c398')
+        for y in (79,83):d.rectangle((x+63,y,x+65,y+1),fill='#ffcf92')
+        d.line((x+68,79,x+68,87),fill='#142f41')
+        for y in (80,83,86):d.line((x+67,y,x+70,y),fill='#91a9a4')
 
 
 # ---- the stage -------------------------------------------------------------------------------------------
 
 def _roof(d, phase=0):
-    d.rectangle((0,89,159,101),fill='#162a40')
-    d.polygon(((0,94),(13,89),(146,89),(159,94)),fill='#668496')
-    d.line((13,89,146,89),fill='#c9e6df')
-    d.rectangle((0,94,159,98),fill='#354e68')
-    for x in (5,57,110):
-        d.line((x,94,x+7,98),fill='#182b43')
-    for x in (61,84):
-        d.rectangle((x,91,x+15,94),fill='#1b304b')
-        d.line((x+1,91,x+14,91),fill='#96b6c3')
-        for xx in range(x+3,x+14,4):d.line((xx,92,xx,93),fill='#527086')
-    d.line((0,99,159,99),fill='#ffb45e')
-    d.line((0,100,159,100),fill='#9b4a39')
-    # Passing platform lights slide across the lower lip of the carriage.
+    # One close-up roof fills the foreground. Passenger windows made this
+    # read as a second miniature train rather than the fighters' platform.
+    d.rectangle((0,87,159,106),fill='#101c30')
+    for left,right in ((-12,171),):
+        d.polygon(((left,94),(left+5,89),(left+12,87),(right-11,87),
+                   (right-4,89),(right,94),(right,97),(left,97)),fill='#52738b')
+        d.line((left+12,87,right-11,87),fill='#c5dbd6')
+        d.line((left+6,89,right-5,89),fill='#85a5b2')
+        d.rectangle((left+1,92,right-1,95),fill='#3b5a76')
+        for x in range(left+10,right-5,12):
+            d.line([(x,88),(x-2,90),(x-3,94)],fill='#28425f')
+            d.line([(x+1,88),(x-1,90),(x-2,94)],fill='#7596a7')
+        d.line((left,96,right,96),fill='#cadbd0')
+        d.rectangle((left,97,right,99),fill='#b96f3c')
+        d.line((left,97,right,97),fill='#ffd27b')
+        d.rectangle((left,100,right,105),fill='#294660')
+        d.line((left,101,right,101),fill='#395c75')
+        d.line((left,103,right,103),fill='#1c344e')
+        d.line((left,106,right,106),fill='#152b42')
+    for x in (65,86):
+        d.rectangle((x,88,x+15,92),fill='#183049',outline='#91aeb8')
+        for xx in range(x+3,x+14,3):d.line((xx,89,xx,91),fill='#4e7186')
+    # Reflections travel along the metal; structural ribs never slide.
     for x in range(-36,196,36):
-        x-=phase*12
-        d.line((x,100,x+8,100),fill='#ffdf9e')
-        d.line((x+3,101,x+12,101),fill='#51cbd6')
+        x-=phase*9
+        d.line((x,95,x+6,95),fill='#8ce7dd')
+        d.line((x+7,95,x+9,95),fill='#5ca5bd')
 
 
 def _stage(d):
@@ -186,7 +233,7 @@ def _scene(phase):
     d=ImageDraw.Draw(im);_stage(d)
     _city(d,phase)
     _roof(d,phase)
-    return im.crop((0,60,160,101))
+    return im.crop((0,SCENE_TOP,160,SCENE_TOP+SCENE_HEIGHT))
 
 
 # ---- the fighters ----------------------------------------------------------------------------------------
@@ -243,13 +290,13 @@ def _dots(draw, points, fill):
         draw.point((x, y), fill=fill)
 
 
-POSES = {'idle': (0, 0), 'bob': (1, 0), 'punch': (1, 4)}     # (squash in px, front arm extension in px)
+POSES = {'idle': (0, -1), 'bob': (1, -1), 'guard': (1, -2), 'ready': (0, -2)}
 
 
 def _codex(pose='idle'):
     """"Cloudy": Codex's cloud as a fighter. A violet-blue storm cloud whose face is a little terminal showing the
     ">_" prompt, a yellow lightning bolt for a crest, stubby legs and a glove thrown forward. Faces right.
-    Poses: idle, bob (squashed, breathing) and punch (glove thrown further)."""
+    Poses: planted feet, breathing and small shifts of the raised guard."""
     sq, ext = POSES[pose]
     size = (42, 36)
     cloud = [('disc', 11, 15, 5), ('disc', 17, 12, 6), ('disc', 24, 14, 5), ('disc', 27, 19, 4),
@@ -263,18 +310,17 @@ def _codex(pose='idle'):
         _px(d, x0, y, x1, y, '#7be1ff')
     _px(d, 19, 20, 23, 21, '#7be1ff')                                          # "_"
     _dots(d, ((14, 16), (15, 16)), '#e6fbff')
-    _dots(d, ((17, 1), (18, 1), (16, 2), (17, 2), (16, 3), (17, 3), (18, 3), (19, 3), (18, 4), (19, 4), (17, 5), (18, 5),
-              (17, 6), (16, 7)), '#ffd23f')                                    # the lightning bolt
-    _dots(d, ((17, 1), (18, 1), (16, 2), (17, 2)), '#fff1a0')
+    _dots(d, ((17, 8), (18, 8), (16, 9), (17, 9), (16, 10), (17, 10), (18, 10), (19, 10), (18, 11), (19, 11), (17, 12), (18, 12),
+              (17, 13), (16, 14)), '#ffd23f')                                  # crest tucked into the cloud
+    _dots(d, ((17, 8), (18, 8), (16, 9), (17, 9)), '#fff1a0')
     _px(d, 4, 20, 7, 24, '#7683ff')                                            # back arm and glove
     _px(d, 2, 22, 5, 26, '#e6e9ff')
     _px(d, 30, 17, 32 + ext, 20, '#7683ff')                                    # front arm
-    _px(d, 32 + ext, 14, 36 + ext, 21, '#ffffff')                              # glove thrown forward
-    _px(d, 32 + ext, 19, 36 + ext, 21, '#c4cbff')
-    _px(d, 33 + ext, 12, 35 + ext, 12, '#ffd23f')                              # impact spark
-    _dots(d, ((34 + ext, 11), (34 + ext, 13), (31 + ext, 12), (37 + ext, 12)), '#fff1a0')
-    if ext:                                                                    # a hit: a bigger burst
-        _dots(d, ((34 + ext, 9), (34 + ext, 10), (30 + ext, 11), (38 + ext, 11)), '#ffd23f')
+    guard = -3 if pose in ('guard', 'ready') else -2
+    _px(d, 32 + ext, 14 + guard, 36 + ext, 21 + guard, '#ffffff')
+    _px(d, 32 + ext, 19 + guard, 36 + ext, 21 + guard, '#c4cbff')
+    if pose == 'guard':
+        d.line((34,13,36,16),fill='#96e9ef')
     s = Image.new('RGBA', size, (0, 0, 0, 0))
     s.alpha_composite(body, (0, sq))
     d = ImageDraw.Draw(s)
@@ -288,7 +334,7 @@ def _codex(pose='idle'):
 def _claude(pose='idle'):
     """"Clawd": Claude Code's orange critter as a karate fighter: two black eyes, a headband with the Claude mark,
     a glove thrown forward and four little legs. Drawn facing right, mirrored for the ring.
-    Poses: idle, bob (squashed, breathing) and punch (glove thrown further)."""
+    Poses: planted feet, breathing and small shifts of the raised guard."""
     sq, ext = POSES[pose]
     size = (44, 36)
     orange, hi, lo, deep = '#e08a60', '#f6b692', '#b8603a', '#7a3a22'
@@ -301,8 +347,9 @@ def _claude(pose='idle'):
     _px(d, 7, 12, 28, 14, '#ece5d3')                                           # headband and its shadow
     _px(d, 7, 14, 28, 14, '#bdb4a0')
     _px(d, 4, 10, 6, 12, '#cfc6b4')                                            # tails flying behind
-    _px(d, 1, 8, 4, 10, '#cfc6b4')
-    _px(d, 0, 12, 4, 14, '#bdb4a0')
+    flutter = 1 if pose in ('bob', 'guard') else 0
+    _px(d, 1, 8 + flutter, 4, 10 + flutter, '#cfc6b4')
+    _px(d, 0, 12 - flutter, 4, 14 - flutter, '#bdb4a0')
     _px(d, 15, 11, 19, 14, '#4a4338')                                          # the Claude mark on the band
     _dots(d, ((17, 11), (17, 14), (16, 12), (18, 12), (16, 13), (18, 13), (17, 12), (17, 13)), '#f1ece0')
     _px(d, 11, 16, 13, 21, INK)                                                # eyes
@@ -312,12 +359,11 @@ def _claude(pose='idle'):
     _px(d, 3, 17, 6, 21, orange)                                               # back arm and glove
     _px(d, 1, 19, 5, 23, '#ece5d3')
     _px(d, 29, 16, 31 + ext, 20, orange)                                       # front arm
-    _px(d, 31 + ext, 13, 36 + ext, 22, '#f1ece0')                              # glove thrown forward
-    _px(d, 31 + ext, 20, 36 + ext, 22, '#cfc6b4')
-    _px(d, 32 + ext, 11, 34 + ext, 11, '#fff1a0')                              # impact spark
-    _dots(d, ((33 + ext, 10), (33 + ext, 12), (30 + ext, 11), (36 + ext, 11)), '#ffd23f')
-    if ext:
-        _dots(d, ((33 + ext, 8), (33 + ext, 9), (29 + ext, 10), (37 + ext, 10)), '#fff1a0')
+    guard = -3 if pose in ('guard', 'ready') else -2
+    _px(d, 31 + ext, 13 + guard, 36 + ext, 22 + guard, '#f1ece0')
+    _px(d, 31 + ext, 20 + guard, 36 + ext, 22 + guard, '#cfc6b4')
+    if pose == 'guard':
+        d.line((33,12,35,15),fill='#ffe1a5')
     s = Image.new('RGBA', size, (0, 0, 0, 0))
     s.alpha_composite(body, (0, sq))
     d = ImageDraw.Draw(s)
@@ -414,21 +460,18 @@ def _outlined_text(out, xy, text, font, fill, anchor, edge=INK, step=2):
     out.text((x, y), text, font=font, fill=fill, anchor=anchor)
 
 
-# Source pose eligibility: the composed train cycles idle/bob/punch at 250 ms.
-# Frames: 0 idle, 1 bob (squashed), 2 punch. Claude is mirrored, so its lunge goes the other way.
-CODEX_SCRIPT = [(0, 0, 0), (0, 0, 0), (1, 0, 0), (1, 0, 0), (0, 0, 0), (0, 0, 0), (1, 0, 0), (1, 0, 0),
-                (0, 0, 0), (2, 2, 0), (2, 2, 0), (0, 0, 0)]
-CLAUDE_SCRIPT = [(0, 0, 0), (1, 0, 0), (1, 0, 0), (0, 0, 0), (0, 0, 0), (2, -2, 0), (2, -2, 0), (0, 0, 0),
-                 (0, 0, 0), (1, 0, 0), (1, 0, 0), (0, 0, 0)]
+# Guard stances, no translation or attack. Rivals breathe out of phase.
+CODEX_SCRIPT = [(0,0,0), (1,0,0), (2,0,0), (3,0,0)]
+CLAUDE_SCRIPT = [(0,0,0), (3,0,0), (2,0,0), (1,0,0)]
 
 
 def _fighter_specs(c_ko, k_ko):
     sprites = []
     for provider, build, x, mirrored, script, knocked_out, opponent_down in (
-            ('codex', _codex, 10, False, CODEX_SCRIPT, c_ko, k_ko),
-            ('claude', _claude, 110, True, CLAUDE_SCRIPT, k_ko, c_ko)):
+            ('codex', _codex, 14, False, CODEX_SCRIPT, c_ko, k_ko),
+            ('claude', _claude, 101, True, CLAUDE_SCRIPT, k_ko, c_ko)):
         poses = ([_fallen(provider, build().size)] if knocked_out else
-                 [build(pose) for pose in ('idle', 'bob', 'punch')])
+                 [build(pose) for pose in ('idle', 'bob', 'guard', 'ready')])
         if knocked_out:
             script = [(0,0,0)] * len(script)
         elif opponent_down:
@@ -440,8 +483,10 @@ def _fighter_specs(c_ko, k_ko):
                 left=poses[0].width-30
                 d.rectangle((left,14,left+18,23),fill=INK,outline='#f64b59')
                 d.text((left+3,16),'KO',font=face('press-start-2p.ttf',6),fill='#ffb4ac')
-        top = 99 - poses[0].height
-        sprites.append({'x': x * K, 'y': top * K, 'frames': poses, 'script': script, 'step_ms': 250})
+        # Remove unused headroom, not scale the bodies. The 30-row band buys
+        # a fourth full-scene frame within the existing board's 40 KB budget.
+        poses = [pose.crop((0,8,pose.width,38)) for pose in poses]
+        sprites.append({'x': x * K, 'y': SCENE_TOP * K, 'frames': poses, 'script': script, 'step_ms': STEP_MS})
     return sprites
 
 
@@ -489,7 +534,7 @@ def render_arcade(snapshot, animated=False):
     canvas = Image.new('RGBA', (LW, LH), PLUM_D)
     draw = ImageDraw.Draw(canvas)
     _stage(draw)
-    canvas.alpha_composite(_scene(0), (0, 60))
+    canvas.alpha_composite(_scene(0), (0, SCENE_TOP))
 
     codex, claude = _row(snapshot, 'codex'), _row(snapshot, 'claude')
     c_value, _, c_stale, c_reset = remaining_reading(codex)
@@ -512,7 +557,7 @@ def render_arcade(snapshot, animated=False):
     for sprite in sprites:
         x, top = sprite['x']//K, sprite['y']//K
         pose = sprite['frames'][0]
-        _px(draw, x+2, 98, x+pose.width-3, 99, '#0a0618')
+        _px(draw, x+5, 94, x+pose.width-7, 95, '#122238')
         if not animated:
             canvas.alpha_composite(pose, (x, top))
 
@@ -560,27 +605,24 @@ def render_arcade(snapshot, animated=False):
     from PIL import ImageChops
     text_mask = ImageChops.difference(image, before_text).convert('L')
     scenes = []
-    for phase in range(3):
+    for phase in range(4):
         scene = _scene(phase)
         d = ImageDraw.Draw(scene)
         for fighter in sprites:
-            x, y = fighter['x']//K, fighter['y']//K - 60
+            x, y = fighter['x']//K, fighter['y']//K - SCENE_TOP
             poses = fighter['frames']
-            frame = phase if len(poses)>1 else 0
-            if frame == 2 and not any(f == 2 for f,_,_ in fighter['script']):
-                frame = 1
-            dx = (1 if x<80 else -1) if frame == 2 else 0
-            _px(d,x+2,38,x+poses[0].width-3,39,'#0a0618')
-            scene.alpha_composite(poses[frame],(x+dx,y))
+            frame, dx, dy = fighter['script'][phase]
+            _px(d,x+5,94-SCENE_TOP,x+poses[0].width-7,95-SCENE_TOP,'#122238')
+            scene.alpha_composite(poses[frame],(x+dx//K,y+dy//K))
         scenes.append(scene)
     tiles = []
     for x in (0, 160):
-        poses = [scene.crop((x//2,0,x//2+80,41)) for scene in scenes]
+        poses = [scene.crop((x//2,0,x//2+80,SCENE_HEIGHT)) for scene in scenes]
         for pose in poses:
             for py in range(pose.height):
                 for px in range(pose.width):
-                    if text_mask.crop((x+px*2,120+py*2,x+px*2+2,122+py*2)).getbbox():
+                    if text_mask.crop((x+px*2,SCENE_TOP*2+py*2,x+px*2+2,SCENE_TOP*2+py*2+2)).getbbox():
                         pose.putpixel((px,py),(0,0,0,0))
-        tiles.append({'x': x, 'y': 120, 'frames': poses,
-                      'script': [(step%3,0,0) for step in range(12)], 'step_ms':250})
+        tiles.append({'x': x, 'y': SCENE_TOP*K, 'frames': poses,
+                      'script': [(step,0,0) for step in range(4)], 'step_ms':STEP_MS})
     return image, board_anim.encode(tiles,stars,meteor)

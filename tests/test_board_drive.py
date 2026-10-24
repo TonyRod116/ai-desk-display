@@ -239,7 +239,7 @@ class DrivingSceneTests(unittest.TestCase):
             static = render_board_pages(data, stars=True)
             moving = render_board_pages(data, stars=True, anim=True)
             for name, before, after in zip(PAGE_NAMES, static, moving):
-                if name not in ('dials', 'arcade', 'code-forge', 'surf', 'paradise', 'countdown'):
+                if name not in ('dials', 'arcade', 'code-forge', 'surf', 'paradise', 'countdown', 'cockpit'):
                     self.assertEqual(before, after, name)
             at = 8 + 320 * 240 * 2
             self.assertEqual(moving[PAGE_NAMES.index('dials')][at:at + 4], b'ANIM')

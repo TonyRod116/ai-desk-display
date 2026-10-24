@@ -6,7 +6,8 @@ from PIL import Image, ImageColor, ImageDraw
 
 from token_tv import board_anim
 from token_tv.board import MAX_PAGE_BYTES
-from token_tv.board_arcade import render_arcade, HEALTH_RED, HEALTH_AMBER, HEALTH_GREEN, _fighter_specs, _scene, _city, _stage
+from token_tv.board_arcade import (render_arcade, HEALTH_RED, HEALTH_AMBER, HEALTH_GREEN, _fighter_specs,
+                                  _scene, _city, _stage, SCENE_TOP, SCENE_HEIGHT, FAR_STEP, NEAR_STEP)
 from token_tv.board_pages import rgb565_frame
 from test_board_forge import sample, NOW, compose
 
@@ -34,6 +35,21 @@ def capture_fighters(data):
 
 class VersusTests(unittest.TestCase):
     @patch('time.time', return_value=NOW)
+    def test_fighters_stay_separated_in_a_planted_fighting_stance(self, _):
+        _, payload, fighters = capture_fighters(versus_sample())
+        spec = board_anim.decode(payload)
+        self.assertTrue(all(len(s['frames']) == 4 and s['step_ms'] == 160 for s in spec['sprites']))
+        left, right = fighters
+        self.assertGreaterEqual(right['x'] - left['x'] - left['frames'][0].width*2, 70)
+        for fighter in fighters:
+            self.assertTrue(all(dx == dy == 0 for _, dx, dy in fighter['script']))
+            self.assertGreaterEqual(len({frame.tobytes() for frame in fighter['frames']}), 3)
+            # Boots remain planted while the upper body breathes and guards.
+            self.assertEqual(len({frame.crop((0,25,frame.width,30)).tobytes()
+                                  for frame in fighter['frames']}), 1)
+        self.assertLessEqual(len(payload), 40000)
+
+    @patch('time.time', return_value=NOW)
     def test_health_colors_at_exact_boundaries_for_both_providers(self, _):
         for value, bands in ((.1,HEALTH_RED),(20,HEALTH_RED),(20.1,HEALTH_AMBER),
                              (50,HEALTH_AMBER),(50.1,HEALTH_GREEN),(100,HEALTH_GREEN)):
@@ -51,7 +67,7 @@ class VersusTests(unittest.TestCase):
                     self.assertEqual(len(sprite['frames']),1)
                     self.assertEqual(set(sprite['script']),{(0,0,0)})
                 else:
-                    self.assertEqual(len(sprite['frames']),3)
+                    self.assertEqual(len(sprite['frames']),4)
             if (left == 0) != (right == 0):
                 survivor = fighters[1 if left == 0 else 0]
                 self.assertTrue(all(frame != 2 and dx == dy == 0 for frame,dx,dy in survivor['script']))
@@ -71,7 +87,7 @@ class VersusTests(unittest.TestCase):
             row['windows'] = [w for w in row['windows'] if w['label'] != 'WEEK']
         for data in (old,missing_week):
             _,_,fighters = capture_fighters(data)
-            self.assertTrue(all(len(s['frames']) == 3 for s in fighters))
+            self.assertTrue(all(len(s['frames']) == 4 for s in fighters))
 
     @patch('time.time', return_value=NOW)
     def test_train_moves_across_the_large_city_without_touching_readings(self, _):
@@ -98,11 +114,11 @@ class VersusTests(unittest.TestCase):
         # Scenery changes substantially at each step, even with both fighters KO.
         down,p=render_arcade(versus_sample(0,0),animated=True)
         down_spec=board_anim.decode(p)
-        frames=[compose(down,down_spec,k) for k in range(3)]
+        frames=[compose(down,down_spec,k) for k in range(4)]
         for first,second in zip(frames,frames[1:]+frames[:1]):
             changed=[i for i,(a,b) in enumerate(zip(first,second)) if a!=b]
             self.assertGreater(sum(120<=i//320<180 for i in changed),4000)
-            self.assertTrue(all(120<=i//320<202 for i in changed))
+            self.assertTrue(all(SCENE_TOP*2<=i//320<(SCENE_TOP+SCENE_HEIGHT)*2 for i in changed))
         # Sprite payload cannot depend on elapsed PC time or trigger uploads for motion.
         with patch('time.time',return_value=NOW+1):
             self.assertEqual(render_arcade(versus_sample(),animated=True)[1],payload)
@@ -111,7 +127,7 @@ class VersusTests(unittest.TestCase):
     def test_knocked_out_pixels_stay_fixed_while_the_city_passes_behind(self, _):
         bg,payload,fighters=capture_fighters(versus_sample(0,0))
         spec=board_anim.decode(payload)
-        for step in range(3):
+        for step in range(4):
             words=compose(bg,spec,step)
             for fighter in fighters:
                 pose=fighter['frames'][0]
@@ -126,34 +142,45 @@ class VersusTests(unittest.TestCase):
 
     def test_city_layers_translate_in_one_direction_with_a_seamless_loop(self):
         # These bands contain only their corresponding architecture layer.
-        scenes=[_scene(k) for k in range(4)]
-        self.assertEqual(scenes[0].tobytes(),scenes[3].tobytes())
+        scenes=[_scene(k) for k in range(5)]
+        self.assertEqual(scenes[0].tobytes(),scenes[4].tobytes())
         # Translate only the moving layer. Gaps now reveal a stationary skyline,
         # so the complete composite must not translate those background pixels.
         layers=[]
-        for phase in range(4):
+        for phase in range(5):
             layer=Image.new('RGBA',(160,120));_city(ImageDraw.Draw(layer),phase)
-            layers.append(layer.crop((0,60,160,101)))
+            layers.append(layer.crop((0,SCENE_TOP,160,SCENE_TOP+SCENE_HEIGHT)))
         for a,b in zip(layers,layers[1:]):
-            self.assertEqual(a.crop((6,0,160,7)).tobytes(),b.crop((0,0,154,7)).tobytes())
-            # Near buildings and their windows advance twice as far.
-            # Distinct lit facade anchors move 12 logical pixels per pose.
+            self.assertEqual(a.crop((FAR_STEP,0,160,4)).tobytes(),b.crop((0,0,160-FAR_STEP,4)).tobytes())
+            # The two depths advance at their own continuous, periodic speed.
             bright = (88,214,207,255)
-            xs_a={x for x in range(12,160) if a.getpixel((x,10))==bright}
-            xs_b={x+12 for x in range(148) if b.getpixel((x,10))==bright}
+            xs_a={x for x in range(NEAR_STEP,160) if a.getpixel((x,70-SCENE_TOP))==bright}
+            xs_b={x+NEAR_STEP for x in range(160-NEAR_STEP) if b.getpixel((x,70-SCENE_TOP))==bright}
             self.assertEqual(xs_a,xs_b)
             self.assertTrue(xs_a)
 
+    def test_architecture_no_longer_repeats_in_the_old_short_blocks(self):
+        layer=Image.new('RGBA',(160,120));_city(ImageDraw.Draw(layer),0)
+        # Isolate the far roofs and the near green office crown. Comparing the
+        # entire composite would confuse the two layers' different periods.
+        first,second=layer.crop((0,66,24,70)),layer.crop((24,66,48,70))
+        self.assertGreater(sum(first.getpixel((x,y))!=second.getpixel((x,y))
+                               for y in range(4) for x in range(24)),20)
+        office_roofs=[{x for x in range(36) if layer.getpixel((x+start,70))==(88,214,207,255)}
+                      for start in (0,36)]
+        self.assertTrue(office_roofs[0])
+        self.assertNotEqual(*office_roofs)
+
     def test_gaps_reveal_the_stationary_buildings_in_every_pose(self):
         background=Image.new('RGBA',(160,120));_stage(ImageDraw.Draw(background))
-        for phase in range(3):
+        for phase in range(4):
             moving=Image.new('RGBA',(160,120));_city(ImageDraw.Draw(moving),phase)
             scene=_scene(phase)
             revealed=0
-            for y in range(60,89):
+            for y in range(SCENE_TOP,87):
                 for x in range(160):
                     if moving.getpixel((x,y))[3]==0:
-                        self.assertEqual(scene.getpixel((x,y-60)),background.getpixel((x,y)))
+                        self.assertEqual(scene.getpixel((x,y-SCENE_TOP)),background.getpixel((x,y)))
                         if background.getpixel((x,y)) != (67,35,81,255):revealed+=1
             self.assertGreater(revealed,100)
 

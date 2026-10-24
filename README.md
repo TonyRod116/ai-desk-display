@@ -31,7 +31,7 @@ So I gave it a better job: watching my AI limits. At least those reset this week
 
 A small desk display that shows how much **Claude and Codex** usage you have left, when your limits reset and, where supported, how many saved resets are available.
 
-The fun is in how it tells you: neon bridge lights retreat as you spend your quota, fighting-game health bars drop all the way to a KO, and waves roll onto a beach while you try not to check how many tokens you've burned. We can't promise it'll make you use less AI. We're doing our best to make it look good, though.
+The fun is in how it tells you: neon bridge lights retreat as you spend your quota, Claude and Codex face off on a moving train, and a surfer rides a foamy barrel while you try not to check how many tokens you've burned. We can't promise it'll make you use less AI. We're doing our best to make it look good, though.
 
 It started as a customization of **[TokenTV, by click6067-ship-it](https://github.com/click6067-ship-it/token-tv)** and grew into a collection of animated scenes for the **2.8-inch NerdMiner V2 touchscreen** (ESP32-2432S028R). This repo includes the host application, firmware and tools to keep tinkering.
 
@@ -40,11 +40,11 @@ It started as a customization of **[TokenTV, by click6067-ship-it](https://githu
 | | |
 |:---:|:---:|
 | **Game Boy** · green LCD, pixels and nostalgia.<br>![Game Boy — simulated quota updates](docs/images/game-boy.gif) | **Paradise** · a tiny tropical break between prompts.<br>![Paradise — moving ocean](docs/images/paradise.gif) |
-| **Neon City** · flying cars, neon bridges and a suspiciously useful skyline.<br>![Neon City — animated traffic and bridge quota lights](docs/images/code-forge.gif) | **Tidal Rush** · retro surfing, a barrel wave and vacation cravings.<br>![Tidal Rush — surfing animation](docs/images/surf.gif) |
-| **Token Run** · three lanes, turquoise water and a red convertible.<br>![Token Run — animated coastal road and red convertible](docs/images/dials.gif)<br>[Still image](docs/images/dials.png) · [Under the hood](docs/board-run.md) | **Versus** · Claude vs. Codex. Run out of quota, get knocked out.<br>![Versus — fighters and moving city](docs/images/arcade.gif) |
-| **Cockpit** · your own little space command center.<br>![Cockpit — twinkling stars](docs/images/cockpit.gif) | **Quota City** · an isometric skyline that shows what's left.<br>![Quota City — city animation](docs/images/countdown.gif) |
+| **Neon City** · flying cars, neon bridges and a suspiciously useful skyline.<br>![Neon City — animated traffic and bridge quota lights](docs/images/code-forge.gif) | **Tidal Rush** · ride the barrel, chase the foam, forget the next prompt.<br>![Tidal Rush — flowing wave and animated breaking foam](docs/images/surf.gif)<br>[Still image](docs/images/surf.png) · [Under the hood](docs/board-surf.md) |
+| **Token Run** · three lanes, turquoise water and a red convertible.<br>![Token Run — animated coastal road and red convertible](docs/images/dials.gif)<br>[Still image](docs/images/dials.png) · [Under the hood](docs/board-run.md) | **Versus** · a rooftop train fight with Claude and Codex. Empty quota? KO.<br>![Versus — fighting stances on a train, layered city and shooting star](docs/images/arcade.gif)<br>[Still image](docs/images/arcade.png) · [Under the hood](docs/board-versus.md) |
+| **Cockpit** · deep space, ringed planets and the occasional UFO. Probably friendly.<br>![Cockpit — twinkling stars and an animated UFO flyby](docs/images/cockpit.gif)<br>[Still image](docs/images/cockpit.png) · [Under the hood](docs/board-cockpit.md) | **Quota City** · an isometric skyline that shows what's left.<br>![Quota City — city animation](docs/images/countdown.gif) |
 
-These looping GIFs use **fictional readings**. Moving scenes are captured from the firmware simulator; Cockpit reproduces the firmware's star effect. The Game Boy screen is normally static: its GIF demonstrates **accelerated sample quota updates**, not a constantly moving LCD. GIFs have a limited color palette; the display receives RGB565 frames.
+These looping GIFs use **fictional readings**. Moving scenes, including Cockpit's UFO and stars, are captured from the firmware simulator. The Game Boy screen is normally static: its GIF demonstrates **accelerated sample quota updates**, not a constantly moving LCD. GIFs have a limited color palette; the display receives RGB565 frames.
 
 On compatible hardware, animations run **on the board**. Your computer doesn't have to upload a new picture for every frame. Prefer still images? [Open the PNG gallery](docs/images/gallery.png).
 

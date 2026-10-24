@@ -99,7 +99,7 @@ def render_board_pages(snapshot, stars=False, anim=False, waves=False):
     """One frame per page, in PAGE_NAMES order, keeping the clock's separate album unchanged.
 
     `stars` adds the twinkling-star trailer to the pages that draw the starfield; `anim` lets PARADISE,
-    Neon City, TIDAL RUSH, the driving CRT and VERSUS use ANIM (otherwise their first poses are drawn in).
+    Neon City, TIDAL RUSH, the driving CRT, VERSUS, cockpit and city use ANIM (otherwise their first poses are drawn in).
     `waves` uses the native WAVE engine for PARADISE only; its other seven pages are unchanged."""
     from token_tv.personal_faces import RENDERERS as PERSONAL
     from token_tv.themes import RENDERERS as THEMES
@@ -147,9 +147,13 @@ def render_board_pages(snapshot, stars=False, anim=False, waves=False):
         countdown, payloads['countdown'] = render_countdown(snapshot, animated=True)
     else:
         countdown = render_countdown(snapshot)
-    images += [versus, render_cockpit(snapshot), countdown]
-    from token_tv.board_space import space_backdrop, star_field
-    twinkle = {'cockpit'} if stars else set()                   # only the page that shows a night sky
+    from token_tv.board_space import space_backdrop, star_field, render_cockpit as space_cockpit
+    if anim:
+        cockpit, payloads['cockpit'] = space_cockpit(snapshot, animated=True)
+    else:
+        cockpit = render_cockpit(snapshot)
+    images += [versus, cockpit, countdown]
+    twinkle = {'cockpit'} if stars and not anim else set()
     sky = {'cockpit': {'backdrop': space_backdrop, 'field': star_field}}      # and it has its own
     return [rgb565_frame(image, free_stars(image, **sky.get(name, {})) if name in twinkle else None, payloads.get(name),
                         wave_payload if name == 'paradise' else None)

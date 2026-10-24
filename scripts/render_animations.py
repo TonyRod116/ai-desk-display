@@ -113,9 +113,12 @@ def main():
             if kind in (b'ANIM',b'WAVE'):
                 folder = root/name; folder.mkdir()
                 path = folder/'page.bin';path.write_bytes(page)
-                # Capture slow city neon and sample the racing scene on its native tick.
-                duration = 140 if name=='code-forge' else 120 if name=='dials' else 100
-                total = 22400 if name=='code-forge' else 7680 if name=='dials' else 6400 if kind==b'WAVE' else 8000
+                # Sample each scene on its native tick, including complete surf/UFO cycles.
+                duration = {'code-forge': 140, 'dials': 120, 'surf': 150,
+                            'arcade': 160, 'cockpit': 140}.get(name, 100)
+                total = {'code-forge': 22400, 'dials': 7680, 'surf': 9600,
+                         'arcade': 15360, 'cockpit': 8960}.get(
+                             name, 6400 if kind==b'WAVE' else 8000)
                 result = subprocess.run([str(engine),str(path),str(folder),str(total),str(duration)],capture_output=True,text=True)
                 if result.returncode or result.stderr:
                     raise RuntimeError(result.stderr or result.stdout)
