@@ -179,7 +179,7 @@ def gameboy(data, paper, ink, title, screen=(240, 240), grid=False):
     cv.draw.rectangle((3, 3, 236 + dx, 236), outline=ink, width=3)
     cv.draw.rectangle((9, 9, 230 + dx, 27), fill=ink)
     cv.text((16, 14), title, pixel(8), paper)
-    cv.text((120 + dx // 2, 34), 'CUOTA SEMANAL', pixel(8), ink, anchor='ma')
+    cv.text((120 + dx // 2, 34), 'WEEKLY QUOTA', pixel(8), ink, anchor='ma')
     rows = overview_rows(data)
     pitch = 174 // len(rows)
     compact = len(rows) == 3
@@ -231,7 +231,7 @@ def render_amber(data, screen=(240, 240)):
     cv.draw.rectangle((7, 7, 232 + dx, 232), outline=dim)
     cv.text((16, 15), 'QUOTA / TERMINAL', face('vt323.woff2', 21), ink)
     cv.draw.line((16, 38, 224 + dx, 38), fill=dim)
-    cv.text((16, 42), 'SEMANA RESTANTE', pixel(8), ink)
+    cv.text((16, 42), 'WEEKLY REMAINING', pixel(8), ink)
     rows = overview_rows(data)
     pitch = 168 // len(rows)
     compact = len(rows) == 3
@@ -258,7 +258,7 @@ def render_orbit(data, screen=(240, 240)):
     cv = Canvas('#07141b', screen)
     white, muted = '#e4f3eb', '#8daeb5'
     cv.text((14, 13), 'ORBIT', face('orbitron.ttf', 16), white)
-    cv.text((226 + dx, 18), 'SEMANA', pixel(7), muted, anchor='ra')
+    cv.text((226 + dx, 18), 'WEEK', pixel(7), muted, anchor='ra')
     cv.draw.line((14, 37, 226 + dx, 37), fill='#29434b')
     rows = overview_rows(data)
     pitch = 188 // len(rows)

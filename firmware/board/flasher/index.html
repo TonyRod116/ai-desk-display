@@ -1,8 +1,8 @@
 <!doctype html>
-<html lang="es">
+<html lang="en">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>TokenTV · instalar en la placa táctil</title>
+<title>AI Desk Display · install on your touch display</title>
 <style>
   body{font:16px/1.5 system-ui,sans-serif;max-width:720px;margin:32px auto;padding:0 16px;background:#0d1115;color:#d9dde1}
   h1{font-size:24px} h2{font-size:18px;margin-top:28px}
@@ -13,83 +13,83 @@
 </style>
 <script type="module" src="vendor/esp-web-tools/install-button.js"></script>
 
-<h1>Instalar o actualizar TokenTV en la placa táctil</h1>
-<p>Esto <strong>sustituye el programa del minero</strong> por el de TokenTV. Es reversible: se puede volver a
-instalar el firmware del NerdMiner cuando quieras. Funciona en Chrome o Edge; <em>no</em> en Firefox ni Safari.
-Esta página y todo lo que instala están en tu ordenador, sin internet.</p>
+<h1>Install or update AI Desk Display</h1>
+<p>This <strong>replaces the miner software</strong> with AI Desk Display. You can reinstall the
+NerdMiner firmware later. Use Chrome or Edge; USB installation is not supported here in Firefox or Safari.
+This page and its firmware files are served from your computer, without internet access.</p>
 
 <div class="card warn">
-  <strong>Antes de empezar</strong>
+  <strong>Before you start</strong>
   <ul>
-    <li>Apunta la dirección de Bitcoin y la wifi del minero si quieres volver a usarlo.</li>
-    <li>Conecta la placa por USB a <strong>este PC</strong> (no a un hub sin alimentación).</li>
-    <li>Cierra cualquier otro programa que use el puerto serie.</li>
+    <li>Save your miner's Bitcoin address and Wi-Fi settings if you plan to use it again.</li>
+    <li>Connect the display directly by USB to <strong>this PC</strong>, avoiding an unpowered hub.</li>
+    <li>Close any other program using the serial port.</li>
   </ul>
 </div>
 
-<h2>1. Instalar o actualizar</h2>
+<h2>1. Install or update</h2>
 <div class="card">
-  <p><strong>Pantalla normal (ILI9341).</strong> Empieza por aquí. Si ya la tenías instalada, esto la
-  <strong>actualiza y conserva la wifi y el token</strong>: no hay que volver a configurar nada.</p>
+  <p><strong>Standard screen (ILI9341).</strong> Start here. If AI Desk Display is already installed,
+  this <strong>updates it while keeping Wi-Fi and pairing</strong>.</p>
   <esp-web-install-button manifest="manifest-cyd.json">
-    <span slot="unsupported">Este navegador no puede grabar por USB: abre esta página en Chrome o Edge.</span>
-    <span slot="not-allowed">Abre esta página como http://127.0.0.1:8790/flasher/</span>
+    <span slot="unsupported">This browser cannot install over USB. Open this page in Chrome or Edge.</span>
+    <span slot="not-allowed">Open this page at http://127.0.0.1:8790/flasher/</span>
   </esp-web-install-button>
-  <p>Elige el puerto de la placa (suele aparecer como <code>CH340</code> o <code>CP210x</code>) y espera a que termine
-  (unos 2 minutos). Si no aparece ningún puerto, mantén pulsado el botón <code>BOOT</code> de la placa mientras la
-  conectas.</p>
+  <p>Choose the display's port, usually named <code>CH340</code> or <code>CP210x</code>, and wait for installation
+  to finish (about 2 minutes). If no port appears, hold the display's <code>BOOT</code> button while connecting it.</p>
 </div>
 <div class="card">
-  <p><strong>Solo si la pantalla se queda en blanco o con colores raros</strong> tras instalar la normal: tu placa es
-  de la revisión con pantalla ST7789. Instala esta otra encima.</p>
+  <p><strong>If the screen stays blank or looks garbled</strong> after installing the standard version,
+  try this variant for the ST7789 screen revision.</p>
   <esp-web-install-button manifest="manifest-cyd_st7789.json">
-    <span slot="unsupported">Este navegador no puede grabar por USB: abre esta página en Chrome o Edge.</span>
+    <span slot="unsupported">This browser cannot install over USB. Open this page in Chrome or Edge.</span>
   </esp-web-install-button>
 </div>
 
-<h2>2. Poner la wifi (con el móvil)</h2>
+<h2>2. Set up Wi-Fi from your phone</h2>
 <div class="card">
   <ol>
-    <li>La placa crea una wifi llamada <code>TokenTV-Display</code>. Conéctate desde el móvil.</li>
-    <li>Se abre sola una página: elige tu wifi y escribe su contraseña. (La contraseña va de tu móvil a la placa;
-    este PC nunca la ve.)</li>
-    <li>La pantalla muestra una dirección <code>http://192.168.…</code> y un <strong>token de 16 caracteres</strong>.</li>
+    <li>The display creates a Wi-Fi network named <code>TokenTV-Display</code>. Join it from your phone.</li>
+    <li>A setup page opens. Choose your home network and enter its password. The password travels from
+    your phone to the display; this PC never sees it.</li>
+    <li>The display shows its local address, such as <code>http://192.168.…</code>.</li>
   </ol>
 </div>
 
-<h2>3. Decírselo al PC (solo la dirección)</h2>
+<h2>3. Connect your PC using the display's address</h2>
 <div class="card">
-  <p>En la terminal de WSL, con la dirección que muestra la pantalla:</p>
-  <p><code>cd ~/code/token-tv &amp;&amp; .venv/bin/token-tv board --url http://192.168.…</code></p>
-  <p>El PC elige el token, se lo pone a la placa y lo recuerda: <strong>no hay que teclear nada más</strong>.
-  Si reinstalas o formateas la placa, el servicio la vuelve a adoptar solo.</p>
-  <p>Si la dirección cambia: <code>.venv/bin/token-tv board --find</code> la busca y la guarda otra vez.</p>
-  <p>Para ver la dirección de nuevo: mantén el dedo 2 segundos sobre la pantalla.
-  Para que la placa olvide su emparejamiento: 8 segundos.</p>
+  <p>From your project directory in the terminal, use the address shown on the display:</p>
+  <p><code>.venv/bin/token-tv board --url http://192.168.…</code></p>
+  <p>The PC creates and remembers the pairing token: <strong>there is no token to type</strong>.
+  If you reinstall or format the display, the service can pair it again.</p>
+  <p>If its address changes, <code>.venv/bin/token-tv board --find</code> discovers and saves it again.</p>
+  <p>To see the address again, hold the screen for 5 seconds and release. Touch gestures never erase pairing.</p>
 </div>
 
-<h2>Actualizar sin cable</h2>
+<h2>Update over Wi-Fi</h2>
 <div class="card">
-  <p>Con el firmware 3 o posterior ya no hace falta este grabador ni el USB. Mantén el dedo 2 segundos en la placa
-  (así muestra su dirección: es la confirmación de que estás delante) y, en la terminal:</p>
+  <p>Firmware 3 and later supports updates without USB. Hold the screen for 5 seconds and release
+  to open the connection screen (2 seconds on firmware 9 or older). This physical action enables the update. Then run:</p>
   <p><code>.venv/bin/token-tv board --update</code></p>
 </div>
 
-<h2>Si la imagen sale mal</h2>
+<h2>If the picture looks wrong</h2>
 <div class="card">
-  <p>Cuando la placa ya tiene wifi y está guardada en el PC (paso 3) se corrige sin volver a grabar:</p>
+  <p>Once Wi-Fi and pairing are set up, these settings can be changed without reinstalling:</p>
   <ul>
-    <li>Del revés: <code>.venv/bin/token-tv board --rotation 3</code></li>
-    <li>Colores como un negativo: <code>.venv/bin/token-tv board --invert 1</code></li>
-    <li>Rojo y azul cambiados: <code>.venv/bin/token-tv board --swap-rb 1</code></li>
-    <li>Colores revueltos o "ruido": <code>.venv/bin/token-tv board --swap-bytes 1</code></li>
-    <li>En blanco o con basura: instala la segunda variante (ST7789) de arriba.</li>
+    <li>Upside down: <code>.venv/bin/token-tv board --rotation 3</code></li>
+    <li>Negative colours: <code>.venv/bin/token-tv board --invert 1</code></li>
+    <li>Red and blue swapped: <code>.venv/bin/token-tv board --swap-rb 1</code></li>
+    <li>Scrambled colours: <code>.venv/bin/token-tv board --swap-bytes 1</code></li>
+    <li>Blank or garbled screen: try the ST7789 variant above.</li>
   </ul>
 </div>
 
-<h2>Uso</h2>
+<h2>Everyday controls</h2>
 <ul>
-  <li><strong>Toque corto:</strong> siguiente variante: Game Boy verde → Game Boy gris → Pixel Retro → Terminal ámbar → Orbit → detalle de Claude con las barras de 5 h.</li>
-  <li><strong>Toque largo (2 s):</strong> muestra la dirección y el token.</li>
-  <li>Si el PC deja de actualizar durante 3 minutos, la placa lo dice con <strong>SIN DATOS</strong> y oculta las cifras.</li>
+  <li><strong>Tap:</strong> move to the next of the eight screens.</li>
+  <li><strong>Hold 2 seconds and release:</strong> cycle between fixed, every 30 minutes and hourly.</li>
+  <li><strong>Hold 5 seconds and release:</strong> show the connection screen and enable firmware updates.</li>
+  <li>Automatic changes align to the half-hour or hour. The display remembers your page and rotation mode.</li>
+  <li>After 3 minutes without a PC update, <strong>NO DATA</strong> replaces outdated readings.</li>
 </ul>

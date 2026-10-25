@@ -356,7 +356,7 @@ def _ufo():
 def render_cockpit(snapshot, animated=False):
     scene = Scene(space_backdrop)
     scene.text((12, 7), 'DEEP SPACE', 'press-start-2p.ttf', 6, LABEL)
-    scene.text((308, 7), 'SEMANA RESTANTE', 'press-start-2p.ttf', 6, LABEL, anchor='ra')
+    scene.text((308, 7), 'WEEKLY REMAINING', 'press-start-2p.ttf', 6, LABEL, anchor='ra')
     _divider(scene)
     for provider, accent in (('codex', CODEX), ('claude', CLAUDE)):
         row = _row(snapshot, provider)

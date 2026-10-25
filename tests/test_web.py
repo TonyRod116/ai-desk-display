@@ -89,7 +89,7 @@ class GalleryTests(unittest.TestCase):
         self.assertIn('href="#gallery"', self.html)  # direct entry from the top bar
         self.assertIn('https://github.com/click6067-ship-it/token-tv/blob/main/docs/clock-faces.md', self.html)
         self.assertIn('https://github.com/click6067-ship-it/token-tv/issues/new?template=share_a_face.md', self.html)
-        for label in ('Diseños del reloj', 'Make a face', 'Share a face'):
+        for label in ('Clock faces', 'Make a face', 'Share a face'):
             self.assertIn(label, self.html)
         self.assertIn("'theme-thumb'", self.js)  # each card carries a real rendered thumbnail
 

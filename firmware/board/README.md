@@ -38,7 +38,7 @@ and open `http://127.0.0.1:8790/flasher/` in Chrome or Edge with the board on US
 | `POST /update` multipart `file` | yes **and** address screen showing | install a firmware image (`firmware.bin`) over the wifi |
 | `POST /page?n=0..7` multipart `file` | yes | store page n (`TVF1` + w,h u16 LE + RGB565 LE, then optional `STAR`, `ANIM` or `WAVE`; at most 235528 bytes on firmware 14) |
 | `GET /page?n=` | yes | read it back (the PC verifies every upload) |
-| `POST /ping` | yes | heartbeat, answers one character per page (`1` = stored); without one for 3 minutes the board shows SIN DATOS |
+| `POST /ping` | yes | heartbeat, answers one character per page (`1` = stored); without one for 3 minutes the board shows NO DATA |
 | `POST /show?n=` | yes | select a page |
 | `POST /config?rotation=1\|3&invert=0\|1&swaprb=0\|1&swapbytes=0\|1&pages=1..8` | yes | panel options and how many page slots are cycled, kept across reboots |
 
@@ -53,7 +53,15 @@ Token Run page, while the other seven scenes retain their existing animation.
 Update through the normal paired, physical connection-screen gate. No erase,
 account access or pairing reset is needed.
 
-## Connection recovery (firmware 15)
+## English interface (firmware 16)
+
+Startup, pairing, Wi-Fi setup, missing data, storage errors, update notices and
+touch/rotation confirmations are in English. Screen labels, the local dashboard,
+its alerts and the USB installer are also in English. Firmware 16 includes the
+connection-recovery fix below. The display still requires a physical five-second
+hold and release before a firmware update.
+
+## Connection recovery (firmware 15 and later)
 
 Wi-Fi loss and missing PC heartbeats share one recovery policy: retry the link
 at most once every five minutes, and restart after ten minutes without a

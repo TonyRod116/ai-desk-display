@@ -1,11 +1,11 @@
 'use strict';
 /* TokenTV web dashboard. Every theme renders the same nodes; style.css composes them. */
 const PERSONAL_THEMES = [
- {id:'game-boy', name:'Game Boy verde', eyebrow:'PANEL LOCAL', title:'RESERVA DE IA', note:'Corazones: resets guardados · Barra: cuota restante', remaining:true},
- {id:'game-boy-pocket', name:'Game Boy gris', eyebrow:'POCKET · PANEL LOCAL', title:'RESERVA DE IA', note:'Corazones: resets guardados · Barra: cuota restante', remaining:true},
- {id:'retro', name:'Pixel Retro', eyebrow:'', title:'AI PROVIDERS', note:'CUOTA RESTANTE', remaining:true},
- {id:'amber-terminal', name:'Terminal Ámbar', eyebrow:'PANEL LOCAL', title:'QUOTA / TERMINAL', note:'Cuota restante y resets guardados', remaining:true},
- {id:'orbit', name:'Orbit', eyebrow:'PANEL LOCAL', title:'ORBIT', note:'Cuota restante y resets guardados', remaining:true}
+ {id:'game-boy', name:'Game Boy Green', eyebrow:'LOCAL DASHBOARD', title:'AI RESERVES', note:'Hearts: saved resets · Bar: remaining quota', remaining:true},
+ {id:'game-boy-pocket', name:'Game Boy Pocket', eyebrow:'POCKET · LOCAL DASHBOARD', title:'AI RESERVES', note:'Hearts: saved resets · Bar: remaining quota', remaining:true},
+ {id:'retro', name:'Pixel Retro', eyebrow:'', title:'AI PROVIDERS', note:'REMAINING QUOTA', remaining:true},
+ {id:'amber-terminal', name:'Amber Terminal', eyebrow:'LOCAL DASHBOARD', title:'QUOTA / TERMINAL', note:'Remaining quota and saved resets', remaining:true},
+ {id:'orbit', name:'Orbit', eyebrow:'LOCAL DASHBOARD', title:'ORBIT', note:'Remaining quota and saved resets', remaining:true}
 ];
 const PERSONAL_NAMES = Object.fromEntries(PERSONAL_THEMES.map(t => [t.id, t.name]));
 const THEMES = [...PERSONAL_THEMES,
@@ -13,7 +13,7 @@ const THEMES = [...PERSONAL_THEMES,
  {id:'neon', name:'Neon Cyberpunk', eyebrow:'Today', title:'AI USAGE', note:''},
  {id:'hud', name:'Sci-Fi HUD', eyebrow:'', title:'AI PROVIDER USAGE', note:'Real-time usage monitor'}
 ];
-const STATUS = {ok:'Connected', loading:'Loading', auth_required:'Login needed', identity_mismatch:'Check identity', quota_unavailable:'Quota unavailable', usage_blocked:'Bloqueado por Codex', stale:'OLD · Previous value', rate_limited:'Retry later', error:'Fetch failed'};
+const STATUS = {ok:'Connected', loading:'Loading', auth_required:'Login needed', identity_mismatch:'Check identity', quota_unavailable:'Quota unavailable', usage_blocked:'Blocked by Codex', stale:'OLD · Previous value', rate_limited:'Retry later', error:'Fetch failed'};
 const PROVIDERS = ['codex', 'claude', 'grok'];
 const COMPANIES = {claude:'ANTHROPIC', codex:'OPENAI', grok:'XAI'};
 const svgNS = 'http://www.w3.org/2000/svg';
@@ -143,9 +143,9 @@ function knownResetCount(info, unavailable = offline) {
 function savedHearts(info) {
  const count = knownResetCount(info), known = count !== null;
  const hearts = el('span', undefined, 'saved-hearts');
- const label = known ? `${count} resets guardados` : 'Saldo de resets desconocido';
+ const label = known ? `${count} saved resets` : 'Saved-reset balance unknown';
  hearts.setAttribute('role', 'img'); hearts.setAttribute('aria-label', label);
- hearts.title = label + (info?.source === 'user_confirmed' ? ' · confirmado por ti' : '');
+ hearts.title = label + (info?.source === 'user_confirmed' ? ' · confirmed by you' : '');
  for (let i = 0; i < 3; i++) {
   const filled = known && count > i;
   const s = svgNode('svg', {viewBox:'0 0 7 6', 'aria-hidden':'true', 'shape-rendering':'crispEdges'});
@@ -179,8 +179,8 @@ function setTheme(theme) {
  $('#page-title').textContent = config.title;
  $('#intro-note').textContent = config.note; $('#intro-note').hidden = !config.note;
  const labels = config.remaining ? ['51–100%', '21–50%', '11–20%', '0–10%'] : ['0–49%', '50–79%', '80–89%', '90–100%'];
- $('.legend').setAttribute('aria-label', config.remaining ? 'Niveles de cuota restante' : 'Used quota levels');
- $('.legend .section-label').textContent = config.remaining ? 'Cuota restante' : 'Used quota';
+ $('.legend').setAttribute('aria-label', config.remaining ? 'Remaining quota levels' : 'Used quota levels');
+ $('.legend .section-label').textContent = config.remaining ? 'Remaining quota' : 'Used quota';
  document.querySelectorAll('.legend i').forEach((n, i) => {n.nextSibling.textContent = labels[i]});
  for (const b of document.querySelectorAll('[data-theme-choice]')) b.setAttribute('aria-pressed', String(b.dataset.themeChoice === config.id));
  renderAccounts();
@@ -214,12 +214,12 @@ function providerCard(provider, accounts) {
  tabs.hidden = remaining && accounts.length <= 1;
  head.append(logo, name, tabs);
  const reading = el('div', undefined, 'reading'), meta = el('div', undefined, 'reading-meta');
- meta.append(el('span', period(primary) + (remaining ? ' RESTANTE' : ' USED'), 'reading-label'));
+ meta.append(el('span', period(primary) + (remaining ? ' LEFT' : ' USED'), 'reading-label'));
  if (primary) meta.append(el('span', stale ? 'OLD · Last known usage' : levelText(primary.used_percent), 'level-label'));
  else meta.append(el('span', ['claude_official_cli', 'codex_official_cli'].includes(a.quota_origin) ?
-  'Sin lectura semanal reciente. Reintentando automáticamente.' :
+  'No recent weekly reading. Retrying automatically.' :
   a.status === 'quota_unavailable' && a.source === 'local' && provider === 'claude' ?
-  'Sin lectura local vigente de Claude. La web no actualiza el capturador de Claude Code.' :
+  'No current local Claude reading. This page does not refresh the Claude Code reader.' :
   a.status === 'quota_unavailable' ? 'No quota reported.' : STATUS[a.status] || 'No reading available.', 'unknown-message'));
  const num = el('div', value === null ? '—' : undefined, 'percentage');
  if (value !== null) {const digits = el('span', String(Math.round(value)), 'pct-num'); digits.dataset.ghost = ghost(digits.textContent); num.append(digits, el('span', '%', 'percent-sign'))}
@@ -228,21 +228,21 @@ function providerCard(provider, accounts) {
  const timer = el('div', undefined, 'timer'), until = el('span', primary ? resetTime(primary.resets_at) : '—', 'timer-value');
  if (/^[\ddh ]+$/.test(until.textContent)) until.dataset.ghost = ghost(until.textContent);
  timer.append(clockGlyph(), el('span', 'RESETS IN', 'timer-label'), until);
- const row = el('div', undefined, 'gauge'); row.append(gauge(value, a.alias + ' ' + period(primary) + (remaining ? ' cuota restante' : ' used quota'), primary?.used_percent), el('span', value === null ? '—' : Math.round(value) + '%', 'gauge-value'));
+ const row = el('div', undefined, 'gauge'); row.append(gauge(value, a.alias + ' ' + period(primary) + (remaining ? ' remaining quota' : ' used quota'), primary?.used_percent), el('span', value === null ? '—' : Math.round(value) + '%', 'gauge-value'));
  card.append(art, head, reading, timer, row);
  const others = windows.filter(w => w !== primary);
  if (others.length) {
   const details = el('details', undefined, 'more-windows'); details.open = prior?.open || false;
   const named = period(others[0]) === 'CLI BUDGET' ? 'CLI budget' : period(others[0])[0] + period(others[0]).slice(1).toLowerCase();
   details.append(el('summary', others.length === 1 ? `${named} window` : `${others.length} more windows`));
-  for (const w of others) {const v = remaining ? clamp(100 - w.used_percent) : w.used_percent; const line = el('div', undefined, 'window-detail'); line.append(el('span', period(w), 'window-name'), gauge(v, a.alias + ' ' + period(w) + (remaining ? ' cuota restante' : ' used quota'), w.used_percent), el('span', Math.round(v) + '%', 'window-percent'), el('span', resetTime(w.resets_at), 'window-timer')); details.append(line)}
+  for (const w of others) {const v = remaining ? clamp(100 - w.used_percent) : w.used_percent; const line = el('div', undefined, 'window-detail'); line.append(el('span', period(w), 'window-name'), gauge(v, a.alias + ' ' + period(w) + (remaining ? ' remaining quota' : ' used quota'), w.used_percent), el('span', Math.round(v) + '%', 'window-percent'), el('span', resetTime(w.resets_at), 'window-timer')); details.append(line)}
   card.append(details);
  }
  const checked = stale ? a.last_success_at : a.fetched_at;
  let when = el('span', '—', 'stat-v');
  if (checked) {const d = new Date(checked * 1000); when = el('time', d.toLocaleTimeString('en-GB', {hour:'2-digit', minute:'2-digit'}), 'stat-v'); when.dateTime = d.toISOString(); when.title = d.toLocaleString('en-GB')}
  const foot = el('div', undefined, 'card-foot');
- foot.append(stat('Account', a.alias || '—'), stat('Window', primary ? period(primary) : '—'), stat('Source', ['claude_official_cli', 'codex_official_cli'].includes(a.quota_origin) ? 'Cliente oficial · caché local' : a.source === 'local' ? 'Local files' : a.source === 'mini' ? 'This computer' : a.source ? 'Linked snapshot' : '—'), stat(stale ? 'Last good' : 'Checked', when), stat('Status', el('span', offline ? 'OFFLINE · Previous value' : STATUS[a.status] || 'Unknown', 'row-status stat-v'), 'stat-status'));
+ foot.append(stat('Account', a.alias || '—'), stat('Window', primary ? period(primary) : '—'), stat('Source', ['claude_official_cli', 'codex_official_cli'].includes(a.quota_origin) ? 'Official client · local cache' : a.source === 'local' ? 'Local files' : a.source === 'mini' ? 'This computer' : a.source ? 'Linked snapshot' : '—'), stat(stale ? 'Last good' : 'Checked', when), stat('Status', el('span', offline ? 'OFFLINE · Previous value' : STATUS[a.status] || 'Unknown', 'row-status stat-v'), 'stat-status'));
  card.append(foot); shell.append(card); return shell;
 }
 function renderAccounts() {
@@ -276,7 +276,7 @@ async function update() {
   $('#signal').dataset.strength = staleCount ? '2' : '3';
  } catch {
   offline = true; $('#connection').textContent = 'Server offline'; $('#notice').hidden = false; $('#signal').dataset.strength = '0';
-  $('#notice').textContent = snapshot ? 'Conexión local perdida. Las cuotas oficiales quedan desconocidas hasta recuperar la lectura.' : 'Cannot reach TokenTV. Is token-tv still running?';
+  $('#notice').textContent = snapshot ? 'Local connection lost. Official quotas remain unknown until readings recover.' : 'Cannot reach TokenTV. Is token-tv still running?';
   if (!snapshot) $('#providers').replaceChildren(el('p', 'No usage data received.', 'loading'));
  } finally {polling = false; document.body.dataset.offline = String(offline); renderAccounts()}
 }
@@ -295,8 +295,8 @@ let lastImageStyle = null, lastImageAt = 0;
 function paintClock(forceImage = false) {
  const style = clockChoice || displayInfo?.style;
  $('#clock-style').disabled = applying || !displayInfo; $('#apply').disabled = DEMO || applying || !displayInfo || (style === displayInfo.style && displayInfo.status !== 'error' && !clockError);
- $('#apply').textContent = applying ? 'Enviando imagen…' : 'Aplicar al reloj'; $('#apply').dataset.state = applying ? 'loading' : clockError || displayInfo?.status === 'error' ? 'error' : displayInfo?.status === 'ok' ? 'success' : 'default';
- $('#display-state').textContent = DEMO ? 'Demo · instala TokenTV para usar un reloj' : displayOffline ? 'Clock status unavailable' : clockError ? 'No se pudo aplicar. Vuelve a intentarlo.' : !displayInfo ? 'Estado del reloj no disponible' : style !== displayInfo.style ? 'Vista previa · pulsa Aplicar para enviar' : displayInfo.status === 'queued' ? 'Enviando imagen…' : displayInfo.status === 'error' ? 'No se pudo enviar al reloj. Vuelve a intentarlo.' : displayInfo.status === 'preview_only' ? 'Vista previa · sin reloj conectado' : 'Imagen enviada · ' + styleName(displayInfo.applied_style);
+ $('#apply').textContent = applying ? 'Sending image…' : 'Apply to clock'; $('#apply').dataset.state = applying ? 'loading' : clockError || displayInfo?.status === 'error' ? 'error' : displayInfo?.status === 'ok' ? 'success' : 'default';
+ $('#display-state').textContent = DEMO ? 'Demo · install AI Desk Display to use a clock' : displayOffline ? 'Clock status unavailable' : clockError ? 'Could not apply. Please try again.' : !displayInfo ? 'Clock status unavailable' : style !== displayInfo.style ? 'Preview · select Apply to send' : displayInfo.status === 'queued' ? 'Sending image…' : displayInfo.status === 'error' ? 'Could not send to the clock. Please try again.' : displayInfo.status === 'preview_only' ? 'Preview · no clock connected' : 'Image sent · ' + styleName(displayInfo.applied_style);
  if (style && !$('#clock-panel').hidden && (forceImage || style !== lastImageStyle || Date.now() - lastImageAt > 30000)) {lastImageStyle = style; lastImageAt = Date.now(); $('#frame').src = DEMO ? displayInfo.frames?.[style] || `/frames/${encodeURIComponent(style)}.jpg` : '/frame/0.jpg?style=' + encodeURIComponent(style) + '&t=' + lastImageAt; $('#frame').alt = styleName(style) + ' live clock preview'}
  paintSavedResets();
 }
@@ -310,8 +310,8 @@ function paintSavedResets() {
   input.readOnly = Boolean(automatic);
   if (automatic || (document.activeElement !== input && !input.dataset.dirty)) input.value = count ?? '';
   $('#resets-' + provider + '-source').textContent = automatic ?
-   count !== null ? 'Consulta oficial: ' + new Date(info.confirmed_at * 1000).toLocaleString() : 'Consulta oficial pendiente o no disponible.' :
-   count !== null && info?.confirmed_at ? 'Confirmado por ti: ' + new Date(info.confirmed_at * 1000).toLocaleString() : 'Saldo pendiente de confirmar.';
+   count !== null ? 'Official check: ' + new Date(info.confirmed_at * 1000).toLocaleString('en-GB') : 'Official check pending or unavailable.' :
+   count !== null && info?.confirmed_at ? 'Confirmed by you: ' + new Date(info.confirmed_at * 1000).toLocaleString('en-GB') : 'Balance awaiting confirmation.';
  }
 }
 for (const provider of ['codex','claude']) $('#resets-' + provider).oninput = e => {e.target.dataset.dirty = 'true'};
@@ -326,9 +326,9 @@ $('#saved-resets-form').onsubmit = async e => {
    if (!response.ok) throw Error();
    displayInfo = await response.json(); displayOffline = false; delete input.dataset.dirty;
   }
-  $('#saved-resets-status').textContent = 'Saldo guardado localmente. No se ha utilizado ningún reset.';
+  $('#saved-resets-status').textContent = 'Balance saved locally. No reset was used.';
   paintClock(true);
- } catch {$('#saved-resets-status').textContent = 'No se pudo guardar. Revisa los valores y vuelve a intentarlo.'}
+ } catch {$('#saved-resets-status').textContent = 'Could not save. Check the values and try again.'}
 };
 const styleName = s => PERSONAL_NAMES[s] || (s === 'hud' ? 'Sci-Fi HUD' : s ? s.split('-').map(word => word[0].toUpperCase() + word.slice(1)).join(' ') : 'Unknown');
 let displayPolling = false;
@@ -337,7 +337,7 @@ $('#clock-style').onchange = e => {clockChoice = e.target.value; clockError = fa
 $('#apply').onclick = async () => {if (applying || !clockChoice) return; applying = true; clockError = false; paintClock(); try {const r = await fetch('/display/style', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({style:clockChoice})}); if (!r.ok) throw Error(); displayInfo = await r.json(); displayOffline = false} catch {clockError = true} finally {applying = false; paintClock(true)}};
 let themeData = null, themeSort = 'popular', lastThumbFrames = false;
 const REPO_URL = 'https://github.com/click6067-ship-it/token-tv';
-const day = s => new Date(s).toLocaleDateString();
+const day = s => new Date(s).toLocaleDateString('en-GB');
 const likeText = t => ({counted: `👍 ${t.likes} · counted ${day(t.likes_counted_at)}`, stale: `👍 ${t.likes} · last counted ${t.likes_counted_at ? day(t.likes_counted_at) : 'at an unknown time'}`, unavailable: 'Likes unavailable', not_open: 'Likes not open yet', local: 'Your local face'})[t.likes_state] || 'Likes unavailable';
 function sortThemes(list, mode) {
  const added = t => t.added_at ? -Date.parse(t.added_at) : Infinity;
@@ -364,7 +364,7 @@ function paintThemes() {
   item.append(el('p', likeText(t), 'theme-likes'));
   const actions = el('div', undefined, 'theme-actions');
   if (usable) {
-   const preview = el('button', clockChoice === t.id ? 'Previsualizando' : 'Previsualizar', 'control'); preview.type = 'button';
+   const preview = el('button', clockChoice === t.id ? 'Previewing' : 'Preview', 'control'); preview.type = 'button';
    preview.onclick = () => {clockChoice = t.id; clockError = false; $('#clock-style').value = t.id; showClock(true); paintClock(true); paintThemes(); $('#clock-panel').scrollIntoView({block:'start'})};
    actions.append(preview);
   } else actions.append(el('span', `Needs v${t.min_version} · update TokenTV`, 'theme-update'));

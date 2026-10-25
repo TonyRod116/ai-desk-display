@@ -5,7 +5,7 @@
 Output: firmware/board/src/splash_data.h (256-colour palette in RGB565 + run-length
 data, row by row). The firmware streams it to the panel at boot, so what you see on
 the board is this exact picture. The bottom band (y >= 214) is left empty on purpose:
-the firmware writes its status line there ("conectando a la wifi...").
+the firmware writes its status line there ("Connecting to Wi-Fi...").
 """
 import argparse
 import sys

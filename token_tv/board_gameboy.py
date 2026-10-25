@@ -32,7 +32,7 @@ def render_gameboy_board(data, screen=(320, 240), grid=None):
         cv.text((7,y),row['provider'].upper(),pixel(9),ink)
         count,old_count=banked_hearts(row)
         hearts(cv,94,y+1,count,ink,paper,scale=1,old=old_count,quiet=True)
-        cv.text((266,y),'OLD' if old else 'SEMANA',pixel(7),ink,anchor='ra')
+        cv.text((266,y),'OLD' if old else 'WEEK',pixel(7),ink,anchor='ra')
         cv.text((7,y+19),'--' if value is None else f'{round(value)}%',pixel(25),ink)
         cv.text((266,y+21),'RESET',pixel(7),ink,anchor='ra')
         cv.text((266,y+35),reset.replace(' ',''),pixel(12),ink,anchor='ra')

@@ -21,13 +21,13 @@
   <header class="topbar">
     <a class="brand" href="/" aria-label="TokenTV home"><span class="brandmark" aria-hidden="true"></span><span class="brand-word">TOKEN<b>TV</b></span></a>
     <div class="connection"><span class="status-dot" aria-hidden="true"></span><span id="connection">Connecting</span></div>
-    <a class="control gallery-link" href="#gallery">Diseños del reloj</a>
-    <button id="clock-toggle" class="control clock-toggle" type="button" aria-expanded="false" aria-controls="clock-panel">Pantalla del reloj</button>
+    <a class="control gallery-link" href="#gallery">Clock faces</a>
+    <button id="clock-toggle" class="control clock-toggle" type="button" aria-expanded="false" aria-controls="clock-panel">Clock display</button>
   </header>
-  <nav class="theme-section" aria-label="Aspecto del panel">
-    <span class="section-label">Aspecto del panel</span>
-    <div id="themes" class="themes" role="group" aria-label="Diseño del panel"></div>
-    <p class="quiet">Estos botones cambian el panel. Para elegir la imagen del reloj, abre <a href="#gallery">Diseños del reloj</a>.</p>
+  <nav class="theme-section" aria-label="Dashboard appearance">
+    <span class="section-label">Dashboard appearance</span>
+    <div id="themes" class="themes" role="group" aria-label="Dashboard theme"></div>
+    <p class="quiet">These buttons change the dashboard. To choose an image for the clock, open <a href="#gallery">Clock faces</a>.</p>
   </nav>
   <div class="workspace">
     <main class="screen" id="dashboard">
@@ -51,7 +51,7 @@
         <div class="footer-meta">
           <span id="foot-reporting">— reporting</span>
           <span id="updated">Waiting for data</span>
-          <span>Cuotas cada 5 minutos · servicio local automático</span>
+          <span>Automatic updates · local background service</span>
           <span class="signal" id="signal" data-strength="0" aria-hidden="true"><i></i><i></i><i></i></span>
         </div>
         <div class="legend" aria-label="Used quota levels"><span class="section-label">Used quota</span><span><i data-level="low"></i>0–49%</span><span><i data-level="medium"></i>50–79%</span><span><i data-level="high"></i>80–89%</span><span><i data-level="critical"></i>90–100%</span></div>
@@ -60,33 +60,33 @@
     <aside id="clock-panel" class="clock-panel" aria-label="Physical clock" hidden>
       <div class="aside-head"><div><p class="eyebrow">Physical display</p><h2>Your clock</h2></div><button class="control icon-control" id="close-clock" type="button" aria-label="Close clock panel">×</button></div>
       <div class="device"><div class="lcd"><img id="frame" width="240" height="240" alt="Live clock preview"></div></div>
-      <label for="clock-style">Diseño del reloj</label>
+      <label for="clock-style">Clock face</label>
       <select id="clock-style" class="control"></select>
-      <button class="control primary" id="apply" type="button" disabled>Aplicar al reloj</button>
+      <button class="control primary" id="apply" type="button" disabled>Apply to clock</button>
       <p id="display-state" role="status">Loading clock status</p>
-      <p class="quiet">240 × 240 · La imagen se dibuja aquí automáticamente. Puedes cerrar el navegador; el servicio sigue funcionando.</p>
+      <p class="quiet">240 × 240 · The image is rendered here automatically. You can close your browser; the service keeps running.</p>
       <form id="saved-resets-form" class="saved-resets">
-        <h3>Resets guardados</h3>
-        <p class="quiet">Cada corazón es un reset disponible. La barra muestra la cuota.</p>
+        <h3>Saved resets</h3>
+        <p class="quiet">Each heart is an available saved reset. The bar shows quota.</p>
         <label for="resets-codex">Codex</label>
         <input class="control" id="resets-codex" type="number" min="0" max="999" step="1" placeholder="?">
         <p class="quiet" id="resets-codex-source"></p>
         <label for="resets-claude">Claude</label>
         <input class="control" id="resets-claude" type="number" min="0" max="999" step="1" placeholder="?">
         <p class="quiet" id="resets-claude-source"></p>
-        <button class="control" type="submit">Guardar saldo confirmado</button>
-        <p class="quiet" id="saved-resets-status" role="status">Confirma el saldo manual en los ajustes oficiales de Uso.</p>
+        <button class="control" type="submit">Save confirmed balance</button>
+        <p class="quiet" id="saved-resets-status" role="status">Confirm manual balances in the official Usage settings.</p>
       </form>
     </aside>
   </div>
   <section class="gallery" id="gallery" aria-labelledby="gallery-title">
-    <div class="themes-head"><h2 id="gallery-title">Diseños del reloj</h2><div class="theme-sort" role="group" aria-label="Sort clock faces"><button type="button" class="control" data-sort="popular" aria-pressed="true">Popular</button><button type="button" class="control" data-sort="new" aria-pressed="false">New</button></div></div>
+    <div class="themes-head"><h2 id="gallery-title">Clock faces</h2><div class="theme-sort" role="group" aria-label="Sort clock faces"><button type="button" class="control" data-sort="popular" aria-pressed="true">Popular</button><button type="button" class="control" data-sort="new" aria-pressed="false">New</button></div></div>
     <p class="quiet" id="likes-as-of">Loading clock faces</p>
     <ul id="theme-list" class="theme-list"></ul>
     <p class="gallery-links"><a href="https://github.com/click6067-ship-it/token-tv/blob/main/docs/clock-faces.md">Make a face</a> · <a href="https://github.com/click6067-ship-it/token-tv/issues/new?template=share_a_face.md">Share a face</a></p>
     <p class="quiet">No clock needed to make one: it renders from sample data. With a clock, your own face shows up here as Local and can be applied.</p>
   </section>
-  <details class="help"><summary>Cómo leer el panel</summary><p>Game Boy verde, Game Boy gris, Pixel Retro, Terminal Ámbar y Orbit muestran <strong>cuota semanal restante</strong> y el tiempo hasta su renovación semanal. Puedes desplegar otros límites, como el de la sesión actual. Los otros aspectos muestran cuota consumida y el límite más utilizado. Las lecturas oficiales desaparecen si fallan, superan tres minutos o llega su fecha de renovación; un dato desconocido se muestra como —.</p><p>Los corazones cuentan resets guardados y no se calculan desde la barra. El saldo de Claude es manual; Codex se consulta con su cliente oficial. Un saldo desconocido se muestra como ?.</p></details>
+  <details class="help"><summary>How to read the dashboard</summary><p>Game Boy Green, Game Boy Pocket, Pixel Retro, Amber Terminal and Orbit show <strong>weekly quota remaining</strong> and the time until the weekly reset. Expand a card to see other limits, such as the current session. Other dashboard themes show quota used and the busiest limit. Official readings disappear when a refresh fails, they become more than three minutes old, or their reset time passes. Unknown readings appear as —.</p><p>Hearts count saved resets; they are never calculated from the quota bar. When automatic checks are enabled, balances come from the official account readers. Otherwise, confirm them manually in the official Usage settings. An unknown balance appears as ?.</p></details>
 </div>
 </body>
 </html>

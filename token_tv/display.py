@@ -28,7 +28,7 @@ STYLES = ('pixel', 'digital', 'neon', 'retro', 'hud', 'space',
 # Gauge-only levels; labels/percentages always use TEXT, logos retain provider ink.
 GAUGE_LEVELS = ((50, '#76a99a'), (80, '#93c9b9'), (90, '#d1b275'), (101, '#d8877e'))
 STATUS = {'loading': 'WAIT', 'auth_required': 'LOGIN', 'identity_mismatch': 'CHECK',
-          'quota_unavailable': 'NO DATA', 'usage_blocked': 'BLOQ', 'error': 'ERROR', 'rate_limited': 'RETRY', 'stale': 'OLD'}
+          'quota_unavailable': 'NO DATA', 'usage_blocked': 'BLOCK', 'error': 'ERROR', 'rate_limited': 'RETRY', 'stale': 'OLD'}
 PROVIDERS = ('codex', 'claude', 'grok')
 ASSETS = Path(__file__).with_name('assets')
 

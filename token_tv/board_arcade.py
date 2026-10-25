@@ -576,8 +576,8 @@ def render_arcade(snapshot, animated=False):
     before_text = image.copy()
     out = ImageDraw.Draw(image)
     out.fontmode = '1'                                                          # hard glyph pixels
-    out.text((160, 10), 'SEMANA', font=f8, fill=CREAM, anchor='ma')
-    out.text((160, 21), 'RESTANTE', font=f8, fill='#b9a8e0', anchor='ma')
+    out.text((160, 10), 'WEEK', font=f8, fill=CREAM, anchor='ma')
+    out.text((160, 21), 'LEFT', font=f8, fill='#b9a8e0', anchor='ma')
     out.text((10, 30), 'CODEX', font=f8, fill=CODEX, anchor='la')
     out.text((310, 30), 'CLAUDE', font=f8, fill=CLAUDE, anchor='ra')
     for xy, value, anchor in (((10, 58), c_value, 'la'), ((310, 58), k_value, 'ra')):
