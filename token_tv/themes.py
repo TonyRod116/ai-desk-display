@@ -496,11 +496,11 @@ def render_retro(snapshot, screen=(SIZE, SIZE)):
         label_y, value_y = card(y, 'claude', ACCENT['retro']['claude'][0])
         quota, hours = pace if pace is not None else (None, None)
         minutes = None if hours is None else round(hours * 4) * 15  # quarter hours, like the bars
-        cv.text((57, y + 9), 'CLAUDE SESION', title(8), cream, stroke_width=1, stroke_fill=outline_ink)
+        cv.text((57, y + 9), 'CLAUDE SESSION', title(8), cream, stroke_width=1, stroke_fill=outline_ink)
         cv.text((57, y + 22), ('--' if quota is None else f'{round(quota)}%'), title(16), cream,
                 stroke_width=2, stroke_fill=outline_ink)
         cv.text((57, y + 41), '5H QUOTA', title(8), '#b9d2ff', stroke_width=1, stroke_fill=outline_ink)
-        cv.text((159 + dx, label_y), 'QUEDAN', title(7), '#a9bdf0')
+        cv.text((159 + dx, label_y), 'TIME LEFT', title(7), '#a9bdf0')
         cv.text((159 + dx, value_y), '--' if minutes is None else f'{minutes // 60}H {minutes % 60:02d}M',
                 face('vt323.woff2', 20), cream)
         backing(y)
