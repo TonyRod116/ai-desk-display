@@ -53,6 +53,22 @@ Token Run page, while the other seven scenes retain their existing animation.
 Update through the normal paired, physical connection-screen gate. No erase,
 account access or pairing reset is needed.
 
+## Connection recovery (firmware 15)
+
+Wi-Fi loss and missing PC heartbeats share one recovery policy: retry the link
+at most once every five minutes, and restart after ten minutes without a
+heartbeat, with at most three restarts per uninterrupted absence. The restart
+budget survives reboots and is cleared by the next authenticated heartbeat.
+Firmware 15 removes a second, uncapped Wi-Fi restart path whose outage timer
+survived reconnections and could turn a later brief drop into an immediate reboot.
+Native regression tests exercise separate outages, an exhausted restart budget,
+reconnection throttling and a day of healthy heartbeats without real hardware.
+
+A restart loop can also come from unstable USB power. `token-tv board --check`
+reports the last reset reason, but unplugging the board replaces that evidence
+with a power-on reset. Use a direct, stable USB supply when investigating; this
+software change cannot correct a power dip.
+
 ## Touch and wall-clock rotation (firmware 10)
 
 Actions happen on release: a short tap advances one page; 2 to less than 5 seconds
