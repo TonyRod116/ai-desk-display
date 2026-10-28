@@ -29,7 +29,7 @@ So I gave it a better job: watching my AI limits. At least those reset this week
 
 ## What's this?
 
-A small desk display that shows how much **Claude and Codex** usage you have left, when your limits reset and, where supported, how many saved resets are available.
+A small desk display that shows how much **Claude and Codex** usage you have left, when your limits reset and, where supported, how many saved resets are available. If Codex's weekly quota is exhausted, it can show your extra credit balance instead when the official client provides it.
 
 The fun is in how it tells you: neon bridge lights retreat as you spend your quota, Claude and Codex face off on a moving train, and a surfer rides a foamy barrel while you try not to check how many tokens you've burned. We can't promise it'll make you use less AI. We're doing our best to make it look good, though.
 
@@ -107,12 +107,23 @@ Support for GeekMagic clocks is also retained, with different capabilities: they
 
 1. Try the gallery and check your display's exact model.
 2. For the touchscreen board, follow the [hardware guide](docs/hardware.md) and [firmware instructions](firmware/board/README.md). Flashing replaces whatever program is currently on the board.
-3. Configure your own accounts and device using the [setup guide](docs/setup.md) *(currently in Spanish)*. No accounts, passwords or private pairing files are bundled.
+3. Configure your own accounts and device using the [step-by-step setup guide](docs/setup.md). No accounts, passwords or private pairing files are bundled.
 4. Explore the options with `ai-desk-display --help` and `ai-desk-display board --help`.
 
 **Updating an existing board?** Token Run's approaching resort palms need **firmware 14**, built from the source in this repo. Follow the [firmware guide](firmware/board/README.md); for a Wi-Fi update, hold the screen for five seconds and release to open the connection screen first. Older firmware gets a complete static Token Run image; the other seven scenes keep their existing animation.
 
 **This is a tinkering project, not yet a “next, next, finish” installer.** Usage readings depend on the client, plan and information each provider exposes. Claude's optional saved-reset reader requires [pairing a local extension](docs/claude-bank-local.md); that's an advanced integration and may need adjustments when the provider changes things.
+
+### Keep your board easy to find
+
+Your router can give the board a different local IP address after a reconnect or restart. The computer may then keep looking at the old address and the display can show **NO DATA**. A **DHCP reservation** tells your router to keep giving this particular board the same local IP; it doesn't expose the board to the Internet.
+
+1. On the board, hold for **5 seconds and release** to show its current address. On firmware 9 or older, hold for about 2 seconds instead.
+2. Open your router's device list and find the board using that current IP. Note its **MAC address** (its hardware identifier); the device name may start with `esp32`.
+3. In the router, look for **DHCP reservation**, **address reservation** or **static DHCP**. Names vary by router. Select that MAC address, reserve the board's current IP and save. Don't assign an IP already reserved for another device.
+4. Make sure the computer and board are on the same reachable local network, and keep the computer's display service running. The reservation survives a normal restart; it doesn't turn the computer on or keep account sessions signed in.
+
+If the IP has already changed, compare the address on the board with the one saved on the computer. Reconnect using the address shown on the board, then restart **only the display monitor** so it reloads the change. The [setup guide](docs/setup.md#troubleshooting) has the exact commands and covers provider readings too. Keep your pairing token and router credentials private.
 
 ## Local, not magic
 
@@ -132,6 +143,10 @@ You can also use AI to **adapt it to other displays**. Rendering and device comm
 A good first request:
 
 > “Read AGENTS.md and the Tidal Rush renderer. I'd like a purple sunset palette. Keep the usage readings intact, don't access my accounts, and generate a preview with fictional data before touching the board.”
+
+For help setting up an existing board:
+
+> “Read the README and setup guide, then help me connect my board. Check the address on its connection screen and guide me through reserving it in my router. Don't ask me to share credentials or pairing tokens, query my accounts without permission, or flash firmware without the physical confirmation step.”
 
 Feeling adventurous?
 
