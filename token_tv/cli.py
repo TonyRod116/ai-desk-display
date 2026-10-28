@@ -450,8 +450,16 @@ def board(args):
         url = address_of(host)
         info = answers(host)
         print(f'Found the board at {url}.')
+    if not isinstance(info, dict) or info.get('model') != 'tokentv-board':
+        return fail('That address did not identify an AI Desk Display board. Check the address on its screen.')
     same_host = urlparse(saved.get('url', '')).hostname == host
-    token = (args.token or '').strip().lower() or (saved.get('token') if same_host else None) or new_token()
+    confirmed_host = bool(args.url) and not args.find and urlparse(hint).hostname == host
+    provided_token = (args.token or '').strip().lower()
+    if info.get('paired') is True and saved.get('token') and not (same_host or confirmed_host or provided_token):
+        return fail(f'A paired board was found at {url}. Check that address on the board, '
+                    f'then run: token-tv board --url {url}')
+    reuse_saved = same_host or (info.get('paired') is True and confirmed_host)
+    token = provided_token or (saved.get('token') if reuse_saved else None) or new_token()
     try:
         device = BoardDisplay(url, token)
         if info.get('paired') is False:

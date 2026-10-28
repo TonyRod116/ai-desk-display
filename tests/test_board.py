@@ -248,6 +248,61 @@ class BoardTests(unittest.TestCase):
         self.assertEqual(find_boards(['127.0.0.1', '127.0.0.2'], port=port), ['127.0.0.1'])
         self.assertEqual(find_boards(['127.0.0.1'], port=1), [])
 
+    def test_reconnect_to_confirmed_new_address_keeps_private_pairing(self):
+        from token_tv.cli import main
+        url = self.serve()
+        old_url = url.replace('127.0.0.1', '127.0.0.2')
+        with tempfile.TemporaryDirectory() as directory:
+            path = self.config_with(directory, {'url': old_url, 'token': TOKEN})
+            with patch('sys.stdout', new_callable=StringIO) as out:
+                self.assertEqual(main(['board', '--config', str(path), '--url', url]), 0)
+            self.assertEqual(json.loads(path.read_text())['board_display'], {'url': url, 'token': TOKEN})
+            self.assertNotIn(TOKEN, out.getvalue())
+            self.assertIn('Restart the display service', out.getvalue())
+
+    def test_unconfirmed_discovery_never_sends_the_saved_pairing_token(self):
+        from token_tv.cli import main
+        url = self.serve()
+        old_url = url.replace('127.0.0.1', '127.0.0.2')
+        for arguments in (['--find'], ['--url', old_url]):
+            with self.subTest(arguments=arguments), tempfile.TemporaryDirectory() as directory:
+                path = self.config_with(directory, {'url': old_url, 'token': TOKEN})
+                before = path.read_text()
+                with (patch('token_tv.board.find_boards', return_value=['127.0.0.1']),
+                      patch.object(BoardDisplay, 'ping', side_effect=AssertionError('unconfirmed board')),
+                      patch('sys.stderr', new_callable=StringIO) as err,
+                      patch('sys.stdout', new_callable=StringIO)):
+                    self.assertEqual(main(['board', '--config', str(path), *arguments]), 1)
+                self.assertIn(url, err.getvalue())
+                self.assertIn('--url', err.getvalue())
+                self.assertNotIn(TOKEN, err.getvalue())
+                self.assertEqual(path.read_text(), before)
+
+    def test_confirmed_address_of_another_paired_board_does_not_overwrite_config(self):
+        from token_tv.cli import main
+        url = self.serve()
+        FakeBoard.token = 'f' * 16
+        old_url = url.replace('127.0.0.1', '127.0.0.2')
+        with tempfile.TemporaryDirectory() as directory:
+            path = self.config_with(directory, {'url': old_url, 'token': TOKEN})
+            before = path.read_text()
+            with patch('sys.stderr', new_callable=StringIO) as err:
+                self.assertEqual(main(['board', '--config', str(path), '--url', url]), 1)
+            self.assertNotIn(TOKEN, err.getvalue())
+            self.assertEqual(path.read_text(), before)
+            self.assertEqual(FakeBoard.token, 'f' * 16)
+
+    def test_an_unrecognized_device_never_receives_the_saved_pairing_token(self):
+        from token_tv.cli import main
+        with tempfile.TemporaryDirectory() as directory:
+            path = self.config_with(directory, {'url': 'http://192.168.0.50', 'token': TOKEN})
+            before = path.read_text()
+            with (patch.object(BoardDisplay, 'info', return_value={'model': 'other', 'paired': True}),
+                  patch.object(BoardDisplay, 'ping', side_effect=AssertionError('wrong device')),
+                  patch('sys.stderr', new_callable=StringIO)):
+                self.assertEqual(main(['board', '--config', str(path), '--url', '192.168.0.60']), 1)
+            self.assertEqual(path.read_text(), before)
+
     def test_firmware_updates_need_the_token_and_a_finger_on_the_board(self):
         board = BoardDisplay(self.serve(), TOKEN)
         image = b'\xe9' + b'\0' * 120000
