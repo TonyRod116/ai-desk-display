@@ -22,6 +22,15 @@ ANSI = re.compile(r'\x1b(?:\[[0-?]*[ -/]*[@-~]|\][^\x07]*?(?:\x07|\x1b\\)|[78])'
 # and every other marker in read() must still match. A new series gets no command.
 SERIES = (2, 1)
 BANNER = re.compile(r'Claude Code v(\d+)\.(\d+)\.\d+(?![\d.])')
+# The client reuses its own usage cache when something else (another Claude session) fetched it a moment ago, and then writes
+# no newer date. Such a reading is as good as a new one while it is young: after waiting REUSE_AFTER seconds for a fresh fetch to
+# land, a native cache no older than REUSE_SECONDS is accepted with its real fetch date (the monitor still expires it at 180 s).
+REUSE_AFTER = 10
+REUSE_SECONDS = 90
+# Words that, if the usage screen shows them, say WHY a refresh was not confirmed. Only whether each one appeared is ever
+# kept (a yes/no per word), never the screen text, so a diagnosis can not leak anything about the account.
+SCREEN_HINTS = ('rate limit', '429', 'too many requests', 'failed to', 'error', 'unable to', 'try again', 'retrying',
+                'not logged in', '/login', 'expired', 'network', 'current session', 'current week')
 
 
 def reader_env(root):
@@ -95,6 +104,7 @@ class ClaudeUsageReader:
         self.env = reader_env(self.root)
         self.env['PWD'] = str(self.workspace)
         self.cli = exe('claude')
+        self.trace = {}
 
     def authenticate(self):
         command = [self.cli, '--safe-mode', '--restricted', '--setting-sources', '',
@@ -124,6 +134,16 @@ class ClaudeUsageReader:
         except (OSError, ValueError, TypeError):
             return None
 
+    def take(self, started, free_at):
+        """The native cache if this run may use it: written after we started, or young enough once the wait is over."""
+        record = self.cached(started)
+        if not record or not record['stale']:
+            return record
+        if (free_at is not None and time.monotonic() - free_at >= REUSE_AFTER
+                and 0 <= time.time() - record['fetched_at'] <= REUSE_SECONDS):
+            return {**record, 'stale': False}
+        return record
+
     def read(self, cancel_event=None):
         cancelled = lambda: cancel_event is not None and cancel_event.is_set()
         if cancelled():
@@ -132,6 +152,9 @@ class ClaudeUsageReader:
         if cancelled():
             raise SourceError('cancelled')
         started = time.time()
+        began = time.monotonic()
+        free_at = None
+        text = ''
         command = [self.cli, '--safe-mode', '--restricted', '--tools', '',
                    '--strict-mcp-config', '--mcp-config', '{"mcpServers":{}}',
                    '--setting-sources', '', '--no-chrome', '--ax-screen-reader',
@@ -155,7 +178,7 @@ class ClaudeUsageReader:
                     # The client can persist the GET result after its last PTY
                     # output. Silence must not hide a newly dated quota cache.
                     if sent and model_free:
-                        record = self.cached(started)
+                        record = self.take(started, free_at)
                         if record and not record['stale'] and not cancelled():
                             return record
                     continue
@@ -189,8 +212,9 @@ class ClaudeUsageReader:
                     if any(float(value) != 0 for value in costs):
                         raise SourceError('unexpected_model_activity')
                     model_free = True
+                    free_at = free_at if free_at is not None else time.monotonic()
                 if model_free:
-                    record = self.cached(started)
+                    record = self.take(started, free_at)
                     if record and not record['stale'] and not cancelled():
                         return record
             if cancelled():
@@ -198,7 +222,7 @@ class ClaudeUsageReader:
             # One final check catches persistence immediately before client exit.
             # native_record preserves the fetch date and marks old data stale;
             # never downgrade a fresh validated result just because PTY ended.
-            record = self.cached(started) if sent and model_free else None
+            record = self.take(started, free_at) if sent and model_free else None
             if record:
                 return record
             # Fixed identifiers only: they say which step failed and reach the log.
@@ -206,6 +230,14 @@ class ClaudeUsageReader:
                 raise SourceError('client_not_ready')
             raise SourceError('official_quota_unavailable' if model_free else 'usage_view_not_confirmed')
         finally:
+            # How old the client's own usage cache was when this run ended (None if unreadable): a cache fetched shortly before
+            # `started` means the client reused it instead of asking again.
+            kept = self.cached(0)
+            self.trace = {'seconds': round(time.monotonic() - began, 1), 'sent': sent, 'model_free': model_free,
+                          'cache_age_at_end': round(time.time() - kept['fetched_at'], 1) if kept else None,
+                          'cache_age_at_start': round(started - kept['fetched_at'], 1) if kept else None,
+                          'client_exited': process is not None and process.poll() is not None,
+                          'screen_bytes': len(buffer), 'hints': [w for w in SCREEN_HINTS if w in text.lower()]}
             try:
                 if process is not None:
                     try:

@@ -38,6 +38,11 @@ if sys.stdin.readline().strip() == '/usage':
         time.sleep(.5)
     now = time.time()
     when = int(now) + 3600
+    if os.environ.get('FAKE_NO_WRITE'):
+        # The client found a young cache and reused it: it prints the usage view but writes no newer date.
+        print('Total cost: $0.00', flush=True)
+        time.sleep(float(os.environ.get('FAKE_STAY', '40')))
+        sys.exit(0)
     cache = {'oauthAccount': {'accountUuid': 'demo-owner'},
              'cachedUsageUtilization': {'accountUuid': 'demo-owner', 'fetchedAtMs': now * 1000,
                  'utilization': {'five_hour': {'utilization': 5, 'resets_at': when},
@@ -52,6 +57,39 @@ if sys.stdin.readline().strip() == '/usage':
 
 
 class ClaudeUsageTests(unittest.TestCase):
+    def read_with_reused_cache(self, age):
+        """The stand-in client never fetches; the cache on disk is `age` seconds old when the run starts."""
+        import time
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / 'claude-home'
+            root.mkdir()
+            script = Path(directory) / 'fake-claude'
+            script.write_text(FAKE_CLIENT.replace('PYTHON', sys.executable))
+            script.chmod(0o700)
+            data = self.cache()
+            when = int(time.time()) + 7200
+            data['cachedUsageUtilization'].update(fetchedAtMs=(time.time() - age) * 1000)
+            data['cachedUsageUtilization']['utilization'] = {'five_hour': {'utilization': 5, 'resets_at': when},
+                                                             'seven_day': {'utilization': 66, 'resets_at': when + 86400}}
+            (root / '.claude.json').write_text(json.dumps(data))
+            reader = ClaudeUsageReader(root, Path(directory) / 'workspace')
+            reader.cli = str(script)
+            reader.env.update(FAKE_VERSION='2.1.296', FAKE_MARKER=str(Path(directory) / 'sent'), FAKE_ROOT=str(root),
+                              FAKE_NO_WRITE='1', FAKE_STAY='40')
+            began = time.monotonic()
+            with patch.object(reader, 'authenticate'), patch('token_tv.claude_usage.REUSE_AFTER', 1):
+                record = reader.read()
+            return record, time.monotonic() - began
+
+    def test_a_cache_the_client_reused_is_accepted_while_young_and_refused_once_old(self):
+        young, seconds = self.read_with_reused_cache(25)
+        self.assertFalse(young['stale'])
+        self.assertLess(seconds, 10)                                              # no waiting out the full 30 s
+        self.assertEqual(young['windows'][-1]['used_percent'], 66)
+        self.assertLess(abs(young['fetched_at'] - (__import__('time').time() - 25)), 5)   # still dated when it was really fetched
+        old, _ = self.read_with_reused_cache(150)
+        self.assertTrue(old['stale'])                                             # older than 90 s: not a reading to show
+
     def read_with_fake_client(self, version, second_version=None, silent_cache=False):
         """Run the real reader against a stand-in client; return (result, usage_was_sent)."""
         with tempfile.TemporaryDirectory() as directory:
@@ -207,6 +245,122 @@ class ClaudeUsageTests(unittest.TestCase):
             self.assertEqual([r['windows'][-1]['used_percent'] if r['windows'] else None
                               for r in observations], [66, None, 71])
             self.assertTrue(all(r['source'] == 'claude_official_cli' for r in observations))
+
+    def load_collector(self, name):
+        spec = importlib.util.spec_from_file_location(name, Path(__file__).parents[1] / 'scripts/claude_usage_collector.py')
+        collector = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(collector)
+        return collector
+
+    def run_collector(self, collector, directory, reads, trace=None, waits=None):
+        """Run the loop once per entry of `reads` (records or exceptions); return what each pass left in the shared file."""
+        account = {'key': 'claude', 'alias': 'CLAUDE', 'provider': 'claude', 'source_home': '/tmp/demo-claude'}
+        config = {'automatic_claude_usage': True, 'accounts': [account]}
+        reader = MagicMock()
+        reader.read.side_effect = reads
+        reader.trace = trace if trace is not None else {}
+        seen = []
+        class Event:
+            done = False
+            def is_set(self): return self.done
+            def set(self): self.done = True
+            def wait(self, seconds):
+                if waits is not None:
+                    waits.append(seconds)
+                path = Path(directory) / 'offline/claude-official.json'
+                seen.append(json.loads(path.read_text()) if path.exists() else None)
+                self.done = len(seen) == len(reads)
+        with patch('sys.argv', ['collector', '--config', str(Path(directory) / 'config.json')]), \
+             patch.object(collector, 'load_config', return_value=config), \
+             patch.object(collector, 'ClaudeUsageReader', return_value=reader), \
+             patch.object(collector, 'notify_display', return_value=True), \
+             patch.object(collector.threading, 'Event', Event), \
+             patch.object(collector.signal, 'signal'), \
+             patch('sys.stdout', new_callable=io.StringIO) as output:
+            collector.main()
+        return seen, output.getvalue()
+
+    def fresh_record(self, age=0):
+        import time
+        data = self.cache()
+        when = int(time.time()) + 7200
+        data['cachedUsageUtilization'].update(fetchedAtMs=(time.time() - age) * 1000)
+        data['cachedUsageUtilization']['utilization'] = {'five_hour': {'utilization': 5, 'resets_at': when},
+                                                         'seven_day': {'utilization': 66, 'resets_at': when + 86400}}
+        return native_record(data, '/tmp/demo-claude', since=time.time() - age - 5)
+
+    def test_one_failed_poll_keeps_a_reading_younger_than_the_hold_but_not_an_older_one(self):
+        collector = self.load_collector('claude_collector_hold')
+        for age, kept in ((5, True), (collector.HOLD_SECONDS + 10, False)):
+            with self.subTest(age=age), tempfile.TemporaryDirectory() as directory:
+                good = self.fresh_record(age)
+                seen, output = self.run_collector(collector, directory, [good, SourceError('native_refresh_unconfirmed')])
+                self.assertEqual(seen[0]['windows'][-1]['used_percent'], 66)
+                self.assertEqual(bool(seen[1]['windows']), kept)               # the reading stays only while inside the limit
+                self.assertEqual('keeping the last reading' in output, kept)
+                if kept:
+                    self.assertEqual(seen[1]['fetched_at'], seen[0]['fetched_at'])   # never re-dated: its own fetch time rules
+        self.assertLess(collector.HOLD_SECONDS, 180)                              # always less than the monitor's own 180 s limit
+
+    def test_a_different_login_or_client_series_blanks_at_once_even_with_a_fresh_reading(self):
+        collector = self.load_collector('claude_collector_blank')
+        for code in ('identity_mismatch', 'unsupported_client_version', 'unexpected_model_activity'):
+            with self.subTest(code=code), tempfile.TemporaryDirectory() as directory:
+                seen, output = self.run_collector(collector, directory, [self.fresh_record(), SourceError(code)])
+                self.assertEqual(seen[1]['windows'], [])
+                self.assertIn('shown as unknown', output)
+
+    def test_a_lost_login_keeps_the_reading_only_until_the_hold_runs_out(self):
+        collector = self.load_collector('claude_collector_login')
+        with tempfile.TemporaryDirectory() as directory:
+            seen, output = self.run_collector(collector, directory, [self.fresh_record(), SourceError('subscription_login_required')])
+            self.assertTrue(seen[1]['windows'])
+            self.assertIn('(subscription_login_required)', output)
+
+    def test_rate_limited_usage_waits_longer_and_resumes_normal_polling_after_recovery(self):
+        collector = self.load_collector('claude_collector_backoff')
+        limited = lambda: SourceError('official_quota_unavailable')
+        waits = []
+        with tempfile.TemporaryDirectory() as directory:
+            seen, _ = self.run_collector(collector, directory,
+                [limited(), limited(), limited(), limited(), self.fresh_record(), limited(),
+                 SourceError('client_not_ready')],
+                trace={'hints': ['rate limit', 'error']}, waits=waits)
+        self.assertEqual(waits, [300, 600, 900, 900, 60, 300, 60])
+        self.assertTrue(all(not row['windows'] for row in seen[:4]))
+        self.assertTrue(seen[4]['windows'])
+
+    def test_the_failure_trace_keeps_only_fixed_words_numbers_and_flags(self):
+        collector = self.load_collector('claude_collector_trace')
+        trace = {'seconds': 30.0, 'sent': True, 'model_free': True, 'client_exited': False, 'screen_bytes': 1234,
+                 'hints': ['current week']}
+        with tempfile.TemporaryDirectory() as directory:
+            self.run_collector(collector, directory, [RuntimeError('PRIVATE ERROR user@example.com')], trace)
+            lines = (Path(directory) / 'state/claude-reader/failures.jsonl').read_text().splitlines()
+            self.assertEqual(len(lines), 1)
+            entry = json.loads(lines[0])
+            self.assertEqual(entry['reason'], 'RuntimeError')
+            self.assertEqual(entry['hints'], ['current week'])
+            self.assertNotIn('PRIVATE', lines[0])
+            self.assertNotIn('example.com', lines[0])
+            self.assertEqual((Path(directory) / 'state/claude-reader/failures.jsonl').stat().st_mode & 0o777, 0o600)
+
+    def test_the_reader_traces_a_run_without_keeping_any_screen_text(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / 'claude-home'
+            root.mkdir()
+            script = Path(directory) / 'fake-claude'
+            script.write_text(FAKE_CLIENT.replace('PYTHON', sys.executable))
+            script.chmod(0o700)
+            reader = ClaudeUsageReader(root, Path(directory) / 'workspace')
+            reader.cli = str(script)
+            reader.env.update(FAKE_VERSION='2.1.296', FAKE_MARKER=str(Path(directory) / 'sent'), FAKE_ROOT=str(root))
+            with patch.object(reader, 'authenticate'):
+                reader.read()
+            self.assertEqual(set(reader.trace), {'seconds', 'sent', 'model_free', 'client_exited', 'screen_bytes', 'hints',
+                                                 'cache_age_at_end', 'cache_age_at_start'})
+            self.assertTrue(reader.trace['sent'] and reader.trace['model_free'])
+            self.assertTrue(set(reader.trace['hints']) <= set(__import__('token_tv.claude_usage', fromlist=['x']).SCREEN_HINTS))
 
     def test_foreign_expired_and_future_native_cache_is_rejected(self):
         data = self.cache()
