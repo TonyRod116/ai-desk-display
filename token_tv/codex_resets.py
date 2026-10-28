@@ -4,6 +4,7 @@ from pathlib import Path
 from token_tv.sources import RPC, scoped_env, exe, SourceError, identity_matches
 from token_tv.local_usage import origin_id
 from token_tv.usage import normalize_codex
+from token_tv.credits import parse_balance
 
 
 def available_resets(data):
@@ -24,6 +25,9 @@ def quota_record(data, root, now=None, expected_email=None):
     rates = buckets.get('codex') if isinstance(buckets, dict) and 'codex' in buckets else data.get('rateLimits')
     if not isinstance(rates, dict) or rates.get('limitId') not in (None, 'codex'):
         return record
+    credits = rates.get('credits')
+    if isinstance(credits, dict) and credits.get('unlimited') is False:
+        record['credits_balance'] = parse_balance(credits.get('balance'))
     # A present but malformed window must not disappear and make the other
     # window appear to give more usable quota. Null windows are legitimate.
     expected = 0

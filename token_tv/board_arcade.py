@@ -490,7 +490,7 @@ def _fighter_specs(c_ko, k_ko):
     return sprites
 
 
-def _sky(image):
+def _sky(image, credit_badge=False):
     """Sparse stars on empty sky only; native meteor stays in the clear HUD gap.
 
     The meteor engine advances down/right and stops at y1+36, so its entire
@@ -503,6 +503,8 @@ def _sky(image):
     # the optional WIN/DANGER labels. All other visible sky can carry stars.
     protected=((0,0,320,48),(202,40,316,54),(6,54,82,82),(238,54,316,82),
                (6,82,80,96),(240,82,316,96),(124,90,196,134))
+    if credit_badge:
+        protected += ((8, 56, 129, 85),)
     points = [[],[],[]]
     for y in range(50,116,4):
         for x in range(4,316,6):
@@ -525,6 +527,8 @@ def _sky(image):
         stars.append((x,y,rgb565(ImageColor.getrgb(base)),rgb565((239,247,255)),rgb565((85,99,135))))
     meteor={'x0':76,'y0':50,'x1':76,'y1':50,'period_ms':14000,
             'head':rgb565((255,255,255)),'tail':rgb565((204,237,255)), 'length':12,'speed':2}
+    if credit_badge:
+        meteor['x0'] = meteor['x1'] = 140
     return stars,meteor
 
 
@@ -596,7 +600,8 @@ def render_arcade(snapshot, animated=False):
         mark = icons.mark(count, old)
         if mark:
             out.text((x, 33), mark, font=f8, fill='#b9a8e0', anchor=anchor)
-    stars,meteor = _sky(image)
+    from token_tv.credits import exhausted_credits
+    stars,meteor = _sky(image, credit_badge=exhausted_credits(codex) is not None)
     if not animated:
         return image
     from token_tv import board_anim

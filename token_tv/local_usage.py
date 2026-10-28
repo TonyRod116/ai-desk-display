@@ -40,6 +40,7 @@ def expire_official_quota(row, now=None):
         row['windows'] = live_claude_windows(row['windows'], now)
     expired = reset_lapsed(row['windows'], now, source == 'claude_official_cli')
     if age > OFFICIAL_MAX_AGE_SECONDS or age < -60 or expired:
+        row.pop('credits_balance', None)
         row['windows'] = []
         row['status'] = 'quota_unavailable'
         row.setdefault('error_code', 'reset_not_confirmed_locally' if expired else 'quota_refresh_overdue')
@@ -271,6 +272,9 @@ def local_row(account, record, now=None):
     if row.get('quota_origin') == 'codex_official_cli':
         allowed = record.get('ordinary_usage_allowed')
         row['ordinary_usage_allowed'] = allowed if type(allowed) is bool else None
+        if record.get('identity_verified') is True:
+            from token_tv.credits import parse_balance
+            row['credits_balance'] = parse_balance(record.get('credits_balance'))
     fetched = timestamp(record.get('fetched_at'))
     if fetched is None or fetched > now + 60:
         return row

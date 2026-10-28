@@ -155,6 +155,8 @@ def render_board_pages(snapshot, stars=False, anim=False, waves=False, anim_fram
     else:
         cockpit = render_cockpit(snapshot)
     images += [versus, cockpit, countdown]
+    from token_tv.board_credits import apply_credit_badges
+    apply_credit_badges(images, PAGE_NAMES, snapshot)
     twinkle = {'cockpit'} if stars and not anim else set()
     sky = {'cockpit': {'backdrop': space_backdrop, 'field': star_field}}      # and it has its own
     return [rgb565_frame(image, free_stars(image, **sky.get(name, {})) if name in twinkle else None, payloads.get(name),
