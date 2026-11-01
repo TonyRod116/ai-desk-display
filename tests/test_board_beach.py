@@ -214,6 +214,45 @@ class BeachFilmTests(unittest.TestCase):
 
 @unittest.skipUnless(shutil.which('g++'), 'needs native compiler')
 class NativeBeachFilmTests(unittest.TestCase):
+    def test_sparse_water_only_redraws_its_changed_area(self):
+        """A localised wave keeps the rest of the photo and avoids drawing it."""
+        import anim_harness
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            exe = anim_harness.build(root)
+            photo = Image.new('RGB', (320, 240), (160, 176, 160))
+            palette = tuple(board_beach._word((i, i, i)) for i in range(256))
+            stride = board_beach.WIDTH * board_beach.HEIGHT
+            frames = bytearray([128] * (stride * board_beach.FRAMES))
+            for phase in range(1, board_beach.FRAMES):
+                for y in (*range(8, 16), *range(32, 48)):
+                    for x in range(32 + (y // 8) * 4, 96 + (y // 8) * 4):
+                        frames[phase * stride + y * board_beach.WIDTH + x] = 128 + 8 * phase
+            art = (photo, palette, bytes(frames), None)
+            with patch('time.time', return_value=NOW), patch('token_tv.board_beach.load', return_value=art):
+                image, payload = render_paradise(sample(), waves=3)
+            page = root / 'page.tvf'
+            page.write_bytes(rgb565_frame(image) + b'WAVE' + struct.pack('<I', len(payload)) + payload)
+            folders = {}
+            for mode in ('full_cache', 'no_cache'):
+                folder = root / mode
+                folder.mkdir()
+                result = subprocess.run([str(exe), str(page), str(folder), '3200', '200', 'precise', '100', mode],
+                                        capture_output=True, text=True)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                pixels = int(re.search(r'pushedPixels=(\d+)', result.stdout).group(1))
+                self.assertLess(pixels, 16 * 320 * 108 // 2, result.stdout)
+                folders[mode] = folder
+            background = struct.unpack('<76800H', rgb565_frame(image)[8:])
+            film = board_beach.decode(payload)
+            for tick in range(1, 17):
+                actual = (folders['full_cache'] / f'screen_{tick}.bin').read_bytes()
+                self.assertEqual((folders['no_cache'] / f'screen_{tick}.bin').read_bytes(), actual, tick)
+                if tick in (1, 4, 8, 16):
+                    step = (tick * 200 % 3200) * 128 // 400
+                    expected = board_beach.render_words(background, film, step, water_substeps=128)
+                    self.assertEqual(actual, struct.pack('<76800H', *expected), tick)
+
     def test_compact_water_film_still_loads_under_memory_pressure(self):
         """Compaction must not need a second large buffer while loading."""
         import anim_harness
@@ -257,13 +296,13 @@ class NativeBeachFilmTests(unittest.TestCase):
                 if current != previous:
                     changes.append(tick)
                 previous = current
-            self.assertEqual(len(changes), 10, changes)
-            self.assertTrue(all(b - a == 4 for a, b in zip(changes, changes[1:])), changes)
-            # At 400 ms the last paced frame was drawn at 365 ms. It must
+            self.assertEqual(len(changes), 20, changes)
+            self.assertTrue(all(b - a == 2 for a, b in zip(changes, changes[1:])), changes)
+            # At 400 ms the last paced frame was drawn at 385 ms. It must
             # follow real time, not run more slowly because fewer frames draw.
             background = struct.unpack('<76800H', rgb565_frame(image)[8:])
             expected = board_beach.render_words(background, board_beach.decode(payload),
-                                                365 * 128 // 400, boat_step=3, water_substeps=128)
+                                                385 * 128 // 400, boat_step=3, water_substeps=128)
             self.assertEqual(previous, struct.pack('<76800H', *expected))
 
     def test_tiny_colour_changes_are_spread_smoothly_over_the_transition(self):

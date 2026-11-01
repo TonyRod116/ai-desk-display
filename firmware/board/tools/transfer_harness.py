@@ -26,7 +26,7 @@ static unsigned long now = 1000, lastBeat = 0, lastDraw = 1000, maxGap = 0;
 static unsigned long waveLastUs = 0;
 static int ticks = 0, draws = 0, status = 0, calls = 0;
 static bool haveBeat = true, showingInfo = false, stale = false, updateStarted = false;
-static bool auth = true, connected = true, stall = false, failSend = false, slowWave = false, slowScroll = false;
+static bool auth = true, connected = true, stall = false, failSend = false, slowWave = false, fastWave = false, slowScroll = false;
 static const unsigned long STALE_MS = 180000;
 static const int PAGES = 8;
 static const size_t MAX_PAGE_BYTES = 235528;
@@ -38,7 +38,7 @@ static bool touchHeld=false;
 static int modeHoldSeconds=2,connectHoldSeconds=5;
 static bool indicatorMaskValid=true;
 static struct { bool active=false; unsigned long lastStep=0; } scrolling;
-static struct { bool active=false; int lastStep=0; } ocean;
+static struct { bool active=false; int lastStep=0, version=3; } ocean;
 static int indicatorDraws=0, rotationDraws=0, ticksHeld=0;
 static unsigned long millis() { return now; }
 static void delay(int n) { now += n; }
@@ -47,7 +47,7 @@ static void animTick(unsigned long t) {
   if (ocean.active) { ocean.lastStep++; if(touchHeld) ticksHeld++; }
   ticks++; maxGap = std::max(maxGap, t-lastDraw); lastDraw=t;
   if (scrolling.active && slowScroll) now+=43; // measured board composition time
-  if (ocean.active) { waveLastUs = slowWave ? 240000 : 20000; if (slowWave) now+=240; }
+  if (ocean.active) { waveLastUs = slowWave ? 240000 : 15000; if (slowWave) now+=240; else if (fastWave) now+=15; }
 }
 static void freeAnim();
 static void drawPage() { freeAnim(); draws++; lastDraw=now; }
@@ -130,8 +130,9 @@ int main(int argc,char** argv) {
   if(mode=="disconnect") failSend=true;
   if(mode=="scroll_read" || mode=="scroll_touch" || mode=="scroll_slow") scrolling.active=true;
   if(mode=="scroll_slow") slowScroll=true;
-  if(mode=="wave_read" || mode=="wave_touch" || mode=="wave_slow") ocean.active=true;
+  if(mode=="wave_read" || mode=="wave_touch" || mode=="wave_slow" || mode=="wave_fast") ocean.active=true;
   if(mode=="wave_slow") slowWave=true;
+  if(mode=="wave_fast") fastWave=true;
   bool touchCase=mode=="touch_read" || mode=="touch_upload" || mode=="touch_info" || mode=="scroll_touch" || mode=="wave_touch";
   if(touchCase) { touchStart=1100; touchEnd=1250; }
   if(mode=="touch_info") showingInfo=true;
@@ -161,11 +162,11 @@ int main(int argc,char** argv) {
       if(mode=="stall") assert(ticks>100 && maxGap<=40);
     } else {
       assert(status==200 && output==expected && contentLength==expected.size());
-      if(mode=="scroll_read" || mode=="scroll_touch" || mode=="scroll_slow" || mode=="wave_read" || mode=="wave_touch" || mode=="wave_slow") {
+      if(mode=="scroll_read" || mode=="scroll_touch" || mode=="scroll_slow" || mode=="wave_read" || mode=="wave_touch" || mode=="wave_slow" || mode=="wave_fast") {
         assert(ticks>10 && ticks*2<calls);
         if(mode=="scroll_read") assert(maxGap<=150);
         if(mode=="scroll_slow") assert(maxGap<=130);
-        if(mode=="wave_read") assert(maxGap<=240);
+        if(mode=="wave_read" || mode=="wave_fast") assert(maxGap<=80);
         if(mode=="wave_slow") assert(maxGap<=500);
       } else if(mode=="read" || mode=="touch_read" || mode=="touch_upload" ||
          mode=="touch_info" || mode=="touch_mode" || mode=="touch_connect") assert(ticks>100 && maxGap<=40);
@@ -181,7 +182,7 @@ int main(int argc,char** argv) {
   if(mode=="touch_mode") assert(rotationClock.mode==30 && tapCount==0 && !showingInfo);
   if(mode=="touch_connect") assert(showingInfo && longCount==1 && rotationClock.mode==0);
   if(mode=="scroll_read" || mode=="scroll_touch") assert(indicatorDraws>0 && ticksHeld==0);
-  if(mode=="wave_read" || mode=="wave_touch" || mode=="wave_slow") assert(indicatorDraws>0 && ticksHeld==0);
+  if(mode=="wave_read" || mode=="wave_touch" || mode=="wave_slow" || mode=="wave_fast") assert(indicatorDraws>0 && ticksHeld==0);
   assert(rotationDraws <= int((now-1000)/80)+3);
   printf("%s OK ticks=%d gap=%lu bytes=%zu\n",mode.c_str(),ticks,maxGap,output.size());
 }

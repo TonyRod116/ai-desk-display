@@ -58,9 +58,11 @@ struct File {
 struct FS { File open(const String &path, const char *) { g_fileOpens++; File f; auto it = g_files.find(path); if (it != g_files.end()) f.data = &it->second; return f; } } LittleFS;
 static uint16_t g_screen[320 * 240];
 static int g_pushes = 0;
+static size_t g_pushedPixels = 0;
 struct TFT {
   void pushImage(int x, int y, int w, int h, uint16_t *buf) {
     g_pushes++;
+    g_pushedPixels += (size_t)w * h;
     if (x < 0 || y < 0 || x + w > 320 || y + h > 240) { fprintf(stderr, "PUSH OUT OF BOUNDS %d %d %d %d\n", x, y, w, h); exit(3); }
     for (int r = 0; r < h; r++) memcpy(&g_screen[(y + r) * 320 + x], buf + (size_t)r * w, (size_t)w * 2);
   }
@@ -138,6 +140,7 @@ int main(int argc, char **argv) {
   }
   dump(out, total);
   printf("pushes=%d meteorActive=%d\n", g_pushes, (int)meteor.active);
+  printf("pushedPixels=%zu\n", g_pushedPixels);
   printf("beachCacheRows=%d renderReadBytes=%zu\n", beachCacheRows, g_fileBytesRead);
   printf("beachFinalCacheRows=%u cacheStatus=%u cacheAttemptAt=%lu\n", ocean.cachedRows, waveCacheStatus, waveCacheAttemptAt);
   printf("animationFileOpens=%zu\n", g_fileOpens);

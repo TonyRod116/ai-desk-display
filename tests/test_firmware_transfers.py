@@ -23,7 +23,7 @@ class TransferTests(unittest.TestCase):
         cls.directory.cleanup()
 
     def test_transfers_keep_drawing_and_preserve_bytes_and_safety_gates(self):
-        for mode in ('read', 'upload', 'stall', 'disconnect', 'unauthorized', 'info', 'firmware', 'stale', 'scroll_read', 'scroll_slow', 'wave_read', 'wave_slow'):
+        for mode in ('read', 'upload', 'stall', 'disconnect', 'unauthorized', 'info', 'firmware', 'stale', 'scroll_read', 'scroll_slow', 'wave_read', 'wave_fast', 'wave_slow'):
             with self.subTest(mode=mode):
                 result = subprocess.run([str(self.exe), mode], capture_output=True, text=True)
                 self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
