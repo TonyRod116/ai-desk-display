@@ -1,12 +1,12 @@
 # Platform World · page 7
 
-An original pixel-art platform level inspired by Super Mario World, rendered at the board's native 320 × 240 resolution. The still and animation below use **fictional sample data**.
+An original pixel-art platform level inspired by Super Mario World, rendered at the board's native 320 × 240 resolution. The animation below shows a custom local art set with **fictional sample data**. A different original-art version is included without the optional files.
 
-![Animated platform scene with sample data](images/cockpit.gif)
+![Animated platform scene with sample data](images/cockpit.gif?v=c11b1ebc70)
 
 The top scoreboard shows each provider's remaining **weekly** quota and time to its weekly reset. Old readings are marked `OLD`; unknown values are dashes. The three little coins represent saved resets: bright for available, dim for unavailable, with a subtle dot when unknown or old. Claude's two smaller rows show its five-hour session quota and time remaining, and are omitted when that session is unknown or old. When an exhausted Codex week has a verified credit balance, credits replace its percentage. None of these values is invented by the scene.
 
-Firmware 20 can also display an optional, privately supplied art set with eight 56 × 64 mounted-character poses, a coin and a moving shell. The assets stay on the user's computer; this repository does not include, download or distribute game graphics. The display stores the finished scene locally and continues animating without streaming frames. If those private files are missing or damaged, the host automatically uses the firmware 19 scene. The movement is a short, scripted display animation, not the original game's engine.
+Firmware 20 can also display an optional, privately supplied art set with eight 56 × 64 mounted-character poses, a coin and a moving shell. Source assets stay on the user's computer; this repository does not include or download the original game or separate game sprite files. The preview above depicts a customized example, not a license to reuse its artwork. The display stores the finished scene locally and continues animating without streaming frames. If those private files are missing or damaged, the host automatically uses the firmware 19 scene. The movement is a short, scripted display animation, not the original game's engine.
 
 Firmware 21 advertises `scroll:4` and moves the original-art landscape across the entire screen, including behind the outlined, stationary scoreboard. Its compact transparent overlay preserves the live numbers, their unknown/old states, the session bars and the verified credit badge. The board continues rendering locally; the extra scenery is not streamed as video. Older boards keep their existing formats, and missing private artwork still falls back to the bundled scene.
 

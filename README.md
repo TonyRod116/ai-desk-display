@@ -13,11 +13,23 @@ A Game Boy. A cyberpunk city. A beach. Claude and Codex in an arcade fight.
 
 [Download ZIP](https://github.com/TonyRod116/ai-desk-display/archive/refs/heads/main.zip) · [Meet the screens](#eight-screens-zero-boredom) · [Try without hardware](#try-it-without-a-display-or-an-account) · [Build yours](#okay-i-want-this-on-my-desk) · [Make it your own](#make-it-yours-with-or-without-ai)
 
-![All eight AI Desk Display scenes with fictional usage data](docs/images/gallery.png)
-
-*Rendered by the actual app. Sample numbers, no personal accounts.*
-
 </div>
+
+## Eight screens, zero boredom
+
+Pick any eight from the library. Here are ten of my favourites:
+
+| | |
+|:---:|:---:|
+| **Violet Horizon** · clouds and neon above a city that never sleeps.<br>![Violet Horizon — animated cyberpunk skyline with sample numbers](docs/images/violet-horizon.gif?v=a3c6014362)<br>*Optional local artwork* | **Neon District** · a rainy rooftop and a city full of signs.<br>![Neon District — animated cyberpunk city with sample numbers](docs/images/neon-district.gif?v=aa28bc1e23)<br>*Optional local artwork* |
+| **Game Boy** · green LCD, pixels and nostalgia.<br>![Game Boy — simulated quota updates](docs/images/game-boy.gif) | **Paradise** · a tiny tropical break between prompts.<br>![Paradise — moving ocean and sailboat](docs/images/paradise.gif?v=8604eaf692)<br>*Optional local artwork* |
+| **Neon City** · flying cars, neon bridges and a suspiciously useful skyline.<br>![Neon City — animated traffic and bridge quota lights](docs/images/code-forge.gif) | **Tidal Rush** · ride the barrel, chase the foam, forget the next prompt.<br>![Tidal Rush — flowing wave and animated breaking foam](docs/images/surf.gif)<br>[Still image](docs/images/surf.png) · [Under the hood](docs/board-surf.md) |
+| **Token Run** · coastal cruising, approaching palms and a red convertible.<br>![Token Run — coastal road with palms growing closer and passing on the right](docs/images/dials.gif)<br>[Still image](docs/images/dials.png) · [Under the hood](docs/board-run.md) | **Versus** · Codex and Claude enter a pixel-art arena. Empty quota? KO.<br>![Versus — animated fighters in a retro arena](docs/images/arcade.gif?v=788986f11c)<br>*Optional local stage* · [Still image](docs/images/arcade.png?v=8fcf5798d0) · [Under the hood](docs/board-versus.md) |
+| **Platform World** · a side-scrolling pixel adventure with a quota HUD.<br>![Platform World — scrolling pixel-art scenery](docs/images/cockpit.gif?v=c11b1ebc70)<br>*Optional local artwork* · [Still image](docs/images/cockpit.png?v=0c1ba7032b) · [Under the hood](docs/board-platform.md) | **Quota City** · a detailed isometric skyline that shows what's left.<br>![Quota City — city animation](docs/images/countdown.gif) |
+
+These GIFs show my current setup with **fictional readings**. The scenes labelled *optional local artwork* or *stage* use personal customizations that aren't included in a fresh download. Paradise, Versus and Platform have bundled alternatives; Violet Horizon and Neon District need their own images. The previews can show third-party artwork; see [asset notes](ASSETS.md). Moving scenes are captured with the firmware simulator, except the scrolling platform scene, which uses its matching Python renderer. The Game Boy screen is normally static: its GIF demonstrates **accelerated sample quota updates**, not a constantly moving LCD. GIFs have a limited color palette; the display receives RGB565 frames.
+
+On compatible hardware, animations run **on the board**. Your computer doesn't have to upload a new picture for every frame. Prefer still images? [Open the PNG gallery](docs/images/gallery.png?v=32cb16a70b).
 
 ## From lottery miner to quota watcher
 
@@ -35,19 +47,6 @@ The fun is in how it tells you: neon bridge lights retreat as you spend your quo
 
 **AI Desk Display** is a project by Tony, built with Claude Code and Codex: eight customisable screen slots, a library of current and earlier scenes, on-board animation, touch controls, timed screen rotation and local usage readers. It's designed around the **2.8-inch NerdMiner V2 touchscreen** (ESP32-2432S028R). This repo includes the host application, display firmware, bundled artwork and tools to make it your own.
 
-## Eight screens, zero boredom
-
-| | |
-|:---:|:---:|
-| **Game Boy** · green LCD, pixels and nostalgia.<br>![Game Boy — simulated quota updates](docs/images/game-boy.gif) | **Paradise** · a tiny tropical break between prompts.<br>![Paradise — moving ocean](docs/images/paradise.gif) |
-| **Neon City** · flying cars, neon bridges and a suspiciously useful skyline.<br>![Neon City — animated traffic and bridge quota lights](docs/images/code-forge.gif) | **Tidal Rush** · ride the barrel, chase the foam, forget the next prompt.<br>![Tidal Rush — flowing wave and animated breaking foam](docs/images/surf.gif)<br>[Still image](docs/images/surf.png) · [Under the hood](docs/board-surf.md) |
-| **Token Run** · coastal cruising, approaching palms and a red convertible.<br>![Token Run — coastal road with palms growing closer and passing on the right](docs/images/dials.gif)<br>[Still image](docs/images/dials.png) · [Under the hood](docs/board-run.md) | **Versus** · Codex and Claude enter a pixel-art arena. Empty quota? KO.<br>![Versus — animated fighters in a retro arena](docs/images/arcade.gif)<br>[Still image](docs/images/arcade.png) · [Under the hood](docs/board-versus.md) |
-| **Platform World** · a side-scrolling pixel adventure with a quota HUD.<br>![Platform World — scrolling pixel-art scenery](docs/images/cockpit.gif)<br>[Still image](docs/images/cockpit.png) · [Under the hood](docs/board-platform.md) | **Quota City** · a detailed isometric skyline that shows what's left.<br>![Quota City — city animation](docs/images/countdown.gif) |
-
-These GIFs use **fictional readings** and bundled artwork. Moving scenes are captured with the firmware simulator, except the scrolling platform scene, which uses its matching Python renderer. The Game Boy screen is normally static: its GIF demonstrates **accelerated sample quota updates**, not a constantly moving LCD. GIFs have a limited color palette; the display receives RGB565 frames.
-
-On compatible hardware, animations run **on the board**. Your computer doesn't have to upload a new picture for every frame. Prefer still images? [Open the PNG gallery](docs/images/gallery.png).
-
 Neon City's bridge is doing the accounting: **amber lights on the left for Codex, cyan on the right for Claude**. As weekly quota runs down, each strip retreats toward its outer end. Tiny signs show the exact percentages; Claude also gets two small five-hour bars. The buildings get to stay pretty. [See how it works, or grab the full-resolution artwork](docs/board-neon-city.md).
 
 Token Run gets a little more road-trip energy: **resort palms grow closer and pass on the right**, while the nearby roadside scenery rushes past faster. No swaying back to where they started. Just a coastal drive, a red convertible and two AI quotas pretending to be dashboard instruments. The still, GIF and overview above show the updated scene. [Take the scenic route](docs/board-run.md).
@@ -58,9 +57,9 @@ The eight slots are yours to rearrange. The local **Desk display** page lets you
 
 The **Usage dashboard** can also display any available scene on your computer, above its detailed usage cards. Its choice belongs to that browser and **doesn't change the physical display**. The dashboard also retains its classic appearances. Both pages offer **English and Spanish**, with English as the default.
 
-![The screen library in the local usage dashboard, showing fictional readings](docs/images/screen-library.png)
+![The screen library in the local usage dashboard, showing fictional readings](docs/images/screen-library.png?v=6e25b3b12c)
 
-Two additional photo scenes, **Violet Horizon** and **Neon District**, become available when you supply the matching local images. The platform, fight and beach scenes also support optional local artwork; the gallery above shows the included alternatives. No game ROMs, extracted game assets or private photo collections are shipped. See the guides for the [control room](docs/board-control.md), [platform](docs/board-platform.md), [fight](docs/board-versus.md) and [beach](docs/board-paradise.md).
+Two additional photo scenes, **Violet Horizon** and **Neon District**, become available when you supply the matching local images. The platform, fight and beach scenes also support optional local artwork, as shown above. No game ROMs, source sprite files or private photo collections are shipped. See the guides for the [control room](docs/board-control.md), [platform](docs/board-platform.md), [fight](docs/board-versus.md) and [beach](docs/board-paradise.md).
 
 ### Your display's control room
 
