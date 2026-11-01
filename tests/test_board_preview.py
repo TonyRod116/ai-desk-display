@@ -70,6 +70,22 @@ class AnimatedPreviewTests(unittest.TestCase):
             self.assertEqual(call.args[2], i * 2 % 64)
             self.assertEqual(call.kwargs['boat_step'], i)
 
+    def test_smooth_beach_preview_preserves_the_three_point_two_second_loop(self):
+        from token_tv.board_preview import _sequence
+        background = Image.new('RGB', (320, 240), '#407080')
+        palette = tuple(board_anim.rgb565((i, i, 255)) for i in range(256))
+        stride = board_beach.WIDTH * board_beach.HEIGHT
+        old = bytes(stride * board_beach.FRAMES)
+        smooth = b''.join(bytes([min(i, 48 - i)]) * stride for i in range(48))
+        payload = board_beach.encode((None, palette, old, None, (palette, smooth)), version=4)
+        with patch.object(board_beach, 'render_words', return_value=[0] * (320 * 240)) as draw:
+            sequence, duration = _sequence(rgb565_frame(background, waves=payload))
+            self.assertEqual(sum(1 for _ in sequence), 64)
+        self.assertEqual(duration, 100)
+        for i, call in enumerate(draw.call_args_list):
+            self.assertEqual(call.args[2], i * 12)
+        self.assertEqual(draw.call_args_list[32].args[2] % (48 * 8), 0)
+
     def test_missing_webp_support_falls_back_to_a_still_without_board_access(self):
         control = BoardControl(None)
         control.update_frames([rgb565_frame(Image.new('RGB', (320, 240), '#123456'))])

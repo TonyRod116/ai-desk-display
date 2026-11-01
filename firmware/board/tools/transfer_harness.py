@@ -130,9 +130,10 @@ int main(int argc,char** argv) {
   if(mode=="disconnect") failSend=true;
   if(mode=="scroll_read" || mode=="scroll_touch" || mode=="scroll_slow") scrolling.active=true;
   if(mode=="scroll_slow") slowScroll=true;
-  if(mode=="wave_read" || mode=="wave_touch" || mode=="wave_slow" || mode=="wave_fast") ocean.active=true;
+  if(mode=="wave_read" || mode=="wave_touch" || mode=="wave_slow" || mode=="wave_fast" || mode=="wave_smooth") ocean.active=true;
   if(mode=="wave_slow") slowWave=true;
-  if(mode=="wave_fast") fastWave=true;
+  if(mode=="wave_fast" || mode=="wave_smooth") fastWave=true;
+  if(mode=="wave_smooth") ocean.version=4;
   bool touchCase=mode=="touch_read" || mode=="touch_upload" || mode=="touch_info" || mode=="scroll_touch" || mode=="wave_touch";
   if(touchCase) { touchStart=1100; touchEnd=1250; }
   if(mode=="touch_info") showingInfo=true;
@@ -162,11 +163,11 @@ int main(int argc,char** argv) {
       if(mode=="stall") assert(ticks>100 && maxGap<=40);
     } else {
       assert(status==200 && output==expected && contentLength==expected.size());
-      if(mode=="scroll_read" || mode=="scroll_touch" || mode=="scroll_slow" || mode=="wave_read" || mode=="wave_touch" || mode=="wave_slow" || mode=="wave_fast") {
+      if(mode=="scroll_read" || mode=="scroll_touch" || mode=="scroll_slow" || mode=="wave_read" || mode=="wave_touch" || mode=="wave_slow" || mode=="wave_fast" || mode=="wave_smooth") {
         assert(ticks>10 && ticks*2<calls);
         if(mode=="scroll_read") assert(maxGap<=150);
         if(mode=="scroll_slow") assert(maxGap<=130);
-        if(mode=="wave_read" || mode=="wave_fast") assert(maxGap<=80);
+        if(mode=="wave_read" || mode=="wave_fast" || mode=="wave_smooth") assert(maxGap<=80);
         if(mode=="wave_slow") assert(maxGap<=500);
       } else if(mode=="read" || mode=="touch_read" || mode=="touch_upload" ||
          mode=="touch_info" || mode=="touch_mode" || mode=="touch_connect") assert(ticks>100 && maxGap<=40);
@@ -182,7 +183,7 @@ int main(int argc,char** argv) {
   if(mode=="touch_mode") assert(rotationClock.mode==30 && tapCount==0 && !showingInfo);
   if(mode=="touch_connect") assert(showingInfo && longCount==1 && rotationClock.mode==0);
   if(mode=="scroll_read" || mode=="scroll_touch") assert(indicatorDraws>0 && ticksHeld==0);
-  if(mode=="wave_read" || mode=="wave_touch" || mode=="wave_slow" || mode=="wave_fast") assert(indicatorDraws>0 && ticksHeld==0);
+  if(mode=="wave_read" || mode=="wave_touch" || mode=="wave_slow" || mode=="wave_fast" || mode=="wave_smooth") assert(indicatorDraws>0 && ticksHeld==0);
   assert(rotationDraws <= int((now-1000)/80)+3);
   printf("%s OK ticks=%d gap=%lu bytes=%zu\n",mode.c_str(),ticks,maxGap,output.size());
 }

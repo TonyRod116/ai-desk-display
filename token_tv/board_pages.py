@@ -182,7 +182,7 @@ def render_board_pages(snapshot, stars=False, anim=False, waves=False, anim_fram
     own_credits = set()
     if scroll_payload and scroll_payload[0] == 4:
         own_credits.add('cockpit')
-    if wave_payload and wave_payload[0] in (2, 3):
+    if wave_payload and wave_payload[0] in (2, 3, 4):
         own_credits.add('paradise')
     credit_pages = [(image, name) for image, name in zip(images, PAGE_NAMES) if name not in own_credits]
     apply_credit_badges([image for image, _ in credit_pages], [name for _, name in credit_pages], snapshot)

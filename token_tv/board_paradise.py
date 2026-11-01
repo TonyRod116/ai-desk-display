@@ -232,11 +232,20 @@ def _film_page(snapshot, art):
 
 
 def render_paradise(snapshot, animated=False, waves=False):
-    if type(waves) is int and waves in (2, 3):
+    if type(waves) is int and waves in (2, 3, 4):
         from token_tv import board_beach
         art = board_beach.load()
         if art:
-            return _film_page(snapshot, art), board_beach.encode(art, version=waves)
+            # Keep the existing moving-boat film and older prepared art usable.
+            version = 4 if waves == 4 and len(art) >= 5 and art[4] and not art[3] else min(waves, 3)
+            if version == 4:
+                try:
+                    payload = board_beach.encode(art, version=4)
+                except ValueError:
+                    payload = board_beach.encode(art, version=3)
+            else:
+                payload = board_beach.encode(art, version=version)
+            return _film_page(snapshot, art), payload
     scene = Scene()
     scene.base = (
         _landscape().convert("RGBA").resize((W * SS, H * SS), Image.Resampling.BICUBIC)

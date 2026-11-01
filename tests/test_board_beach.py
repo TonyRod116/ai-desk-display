@@ -39,6 +39,18 @@ def fictional_film_with_boat():
     return (*fictional_art(), (palette, pixels))
 
 
+def fictional_smooth_art():
+    photo, palette, old = fictional_art()
+    stride = board_beach.WIDTH * board_beach.HEIGHT
+    frames = bytearray([128] * (stride * 48))
+    for phase in range(48):
+        value = 128 + min(phase, 48 - phase)
+        for y in (*range(8, 16), *range(32, 48)):
+            for x in range(32 + (y // 8) * 4, 80 + (y // 8) * 4):
+                frames[phase * stride + y * board_beach.WIDTH + x] = value
+    return photo, palette, old, None, (palette, bytes(frames))
+
+
 def scene(data):
     with patch('time.time', return_value=NOW), patch('token_tv.board_beach.load', return_value=fictional_art()):
         image, payload = render_paradise(data, waves=2)
@@ -47,6 +59,40 @@ def scene(data):
 
 
 class BeachFilmTests(unittest.TestCase):
+    def test_smooth_film_preserves_frames_and_old_board_fallback(self):
+        from token_tv.board import BoardDisplay
+        board = BoardDisplay('http://192.168.1.50', '0123456789abcdef')
+        with patch.object(board, 'info', return_value={'paired': True, 'waves': 4}):
+            board.ensure_paired()
+        self.assertEqual(board.waves, 4)
+        art = fictional_smooth_art()
+        with patch('time.time', return_value=NOW), patch('token_tv.board_beach.load', return_value=art):
+            image, payload = render_paradise(sample(), waves=4)
+            _, old = render_paradise(sample(), waves=3)
+        self.assertEqual(payload[0], 4)
+        self.assertEqual(old[0], 3)
+        self.assertLessEqual(len(payload), 80000)
+        film = board_wave.decode(payload)
+        self.assertEqual(film['frames'], art[4][1])
+        self.assertEqual(film['frame_count'], 48)
+        self.assertEqual(frame_size(rgb565_frame(image, waves=payload)), (320, 240))
+        background = struct.unpack('<76800H', rgb565_frame(image)[8:])
+        self.assertEqual(board_beach.render_words(background, film, 0),
+                         board_beach.render_words(background, film, 48 * 8))
+
+    def test_smooth_film_rejects_corrupt_offsets_and_runs(self):
+        payload = bytearray(board_beach.encode(fictional_smooth_art(), version=4))
+        table = 12 + 512 + 7 * 4
+        bad_offset = payload[:]
+        struct.pack_into('<I', bad_offset, table, len(payload) + 10)
+        bad_run = payload[:]
+        offset, size = struct.unpack_from('<IH', payload, table)
+        bad_run[offset:offset + size] = b'\xff' * size
+        for bad in (payload[:-1], bad_offset, bad_run):
+            with self.subTest(kind=len(bad)):
+                with self.assertRaises(ValueError):
+                    board_beach.decode(bytes(bad))
+
     def test_faster_film_and_gently_moving_boat_are_versioned_and_loop(self):
         from token_tv.board import BoardDisplay
         board = BoardDisplay('http://192.168.1.50', '0123456789abcdef')
@@ -159,6 +205,33 @@ class BeachFilmTests(unittest.TestCase):
             self.assertIsNotNone(ImageChops.difference(first, halfway).getbbox())
             self.assertEqual(first.getpixel((0, 20)), halfway.getpixel((0, 20)), 'edges stay fixed')
 
+    def test_smooth_preparation_keeps_original_and_makes_a_returning_loop(self):
+        from tools.prepare_paradise_smooth import prepare_smooth
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            pictures = []
+            for phase in range(26):
+                frame = Image.new('RGB', (384, 480), (65, 145, 160))
+                ImageDraw.Draw(frame).rectangle((60 + phase * 3, 370, 95 + phase * 3, 450), fill=(240, 240, 230))
+                pictures.append(frame)
+            source = root / 'source.gif'
+            pictures[0].save(source, save_all=True, append_images=pictures[1:], duration=70, loop=0, optimize=False)
+            original = source.read_bytes()
+            out = root / 'prepared'
+            out.mkdir()
+            (out / 'water.png').write_bytes(b'existing film')
+            target = prepare_smooth(source, out)
+            self.assertEqual(source.read_bytes(), original)
+            self.assertEqual((out / 'water.png').read_bytes(), b'existing film')
+            with Image.open(target) as film:
+                self.assertEqual((film.mode, film.size), ('P', (160, 54 * 48)))
+                values = film.tobytes()
+            stride = 160 * 54
+            self.assertEqual(values[stride:2 * stride], values[47 * stride:48 * stride])
+            self.assertNotEqual(values[:stride], values[24 * stride:25 * stride])
+            with self.assertRaises(FileExistsError):
+                prepare_smooth(source, out)
+
     def test_damaged_optional_boat_does_not_disable_the_beach(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -214,6 +287,53 @@ class BeachFilmTests(unittest.TestCase):
 
 @unittest.skipUnless(shutil.which('g++'), 'needs native compiler')
 class NativeBeachFilmTests(unittest.TestCase):
+    def test_smooth_film_rejects_bad_offsets_and_compressed_frames_on_board(self):
+        import anim_harness
+        art = fictional_smooth_art()
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            exe = anim_harness.build(root)
+            with patch('time.time', return_value=NOW), patch('token_tv.board_beach.load', return_value=art):
+                image, original = render_paradise(sample(), waves=4)
+            table = 12 + 512 + 7 * 4
+            offset, size = struct.unpack_from('<IH', original, table)
+            offset_error, run_error = bytearray(original), bytearray(original)
+            struct.pack_into('<I', offset_error, table, len(original) + 10)
+            run_error[offset:offset + size] = b'\xff' * size
+            for index, broken in enumerate((offset_error, run_error)):
+                page = root / f'broken{index}.tvf'
+                page.write_bytes(rgb565_frame(image) + b'WAVE' + struct.pack('<I', len(broken)) + broken)
+                folder = root / f'out{index}'
+                folder.mkdir()
+                result = subprocess.run([str(exe), str(page), str(folder), '200'], capture_output=True, text=True)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertIn('wave=0', result.stdout)
+
+    def test_smooth_film_matches_reference_through_full_loop_with_or_without_cache(self):
+        import anim_harness
+        art = fictional_smooth_art()
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            exe = anim_harness.build(root)
+            with patch('time.time', return_value=NOW), patch('token_tv.board_beach.load', return_value=art):
+                image, payload = render_paradise(sample(), waves=4)
+            page = root / 'page.tvf'
+            page.write_bytes(rgb565_frame(image, waves=payload))
+            background = struct.unpack('<76800H', rgb565_frame(image)[8:])
+            film = board_wave.decode(payload)
+            for mode in ('full_cache', 'no_cache'):
+                folder = root / mode
+                folder.mkdir()
+                result = subprocess.run([str(exe), str(page), str(folder), '3200', '200', 'precise', '100', mode],
+                                        capture_output=True, text=True)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertIn('wave=1', result.stdout)
+                self.assertLess(int(re.search(r'pushedPixels=(\d+)', result.stdout).group(1)), 16 * 320 * 108 // 2)
+                for tick in (1, 4, 8, 15, 16):
+                    step = (tick * 200 % 3200) * (48 * 128) // 3200
+                    expected = board_beach.render_words(background, film, step, water_substeps=128)
+                    self.assertEqual((folder / f'screen_{tick}.bin').read_bytes(), struct.pack('<76800H', *expected), tick)
+
     def test_sparse_water_only_redraws_its_changed_area(self):
         """A localised wave keeps the rest of the photo and avoids drawing it."""
         import anim_harness

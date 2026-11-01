@@ -83,7 +83,7 @@ def encode(image, glass_only, glass_alpha):
 def decode(payload):
     if len(payload) < HEADER.size:
         raise ValueError("Truncated WAVE header")
-    if payload[0] in (2, 3):
+    if payload[0] in (2, 3, 4):
         from token_tv.board_beach import decode as decode_beach
         return decode_beach(payload)
     version, flags, top, rows, ms, steps, glass_colour = HEADER.unpack_from(payload)

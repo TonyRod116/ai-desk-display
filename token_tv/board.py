@@ -114,7 +114,7 @@ class BoardDisplay:
         self.stars = info.get('stars') is True
         self.anim = info.get('anim') in (1, True)
         self.anim_frames = 8 if type(info.get('anim_frames')) is int and info['anim_frames'] == 8 else 4
-        self.waves = info['waves'] if type(info.get('waves')) is int and info['waves'] in (2, 3) else info.get('waves') in (1, True)
+        self.waves = info['waves'] if type(info.get('waves')) is int and info['waves'] in (2, 3, 4) else info.get('waves') in (1, True)
         scroll = info.get('scroll')
         self.scroll = scroll if type(scroll) is int and scroll in (2, 3, 4) else (1 if scroll in (1, True) else False)
         active = info.get('active')

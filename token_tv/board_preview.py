@@ -94,17 +94,20 @@ def _sequence(frame):
         if kind == b'WAVE':
             from token_tv import board_beach, board_wave
             spec = board_wave.decode(payload)
-            beach = spec.get('version') in (2, 3)
+            beach = spec.get('version') in (2, 3, 4)
             render = board_beach.render_words if beach else board_wave.render_words
             # Newer beach previews get a 100 ms cadence; older formats retain
             # their existing, less expensive previews.
-            count = 64 if spec.get('version') == 3 else 32 if beach else 16
+            count = 64 if spec.get('version') in (3, 4) else 32 if beach else 16
             def waves():
                 for i in range(count):
                     step = i * 64 // count
                     # WAVE3 plays two water cycles during one boat cycle on
                     # the board. The preview must use that same clock.
-                    water_step = (step * 2) % 64 if spec.get('version') == 3 else step
+                    if spec.get('version') == 4:
+                        water_step = i * spec['frame_count'] * 8 * 2 // count
+                    else:
+                        water_step = (step * 2) % 64 if spec.get('version') == 3 else step
                     words = (render(background, spec, water_step, boat_step=step)
                              if beach else render(background, spec, water_step))
                     yield _words_image(words)
