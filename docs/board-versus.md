@@ -1,10 +1,11 @@
 # Versus · the arcade fight
 
 Codex and Claude face off in a pixel-art arena inspired by 1990s fighting games.
-The animation below uses fictional readings and a custom local stage. A different
-original arena is included and works without the optional artwork.
+The animation below uses a custom local stage and switches between fictional
+readings to demonstrate a KO. A different original arena is included and works
+without the optional artwork.
 
-![Versus animated with fictional readings](images/arcade.gif?v=788986f11c)
+![Versus animated with fictional readings](images/arcade.gif?v=070f732a72)
 
 The health bars show weekly allowance remaining: green when there's plenty,
 amber in the middle and red when it's running low. A fighter falls when a

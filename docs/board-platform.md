@@ -2,7 +2,7 @@
 
 An original pixel-art platform level inspired by Super Mario World, rendered at the board's native 320 × 240 resolution. The animation below shows a custom local art set with **fictional sample data**. A different original-art version is included without the optional files.
 
-![Animated platform scene with sample data](images/cockpit.gif?v=c11b1ebc70)
+![Animated platform scene with sample data](images/cockpit.gif?v=7887cab24d)
 
 The top scoreboard shows each provider's remaining **weekly** quota and time to its weekly reset. Old readings are marked `OLD`; unknown values are dashes. The three little coins represent saved resets: bright for available, dim for unavailable, with a subtle dot when unknown or old. Claude's two smaller rows show its five-hour session quota and time remaining, and are omitted when that session is unknown or old. When an exhausted Codex week has a verified credit balance, credits replace its percentage. None of these values is invented by the scene.
 
