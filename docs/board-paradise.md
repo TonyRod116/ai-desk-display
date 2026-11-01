@@ -28,4 +28,9 @@ Back up any existing files in that directory before replacing them. The source
 GIF and prepared files stay on your computer; if the prepared set is missing or
 invalid, the bundled beach remains available.
 
+Firmware 30 adds intermediate water positions and reduces per-frame color
+calculations. The waves and boat keep their original pace, and animation runs on
+the board rather than streaming video from the computer. The actual frame rate
+depends on the hardware and may temporarily drop while a screen is being updated.
+
 See the [screen gallery](../README.md#eight-screens-zero-boredom) and [hardware guide](hardware.md).

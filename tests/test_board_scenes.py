@@ -47,6 +47,50 @@ class SceneSettingsTests(unittest.TestCase):
         self.scenes.confirm(desired)
         self.assertFalse(self.scenes.status()['scene_pending'][6])
 
+    def test_reorder_is_saved_as_one_change_and_remains_pending_until_delivered(self):
+        self.scenes.confirm(PAGE_NAMES)
+        order = [1, 3, 0, 2, 4, 5, 7, 6]
+        self.scenes.reorder({'expected': list(PAGE_NAMES), 'order': order})
+        desired = tuple(PAGE_NAMES[i] for i in order)
+        self.assertEqual(self.scenes.snapshot(), desired)
+        self.assertEqual(BoardScenes(self.path, threading.Event()).snapshot(), desired)
+        self.assertTrue(self.changed.is_set())
+        status = self.scenes.status()
+        self.assertEqual(status['scene_delivered_ids'], list(PAGE_NAMES))
+        self.assertEqual(status['scene_pending'], [i != order[i] for i in range(8)])
+
+    def test_reorder_rejects_stale_or_invalid_input_without_changing_screens(self):
+        original = list(PAGE_NAMES)
+        for value in (
+            {'expected': original, 'order': [0] * 8},
+            {'expected': original, 'order': list(range(7))},
+            {'expected': original, 'order': list(range(7)) + [True]},
+            {'expected': original, 'order': list(range(7)) + [8]},
+            {'expected': original[::-1], 'order': list(range(8))},
+            {'expected': original, 'order': list(range(8)), 'extra': 1},
+        ):
+            with self.subTest(value=value), self.assertRaises(ValueError):
+                self.scenes.reorder(value)
+        self.assertEqual(self.scenes.snapshot(), PAGE_NAMES)
+        self.assertFalse(self.path.exists())
+        self.assertFalse(self.changed.is_set())
+
+    def test_reorder_preserves_duplicate_screens_and_saved_settings_on_write_failure(self):
+        from unittest.mock import patch
+        self.scenes.select({'slot': 1, 'scene': PAGE_NAMES[0]})
+        before = self.scenes.snapshot()
+        previous_file = self.path.read_bytes()
+        self.changed.clear()
+        order = [1, 2, 0, 3, 4, 5, 6, 7]
+        with patch.object(Path, 'replace', side_effect=OSError('disk unavailable')):
+            with self.assertRaises(OSError):
+                self.scenes.reorder({'expected': list(before), 'order': order})
+        self.assertEqual(self.scenes.snapshot(), before)
+        self.assertEqual(self.path.read_bytes(), previous_file)
+        self.assertFalse(self.changed.is_set())
+        self.scenes.reorder({'expected': list(before), 'order': order})
+        self.assertEqual(self.scenes.snapshot(), tuple(before[i] for i in order))
+
     def test_out_of_order_delivery_remains_pending(self):
         self.scenes.confirm(PAGE_NAMES)
         self.scenes.select({'slot': 6, 'scene': 'deep-space'})

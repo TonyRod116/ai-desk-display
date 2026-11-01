@@ -84,6 +84,9 @@ int main(int argc, char **argv) {
   bool ok = readAnim(file, 320, 240);
   printf("readAnim=%d sprites=%d stars=%d meteor=%d region=%zu\n", ok, spriteCount, animStarCount, meteor.present, regionPixels);
   printf("wave=%d waveTexture=%u\n", (int)ocean.active, ocean.active ? ocean.offsets[WAVE_ROWS-1]+320-ocean.starts[WAVE_ROWS-1] : 0u);
+  if (precise && argc > 7 && strcmp(argv[7], "no_lut") == 0 && ocean.clampLut) {
+    free(ocean.clampLut); ocean.clampLut = nullptr; // simulate constrained memory
+  }
   for (int i = 0; i < spriteCount; i++) {
     printf("sprite %d: %dx%d at %d,%d frames=%d steps=%d box=%d,%d %dx%d\n", i, sprites[i].w, sprites[i].h, sprites[i].x,
            sprites[i].y, sprites[i].frames, sprites[i].steps, sprites[i].bx, sprites[i].by, sprites[i].bw, sprites[i].bh);

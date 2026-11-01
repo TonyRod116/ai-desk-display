@@ -22,6 +22,13 @@ Paradise beach. Choose the slot and the version you want, then confirm
 **Replace screen**. The original remains in the library and can be restored
 later. A slot keeps its animation speed when you replace its screen.
 
+To change the order in which the eight screens appear on the display, choose
+**Reorder screens**. Drag the previews, or use the arrows, and select **Save
+order**. Cancel leaves the current order unchanged. The computer saves the
+new order across restarts and sends the changed slots to the display; queued
+slots are retried if it is offline. Animation speed stays with each numbered
+slot, so check those settings after moving a screen if you use custom speeds.
+
 Library previews use the latest locally cached readings, including for unassigned
 and queued screens; unknown or expired readings remain unknown. Confirmed screens
 show their delivered preview. Open thumbnails refresh once a minute. The display
@@ -88,6 +95,7 @@ on compatible older firmware; speed and rotation controls require firmware
 reporting `board_controls: 1` (AI Desk Display 26 or newer). Installing firmware
 still requires a physical press and release to open the connection screen, for
 the configured connection duration (5 seconds by default), followed by the
-authenticated update. If the panel reports that the
-display is offline, check its power, Wi-Fi and saved local address. Changes are
-reported as saved only after the display confirms them.
+authenticated update. If the panel reports that the display is offline, check
+its power, Wi-Fi and saved local address. Playback and touch changes are reported
+as saved only after the display confirms them; screen choices and ordering are
+saved locally first and marked as queued until delivery is confirmed.

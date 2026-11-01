@@ -43,6 +43,13 @@
     'Screens move in the preview and use your latest available local readings.':'Las pantallas se mueven en la vista previa y utilizan los últimos datos locales disponibles.',
     'Loading preview…':'Cargando vista previa…', 'Preview unavailable':'Vista previa no disponible',
     'Choose a screen':'Elige una pantalla',
+    'YOUR SCREENS':'TUS PANTALLAS', 'Reorder screens':'Ordenar pantallas',
+    'Drag the screens or use the arrows to choose their order.':'Arrastra las pantallas o usa las flechas para elegir su orden.',
+    'Screen order':'Orden de las pantallas', 'Animation speed stays with the position.':'La velocidad de animación se conserva en cada posición.',
+    'Save order':'Guardar orden', 'Saving order…':'Guardando el orden…',
+    'Order saved · waiting for the display to receive the screens.':'Orden guardado · esperando a que las pantallas lleguen al dispositivo.',
+    'Order saved.':'Orden guardado.',
+    'The screens changed elsewhere. Close and reopen to try again.':'Las pantallas han cambiado en otro lugar. Cierra y vuelve a abrir para intentarlo de nuevo.',
     'Animation speed belongs to the slot and stays the same when you change its screen.':'La velocidad pertenece a la posición y se conserva al cambiar de pantalla.',
     'Cancel':'Cancelar', 'Replace screen':'Cambiar pantalla', 'Selected:':'Seleccionada:', 'ON THE DISPLAY':'EN LA PANTALLA',
     'Touch controls':'Controles táctiles', 'A short tap changes the screen. Hold and release for the shortcuts below.':'Un toque cambia la pantalla. Mantén pulsado y suelta para usar los siguientes accesos.',
@@ -108,6 +115,9 @@
     '5-hour window':'Periodo de 5 horas', 'Weekly window':'Periodo semanal', 'CLI budget window':'Periodo del presupuesto CLI'
   };
   const rules = [
+    [/^Move (.+) earlier$/, (_, name) => `Mover ${name} antes`],
+    [/^Move (.+) later$/, (_, name) => `Mover ${name} después`],
+    [/^Moved (.+) to position (\d+) of 8\.$/, (_, name, n) => `${name} se ha movido a la posición ${n} de 8.`],
     [/^Change screen (\d+): (.+)$/, (_, n, name) => `Cambiar pantalla ${n}: ${name}`],
     [/^Change screen (\d+)$/, (_, n) => `Cambiar pantalla ${n}`],
     [/^(\d+) seconds?$/, (_, n) => `${n} ${n === '1' ? 'segundo' : 'segundos'}`],

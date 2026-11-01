@@ -21,6 +21,14 @@ const sceneDialog = document.getElementById('scene-dialog');
 const sceneSelect = document.getElementById('scene-select');
 const sceneLibrary = document.getElementById('scene-library');
 const sceneNote = document.getElementById('scene-note');
+const orderDialog = document.getElementById('order-dialog');
+const orderGrid = document.getElementById('order-grid');
+const orderNote = document.getElementById('order-note');
+const orderSave = orderDialog.querySelector('.dialog-save');
+const orderOpen = document.getElementById('reorder-open');
+let orderOriginal = null;
+let orderDraft = [];
+let dragged = null;
 
 function sceneName(id, fallback) {
   return latest?.scene_catalog?.find(scene => scene.id === id)?.name || fallback;
@@ -148,6 +156,105 @@ document.getElementById('scene-form').addEventListener('submit', async event => 
   }
 });
 
+function orderIsStale() {
+  return !Array.isArray(latest?.scene_ids) || JSON.stringify(latest.scene_ids) !== JSON.stringify(orderOriginal);
+}
+
+function drawOrder(focusIndex = null, direction = null) {
+  orderGrid.replaceChildren();
+  orderDraft.forEach((originalIndex, index) => {
+    const scene = orderOriginal[originalIndex];
+    const name = sceneName(scene, defaultNames[originalIndex]);
+    const card = document.createElement('div');
+    card.className = 'order-card'; card.draggable = true; card.dataset.original = String(originalIndex);
+    card.setAttribute('role', 'listitem');
+    const picture = document.createElement('div'); picture.className = 'library-picture';
+    const placeholder = document.createElement('span'); placeholder.className = 'library-placeholder'; placeholder.textContent = 'Loading preview…';
+    const img = document.createElement('img'); img.alt = ''; img.width = 320; img.height = 240; img.hidden = true;
+    const libraryUrl = `/board/library/${encodeURIComponent(scene)}.${previewExtension}?v=${previewVersion}`;
+    const confirmed = !latest?.scene_pending?.[originalIndex] && latest?.scene_delivered_ids?.[originalIndex] === scene;
+    let usingLibrary = !confirmed;
+    img.addEventListener('load', () => { img.hidden = false; placeholder.hidden = true; });
+    img.addEventListener('error', () => {
+      if (!usingLibrary) { usingLibrary = true; img.src = libraryUrl; }
+      else { img.hidden = true; placeholder.textContent = 'Preview unavailable'; }
+    });
+    img.src = confirmed ? previewUrl(originalIndex) : libraryUrl;
+    const position = document.createElement('span'); position.className = 'order-position'; position.textContent = String(index + 1).padStart(2, '0');
+    picture.append(placeholder, img, position);
+    const details = document.createElement('div'); details.className = 'order-details';
+    const title = document.createElement('strong'); title.textContent = name;
+    const moves = document.createElement('div'); moves.className = 'order-moves';
+    for (const [delta, symbol, word] of [[-1, '←', 'earlier'], [1, '→', 'later']]) {
+      const button = document.createElement('button'); button.type = 'button'; button.textContent = symbol;
+      button.dataset.direction = word; button.setAttribute('aria-label', `Move ${name} ${word}`);
+      button.disabled = sending || index + delta < 0 || index + delta >= orderDraft.length;
+      button.addEventListener('click', () => moveOrder(index, index + delta, word));
+      moves.append(button);
+    }
+    details.append(title, moves); card.append(picture, details);
+    card.addEventListener('dragstart', event => {
+      if (sending) { event.preventDefault(); return; }
+      dragged = originalIndex; event.dataTransfer.effectAllowed = 'move';
+      event.dataTransfer.setData('text/plain', String(originalIndex)); card.dataset.dragging = 'true';
+    });
+    card.addEventListener('dragend', () => { dragged = null; orderGrid.querySelectorAll('.order-card').forEach(item => { delete item.dataset.dragging; delete item.dataset.over; }); });
+    card.addEventListener('dragover', event => { if (dragged !== null && dragged !== originalIndex) { event.preventDefault(); event.dataTransfer.dropEffect = 'move'; card.dataset.over = 'true'; } });
+    card.addEventListener('dragleave', () => { delete card.dataset.over; });
+    card.addEventListener('drop', event => {
+      event.preventDefault(); delete card.dataset.over;
+      const from = orderDraft.indexOf(dragged); dragged = null;
+      if (from >= 0 && from !== index) moveOrder(from, index);
+    });
+    orderGrid.append(card);
+    if (originalIndex === focusIndex) {
+      const target = moves.querySelector(`[data-direction="${direction}"]:not(:disabled)`) || moves.querySelector('button:not(:disabled)');
+      if (target) requestAnimationFrame(() => target.focus({preventScroll:true}));
+    }
+  });
+  orderSave.disabled = sending || orderIsStale() || orderDraft.every((original, index) => original === index);
+}
+
+function moveOrder(from, to, direction = null) {
+  if (sending || from === to || to < 0 || to >= orderDraft.length) return;
+  const [original] = orderDraft.splice(from, 1); orderDraft.splice(to, 0, original);
+  orderNote.dataset.error = 'false';
+  orderNote.textContent = `Moved ${sceneName(orderOriginal[original], defaultNames[original])} to position ${to + 1} of 8.`;
+  drawOrder(original, direction);
+}
+
+orderOpen.addEventListener('click', () => {
+  if (!Array.isArray(latest?.scene_ids) || latest.scene_ids.length !== defaultNames.length || latest.scene_settings_error) return;
+  orderOriginal = [...latest.scene_ids]; orderDraft = orderOriginal.map((_, index) => index);
+  orderNote.textContent = ''; orderNote.dataset.error = 'false';
+  drawOrder(); orderDialog.showModal(); orderDialog.scrollTop = 0;
+  orderDialog.querySelector('.dialog-close').focus({preventScroll:true});
+});
+orderDialog.querySelectorAll('.dialog-close, .dialog-cancel').forEach(button => button.addEventListener('click', () => { if (!sending) orderDialog.close(); }));
+orderDialog.addEventListener('cancel', event => { if (sending) event.preventDefault(); });
+document.getElementById('order-form').addEventListener('submit', async event => {
+  event.preventDefault();
+  if (sending || orderIsStale() || orderSave.disabled) return;
+  commandVersion++; sending = true; drawOrder();
+  orderNote.textContent = 'Saving order…'; orderNote.dataset.error = 'false';
+  try {
+    const response = await fetch('/board/order', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({value:{expected:orderOriginal, order:orderDraft}})});
+    if (!response.ok) {
+      if (response.status === 400) throw new Error('stale');
+      throw new Error('save');
+    }
+    const status = await response.json();
+    sending = false; orderDialog.close();
+    render(status, status.scene_pending?.some(Boolean) ? 'Order saved · waiting for the display to receive the screens.' : 'Order saved.');
+  } catch (error) {
+    sending = false;
+    orderNote.dataset.error = 'true';
+    orderNote.textContent = error.message === 'stale' ? 'The screens changed elsewhere. Close and reopen to try again.' : 'Could not save. Please try again.';
+    drawOrder();
+    if (error.message === 'stale') orderSave.disabled = true;
+  }
+});
+
 function refreshPreviews() {
   previewVersion = Date.now();
   document.querySelectorAll('.screen-card').forEach((card, index) => {
@@ -170,6 +277,11 @@ function showNote(message, error = false) {
 
 function render(status, message) {
   latest = status;
+  orderOpen.disabled = sending || !Array.isArray(status.scene_ids) || !status.scene_catalog || status.scene_settings_error;
+  if (orderDialog.open && orderIsStale() && !sending) {
+    orderSave.disabled = true; orderNote.dataset.error = 'true';
+    orderNote.textContent = 'The screens changed elsewhere. Close and reopen to try again.';
+  }
   const connection = document.getElementById('connection');
   const descriptions = {connected: 'Connected', busy: 'Sending data', offline: 'Not connected', not_configured: 'Not configured'};
   connection.dataset.state = status.state;

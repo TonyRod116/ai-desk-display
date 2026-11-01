@@ -162,10 +162,13 @@ class BoardControl:
                 'clock_synced': info.get('clock_synced') is True}
 
     def execute(self, command, value):
-        if command == 'scene':
+        if command in ('scene', 'order'):
             if self.scenes is None:
                 raise ValueError('Screen library is unavailable')
-            self.scenes.select(value)
+            if command == 'scene':
+                self.scenes.select(value)
+            else:
+                self.scenes.reorder(value)
             return self.status(refresh=False)
         if self.board is None:
             raise OSError('Display is not configured')

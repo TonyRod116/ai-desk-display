@@ -104,19 +104,45 @@ class BoardScenes:
                 raise ValueError('Screen image is not installed')
             updated = list(self.ids)
             updated[value['slot']] = value['scene']
-            if updated == self.ids:
+            if not self._save(updated):
                 return
-            self.path.parent.mkdir(parents=True, exist_ok=True)
-            temporary = self.path.with_suffix('.tmp')
-            try:
-                with temporary.open('w', encoding='utf-8') as f:
-                    os.chmod(temporary, 0o600)
-                    json.dump(updated, f, separators=(',', ':'))
-                temporary.replace(self.path)
-            finally:
-                temporary.unlink(missing_ok=True)
-            self.ids = updated
         self.changed.set()
+
+    def reorder(self, value):
+        if (not isinstance(value, dict) or set(value) != {'expected', 'order'}
+                or not isinstance(value['expected'], list)
+                or not isinstance(value['order'], list)
+                or len(value['expected']) != len(PAGE_NAMES)
+                or len(value['order']) != len(PAGE_NAMES)
+                or any(not isinstance(scene, str) for scene in value['expected'])
+                or any(type(i) is not int for i in value['order'])
+                or sorted(value['order']) != list(range(len(PAGE_NAMES)))):
+            raise ValueError('Invalid screen order')
+        with self.lock:
+            if self.load_error:
+                raise OSError('Screen settings need attention')
+            if value['expected'] != self.ids:
+                raise ValueError('Screen selection has changed')
+            updated = [self.ids[i] for i in value['order']]
+            if not self._save(updated):
+                return
+        self.changed.set()
+
+    def _save(self, updated):
+        # Called with the lock held so validation and the atomic write agree.
+        if updated == self.ids:
+            return False
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        temporary = self.path.with_suffix('.tmp')
+        try:
+            with temporary.open('w', encoding='utf-8') as f:
+                os.chmod(temporary, 0o600)
+                json.dump(updated, f, separators=(',', ':'))
+            temporary.replace(self.path)
+        finally:
+            temporary.unlink(missing_ok=True)
+        self.ids = updated
+        return True
 
     def confirm(self, ids):
         with self.lock:

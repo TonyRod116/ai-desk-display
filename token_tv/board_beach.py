@@ -90,13 +90,19 @@ def decode(payload):
     return result
 
 
-def render_words(background, beach, step, boat_step=None):
-    """Integer reference for the board; preserve the sharp photo's detail."""
+def render_words(background, beach, step, boat_step=None, *, water_substeps=8):
+    """Integer reference for the board; preserve the sharp photo's detail.
+
+    Newer firmware uses 16 water positions between source frames. The boat
+    remains on its own unchanged 64-step clock.
+    """
+    if water_substeps not in (8, 16):
+        raise ValueError('Unsupported water interpolation')
     out = list(background)
     frames, palette = beach['frames'], beach['palette']
     stride = WIDTH * HEIGHT
-    step %= STEPS
-    first, mix = divmod(step, 8)
+    step %= FRAMES * water_substeps
+    first, mix = divmod(step, water_substeps)
     for yy in range(HEIGHT):
         for xx in range(WIDTH):
             pos = yy * WIDTH + xx
@@ -110,14 +116,14 @@ def render_words(background, beach, step, boat_step=None):
                     result = 0
                     for shift, mask in ((11, 31), (5, 63), (0, 31)):
                         a, b, base = (ca >> shift) & mask, (cb >> shift) & mask, (c0 >> shift) & mask
-                        delta = (a * (8 - mix) + b * mix + 4) // 8 - base
+                        delta = (a * (water_substeps - mix) + b * mix + water_substeps // 2) // water_substeps - base
                         # Fade into the fixed horizon without a moving seam.
                         fade = min(8, yy)
                         delta = (delta * fade // 8 if delta >= 0 else -((-delta * fade) // 8))
                         result |= max(0, min(mask, ((original >> shift) & mask) + delta)) << shift
                     out[at] = result
     if 'boat_frames' in beach:
-        boat_step = (step if boat_step is None else boat_step) % STEPS
+        boat_step = (step * 8 // water_substeps if boat_step is None else boat_step) % STEPS
         first, mix = divmod(boat_step, 16)
         frames, palette = beach['boat_frames'], beach['boat_palette']
         stride = BOAT_W * BOAT_H

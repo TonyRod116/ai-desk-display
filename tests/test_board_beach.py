@@ -213,6 +213,37 @@ class BeachFilmTests(unittest.TestCase):
 
 @unittest.skipUnless(shutil.which('g++'), 'needs native compiler')
 class NativeBeachFilmTests(unittest.TestCase):
+    def test_native_water_adds_in_between_frames_without_changing_the_loop_speed(self):
+        import anim_harness
+        with tempfile.TemporaryDirectory() as temp:
+            folder = Path(temp)
+            exe = anim_harness.build(folder)
+            with patch('time.time', return_value=NOW), patch('token_tv.board_beach.load', return_value=fictional_film_with_boat()):
+                image, payload = render_paradise(sample(), waves=3)
+            background = struct.unpack('<76800H', rgb565_frame(image)[8:])
+            film = board_beach.decode(payload)
+            page = folder / 'page.tvf'
+            page.write_bytes(rgb565_frame(image) + b'WAVE' + struct.pack('<I', len(payload)) + payload)
+            result = subprocess.run([str(exe), str(page), str(folder), '200', '25', 'precise'], capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn('wave=1', result.stdout)
+            for tick in range(1, 9):
+                expected = board_beach.render_words(background, film, tick, boat_step=tick // 4, water_substeps=16)
+                self.assertEqual((folder / f'screen_{tick}.bin').read_bytes(), struct.pack('<76800H', *expected), f'tick {tick}')
+            fallback = folder / 'fallback'
+            fallback.mkdir()
+            result = subprocess.run([str(exe), str(page), str(fallback), '200', '25', 'precise', '100', 'no_lut'], capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            for tick in range(1, 9):
+                self.assertEqual((fallback / f'screen_{tick}.bin').read_bytes(), (folder / f'screen_{tick}.bin').read_bytes())
+            start = board_beach.render_words(background, film, 0, boat_step=0, water_substeps=16)
+            between = board_beach.render_words(background, film, 1, boat_step=0, water_substeps=16)
+            old_next = board_beach.render_words(background, film, 1, boat_step=0)
+            self.assertNotEqual(between, start)
+            self.assertNotEqual(between, old_next)
+            self.assertEqual(old_next, board_beach.render_words(background, film, 2, boat_step=0, water_substeps=16))
+            self.assertEqual(start, board_beach.render_words(background, film, 128, boat_step=0, water_substeps=16))
+
     def test_native_fast_waves_and_boat_match_reference_for_a_full_shared_loop(self):
         import anim_harness
         with tempfile.TemporaryDirectory() as temp:
@@ -231,8 +262,8 @@ class NativeBeachFilmTests(unittest.TestCase):
                 # The harness samples on 20 ms ticks, just before each 50 ms
                 # capture boundary. The boat stays on its 100 ms clock.
                 elapsed = ((tick + 1) * 50 - 1) // 20 * 20
-                expected = board_beach.render_words(background, film, (elapsed // 50) % 64,
-                                                    boat_step=(elapsed // 100) % 64)
+                expected = board_beach.render_words(background, film, (elapsed // 25) % 128,
+                                                    boat_step=(elapsed // 100) % 64, water_substeps=16)
                 self.assertEqual((folder / f'screen_{tick}.bin').read_bytes(),
                                  struct.pack('<76800H', *expected), f'tick {tick}')
             self.assertEqual((folder / 'screen_6400.bin').read_bytes(), struct.pack('<76800H', *background))

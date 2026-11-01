@@ -61,6 +61,11 @@ travel shorewards, gentler open-water ripples and the advancing shoreline.
 The crest animation is periodic across the loop boundary; the first loaded
 still remains the original photograph until its animation begins.
 
+Firmware 30 adds intermediate water positions and reduces the work needed for
+each frame. The water and boat keep their existing loop durations and speed;
+the actual frame rate depends on the display and any ongoing page transfer.
+If memory is tight, the renderer falls back to the original color calculations.
+
 During a page transfer, ocean redraws are limited to one every 200 ms, and
 holding the touchscreen pauses them so the physical controls remain usable.
 Navigation and rotation indicators are redrawn after each ocean frame. The

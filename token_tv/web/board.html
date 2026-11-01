@@ -45,7 +45,7 @@
     </section>
 
     <section class="gallery" id="screens" aria-labelledby="screens-title">
-      <div class="section-heading"><div><h2 id="screens-title">Screens</h2><p>Tap a screen to show it. Change a slot to bring back an earlier version.</p></div><span class="section-count">8 SLOTS</span></div>
+      <div class="section-heading"><div><h2 id="screens-title">Screens</h2><p>Tap a screen to show it. Change a slot to bring back an earlier version.</p></div><div class="screen-heading-actions"><span class="section-count">8 SLOTS</span><button type="button" id="reorder-open" disabled>Reorder screens</button></div></div>
       <div class="screen-grid" id="screen-grid" aria-label="Display screens"></div>
     </section>
 
@@ -59,6 +59,19 @@
         <div class="dialog-footer"><div class="dialog-info"><p class="library-selection" role="status"><span>Selected:</span> <strong id="scene-selected-name"></strong></p><p class="dialog-hint">Animation speed belongs to the slot and stays the same when you change its screen.</p></div>
           <div class="dialog-actions"><button class="dialog-cancel" type="button">Cancel</button><button class="dialog-save" type="submit">Replace screen</button></div>
           <p id="scene-note" role="status"></p>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="order-dialog" aria-labelledby="order-title">
+      <form id="order-form">
+        <div class="dialog-head"><div><p class="eyebrow">YOUR SCREENS</p><h2 id="order-title">Reorder screens</h2></div><button class="dialog-close" type="button" aria-label="Close">×</button></div>
+        <p>Drag the screens or use the arrows to choose their order.</p>
+        <div id="order-grid" class="order-grid" role="list" aria-label="Screen order"></div>
+        <div class="order-footer">
+          <p class="order-hint">Animation speed stays with the position.</p>
+          <p id="order-note" role="status" aria-live="polite"></p>
+          <div class="dialog-actions"><button class="dialog-cancel" type="button">Cancel</button><button class="dialog-save" type="submit">Save order</button></div>
         </div>
       </form>
     </dialog>

@@ -28,7 +28,7 @@ These are the eight screens on my display right now. You can swap any of them fo
 
 These GIFs show my current setup with **fictional readings**. The scenes labelled *optional local artwork* or *stage* use personal customizations that aren't included in a fresh download. Paradise, Versus and Platform have bundled alternatives; Neon District needs its own image. The previews can show third-party artwork; see [asset notes](ASSETS.md). Moving scenes are captured with the firmware simulator, except the scrolling platform scene, which uses its matching Python renderer. The Versus GIF switches between two fictional readings to demonstrate a KO; Game Boy is normally static and shows accelerated sample quota updates. GIFs have a limited color palette; the display receives RGB565 frames.
 
-On compatible hardware, animations run **on the board**. Your computer doesn't have to upload a new picture for every frame. Prefer still images? [Open the PNG gallery](docs/images/gallery.png?v=b307d4ed9d).
+On compatible hardware, animations run **on the board**. Your computer doesn't have to upload a new picture for every frame. You can also drag the eight screens into your preferred order in the [local control room](docs/board-control.md); the order is saved across restarts. Prefer still images? [Open the PNG gallery](docs/images/gallery.png?v=b307d4ed9d).
 
 ## From lottery miner to quota watcher
 
