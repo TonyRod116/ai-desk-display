@@ -14,6 +14,7 @@ from token_tv.themes import face
 ART = Path.home() / '.local/share/ai-desk-display/cyber-scenes'
 FILES = {'violet-horizon': 'violet-horizon.jpg', 'neon-district': 'neon-district.jpg'}
 INK = {'codex': (255, 123, 221), 'claude': (92, 231, 255)}
+SIGN_TOP, SIGN_WIDTH, SIGN_HEIGHT = 199, 65, 29
 # The two tallest matching towers in the centre-right. Value fills from below.
 RAILS = {'violet-horizon': {'codex': (206, 109, 216), 'claude': (247, 109, 216)}}
 
@@ -112,24 +113,31 @@ def figures(image, readings):
         image.paste(Image.new('RGB', image.size, color), (0, 0), lit)
 
 
-def sign(image, provider, remaining, credit, x):
-    """A small, attached illuminated sign; labels make the two readings unambiguous."""
-    scale, width, height = 3, 65, 20
+def sign(image, provider, remaining, credit, x, reset):
+    """An illuminated weekly reading and its reset, integrated into the scene."""
+    scale, width, height = 3, SIGN_WIDTH, SIGN_HEIGHT
     badge = Image.new('RGBA', (width*scale, height*scale))
     d = ImageDraw.Draw(badge)
     color = INK[provider]
     d.rounded_rectangle((1, 1, width*scale-2, height*scale-2), radius=5*scale,
                         fill=(7, 13, 27, 234), outline=(*color, 255), width=scale)
-    d.text((5*scale, 2*scale), provider.upper(), font=face('oxanium.woff2', 6*scale), fill=(*color, 255))
+    name_font = face('oxanium.woff2', 6*scale)
+    d.text((6*scale, (2 if credit is not None else 3)*scale), provider.upper(), font=name_font, fill=(*color, 255))
     value = ('CR ' + format_balance(credit)) if credit is not None else '--' if remaining is None else '<1%' if 0 < remaining < 1 else f'{round(remaining)}%'
-    font_size = 10
-    while font_size > 6 and face('oxanium.woff2', font_size*scale).getlength(value) > 55*scale:
+    available = 55*scale if credit is not None else 52*scale - name_font.getlength(provider.upper())
+    font_size = 10 if credit is not None else 13
+    while font_size > 6 and face('oxanium.woff2', font_size*scale).getlength(value) > available:
         font_size -= 1
-    d.text(((width-5)*scale, 8*scale), value, anchor='ra', font=face('oxanium.woff2', font_size*scale), fill='#f6f8ff')
+    d.text(((width-5)*scale, (7 if credit is not None else 1)*scale), value, anchor='ra', font=face('oxanium.woff2', font_size*scale), fill='#f6f8ff')
+    reset_label = 'RESET ' + reset.upper()
+    reset_size = 7 if credit is not None else 8
+    while reset_size > 6 and face('oxanium.woff2', reset_size*scale).getlength(reset_label) > 55*scale:
+        reset_size -= 1
+    d.text((5*scale, (19 if credit is not None else 16)*scale), reset_label, font=face('oxanium.woff2', reset_size*scale), fill='#d4e4f5')
     badge = badge.resize((width, height), Image.Resampling.LANCZOS)
     glow = badge.filter(ImageFilter.GaussianBlur(2))
-    image.paste(glow, (x, 217), glow)
-    image.paste(badge, (x, 217), badge)
+    image.paste(glow, (x, SIGN_TOP), glow)
+    image.paste(badge, (x, SIGN_TOP), badge)
 
 
 def _sprite(area, frames, period=400, offset=0):
@@ -232,12 +240,12 @@ def _sign_sprite(image, area, tint, axis='vertical', offset=0):
 def _violet_motion(image):
     return [_cloud_sprite(image, (0, 80, 176, 44)), _cloud_sprite(image, (272, 74, 48, 54)),
             _window_sprite((10, 148, 96, 60),
-                    [(18,148),(24,156),(30,164),(18,172),(28,180),(22,188),(34,196),(26,204),
+                    [(18,148),(24,156),(30,164),(18,172),(28,180),(22,188),(34,196),(26,194),
                      (56,174),(60,184),(64,194),(72,174),(88,166),(94,174),(100,186),(90,198)],
                     [(95,225,255),(255,126,224),(255,210,140)], calm=True),
             _window_sprite((208, 130, 64, 78),
                     [(212,136),(218,148),(224,160),(214,174),(252,134),(260,146),(266,160),(254,176),
-                     (222,186),(228,198),(216,196),(222,176),(262,186),(268,198),(254,200),(266,176)],
+                     (222,186),(228,198),(216,196),(222,176),(262,186),(268,194),(254,192),(266,176)],
                     [(110,240,255),(255,138,225),(255,212,160)], 1, calm=True)]
 
 
@@ -260,16 +268,16 @@ def motion(scene, image):
 def render_city(scene, snapshot, animated=False):
     image = backdrop(scene).copy()
     readings = {}
-    for provider, x in (('codex', 7), ('claude', 248)):
+    for provider, x in (('codex', 7), ('claude', 251)):
         row = _row(snapshot, provider)
-        remaining, _, old, _ = remaining_reading(row)
+        remaining, _, old, reset = remaining_reading(row)
         if old:
-            remaining = None
+            remaining, reset = None, '--'
         readings[provider] = remaining
         credit = exhausted_credits(row) if remaining == 0 else None
         if scene in RAILS:
             rail(image, provider, RAILS[scene][provider], remaining)
-        sign(image, provider, remaining, credit, x)
+        sign(image, provider, remaining, credit, x, reset)
     if scene == 'neon-district':
         figures(image, readings)
     return (image, motion(scene, image)) if animated else image

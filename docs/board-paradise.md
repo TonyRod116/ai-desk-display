@@ -28,14 +28,20 @@ Back up any existing files in that directory before replacing them. The source
 GIF and prepared files stay on your computer; if the prepared set is missing or
 invalid, the bundled beach remains available.
 
-Firmware 30 adds intermediate water positions and reduces per-frame color
-calculations. The waves and boat keep their original pace, and animation runs on
-the board rather than streaming video from the computer. The actual frame rate
-depends on the hardware and may temporarily drop while a screen is being updated.
-Firmware 32 can cache part of the unchanged photograph when memory allows,
-leaving an 80 KiB heap reserve at allocation time. If memory is temporarily
-tight, it retries later; if the cache cannot be loaded, the board reads the same
-pixels from storage instead. Neither path changes the photo's resolution or the
-length of the animation loops.
+Firmware 37 samples the water according to the animation clock and spreads small
+color changes across the image, so large groups of pixels do not change at the
+same instant. On compatible boards the main loop aims for an even 40 ms between
+water frames, up to 25 frames per second. The water keeps its 3.2-second cycle
+and the boat its 6.4-second cycle at normal speed; the speed control still works.
+The source-frame colors and the loop seam remain exact. Older WAVE2 animations
+retain their original appearance.
+
+When memory permits, the board caches the sharp photograph in separate bands and
+keeps only the needed water-film frames in memory. The film is compacted in place
+so loading it doesn't require a second large allocation. Cache allocation leaves
+an 80 KiB heap reserve; if memory is tight, playback can use storage-backed
+background reads. Animation runs on the board without streaming
+video from the computer, and the photo is not reduced in resolution. Actual frame
+rate depends on the device and may temporarily drop during screen updates.
 
 See the [screen gallery](../README.md#eight-screens-zero-boredom) and [hardware guide](hardware.md).

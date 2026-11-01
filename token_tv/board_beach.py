@@ -93,10 +93,10 @@ def decode(payload):
 def render_words(background, beach, step, boat_step=None, *, water_substeps=8):
     """Integer reference for the board; preserve the sharp photo's detail.
 
-    Newer firmware uses 16 water positions between source frames. The boat
-    remains on its own unchanged 64-step clock.
+    Newer firmware can use finer water positions between source frames. The
+    boat remains on its own unchanged 64-step clock.
     """
-    if water_substeps not in (8, 16):
+    if water_substeps not in (8, 16, 128):
         raise ValueError('Unsupported water interpolation')
     out = list(background)
     frames, palette = beach['frames'], beach['palette']
@@ -109,6 +109,10 @@ def render_words(background, beach, step, boat_step=None, *, water_substeps=8):
             c0 = palette[frames[pos]]
             ca = palette[frames[first * stride + pos]]
             cb = palette[frames[((first + 1) % FRAMES) * stride + pos]]
+            # Match the board's stable spatial thresholds. Small colour
+            # changes then progress across the sea rather than jump in sync.
+            bias = (((pos * 73 + 19) & 127) * water_substeps // 128
+                    if beach['version'] == 3 else water_substeps // 2)
             for ry in (0, 1):
                 for rx in (0, 1):
                     at = (TOP + yy * 2 + ry) * 320 + xx * 2 + rx
@@ -116,7 +120,7 @@ def render_words(background, beach, step, boat_step=None, *, water_substeps=8):
                     result = 0
                     for shift, mask in ((11, 31), (5, 63), (0, 31)):
                         a, b, base = (ca >> shift) & mask, (cb >> shift) & mask, (c0 >> shift) & mask
-                        delta = (a * (water_substeps - mix) + b * mix + water_substeps // 2) // water_substeps - base
+                        delta = (a * (water_substeps - mix) + b * mix + bias) // water_substeps - base
                         # Fade into the fixed horizon without a moving seam.
                         fade = min(8, yy)
                         delta = (delta * fade // 8 if delta >= 0 else -((-delta * fade) // 8))

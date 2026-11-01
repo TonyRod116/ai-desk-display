@@ -214,6 +214,87 @@ class BeachFilmTests(unittest.TestCase):
 
 @unittest.skipUnless(shutil.which('g++'), 'needs native compiler')
 class NativeBeachFilmTests(unittest.TestCase):
+    def test_compact_water_film_still_loads_under_memory_pressure(self):
+        """Compaction must not need a second large buffer while loading."""
+        import anim_harness
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            exe = anim_harness.build(root)
+            with patch('time.time', return_value=NOW), patch('token_tv.board_beach.load', return_value=fictional_film_with_boat()):
+                image, payload = render_paradise(sample(), waves=3)
+            page = root / 'page.tvf'
+            page.write_bytes(rgb565_frame(image) + b'WAVE' + struct.pack('<I', len(payload)) + payload)
+            folders = {}
+            for mode in ('full_cache', 'tight_compact'):
+                folder = root / mode
+                folder.mkdir()
+                result = subprocess.run([str(exe), str(page), str(folder), '3200', '200', 'precise', '100', mode],
+                                        capture_output=True, text=True)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertIn('beachStreamed=1', result.stdout, mode + ': ' + result.stdout)
+                folders[mode] = folder
+            for tick in range(1, 17):
+                self.assertEqual((folders['tight_compact'] / f'screen_{tick}.bin').read_bytes(),
+                                 (folders['full_cache'] / f'screen_{tick}.bin').read_bytes(), tick)
+
+    def test_water_is_presented_at_a_steady_cadence(self):
+        """The board should draw consistently while the wave clock keeps time."""
+        import anim_harness
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            exe = anim_harness.build(root)
+            with patch('time.time', return_value=NOW), patch('token_tv.board_beach.load', return_value=fictional_film_with_boat()):
+                image, payload = render_paradise(sample(), waves=3)
+            page = root / 'page.tvf'
+            page.write_bytes(rgb565_frame(image) + b'WAVE' + struct.pack('<I', len(payload)) + payload)
+            result = subprocess.run([str(exe), str(page), str(root), '400', '10', 'precise', '100', 'observe_cadence'],
+                                    capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            previous = (root / 'screen_0.bin').read_bytes()
+            changes = []
+            for tick in range(1, 41):
+                current = (root / f'screen_{tick}.bin').read_bytes()
+                if current != previous:
+                    changes.append(tick)
+                previous = current
+            self.assertEqual(len(changes), 10, changes)
+            self.assertTrue(all(b - a == 4 for a, b in zip(changes, changes[1:])), changes)
+            # At 400 ms the last paced frame was drawn at 365 ms. It must
+            # follow real time, not run more slowly because fewer frames draw.
+            background = struct.unpack('<76800H', rgb565_frame(image)[8:])
+            expected = board_beach.render_words(background, board_beach.decode(payload),
+                                                365 * 128 // 400, boat_step=3, water_substeps=128)
+            self.assertEqual(previous, struct.pack('<76800H', *expected))
+
+    def test_tiny_colour_changes_are_spread_smoothly_over_the_transition(self):
+        """A one-step change should not make the whole sea jump at once."""
+        import anim_harness
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            exe = anim_harness.build(root)
+            neutral = board_beach._word((128, 128, 128))
+            brighter = board_beach._word((128, 132, 128))  # one green display step
+            palette = (neutral, brighter) + (neutral,) * 254
+            stride = board_beach.WIDTH * board_beach.HEIGHT
+            frames = bytes(stride) + bytes([1]) * (stride * 7)
+            art = (Image.new('RGB', (320, 240), (160, 176, 160)), palette, frames, None)
+            with patch('time.time', return_value=NOW), patch('token_tv.board_beach.load', return_value=art):
+                image, payload = render_paradise(sample(), waves=3)
+            page = root / 'page.tvf'
+            page.write_bytes(rgb565_frame(image) + b'WAVE' + struct.pack('<I', len(payload)) + payload)
+            result = subprocess.run([str(exe), str(page), str(root), '400', '25', 'precise'],
+                                    capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            positions = [2 * (y * 320 + x) for y in range(148, 240, 2) for x in range(0, 320, 2)]
+            previous = (root / 'screen_0.bin').read_bytes()
+            changes = []
+            for tick in range(1, 17):
+                current = (root / f'screen_{tick}.bin').read_bytes()
+                changes.append(sum(previous[i:i+2] != current[i:i+2] for i in positions))
+                previous = current
+            self.assertGreater(min(changes), 250, changes)
+            self.assertLess(max(changes), 700, changes)
+
     def test_water_cache_retries_after_temporary_memory_pressure(self):
         import anim_harness
         with tempfile.TemporaryDirectory() as temp:
@@ -257,6 +338,9 @@ class NativeBeachFilmTests(unittest.TestCase):
                 result = subprocess.run([str(exe), str(page), str(folder), '200', '25', 'precise', '100', mode],
                                         capture_output=True, text=True)
                 self.assertEqual(result.returncode, 0, result.stderr)
+                # Eight water frames reuse one file, and releasing the scene closes it.
+                self.assertIn('animationFileOpens=1', result.stdout)
+                self.assertIn('animationFileClosed=1', result.stdout)
                 metrics = re.search(r'beachCacheRows=(\d+) renderReadBytes=(\d+)', result.stdout)
                 self.assertIsNotNone(metrics, result.stdout)
                 results[mode] = (tuple(map(int, metrics.groups())), folder)
@@ -266,10 +350,12 @@ class NativeBeachFilmTests(unittest.TestCase):
             (fragmented_rows, fragmented_bytes), fragmented = results['fragmented_cache']
             (broken_rows, broken_bytes), broken = results['broken_cache']
             self.assertEqual((full_rows, partial_rows, no_rows), (108, 64, 0))
-            self.assertEqual((fragmented_rows, broken_rows), (16, 0))
+            # Separate bands can use fragmented memory even when no single
+            # allocation is large enough for the complete photograph.
+            self.assertEqual((fragmented_rows, broken_rows), (108, 0))
             self.assertEqual(full_bytes, 0)
-            self.assertLess(partial_bytes, fragmented_bytes)
-            self.assertLess(fragmented_bytes, no_bytes)
+            self.assertEqual(fragmented_bytes, full_bytes)
+            self.assertLess(partial_bytes, no_bytes)
             self.assertEqual(broken_bytes, no_bytes)
             for tick in range(1, 9):
                 expected = (none / f'screen_{tick}.bin').read_bytes()
@@ -277,6 +363,28 @@ class NativeBeachFilmTests(unittest.TestCase):
                 self.assertEqual((full / f'screen_{tick}.bin').read_bytes(), expected)
                 self.assertEqual((fragmented / f'screen_{tick}.bin').read_bytes(), expected)
                 self.assertEqual((broken / f'screen_{tick}.bin').read_bytes(), expected)
+
+    def test_water_tracks_irregular_frame_times_without_coarse_jumps(self):
+        import anim_harness
+        with tempfile.TemporaryDirectory() as temp:
+            folder = Path(temp)
+            exe = anim_harness.build(folder)
+            with patch('time.time', return_value=NOW), patch('token_tv.board_beach.load', return_value=fictional_film_with_boat()):
+                image, payload = render_paradise(sample(), waves=3)
+            background = struct.unpack('<76800H', rgb565_frame(image)[8:])
+            film = board_beach.decode(payload)
+            page = folder / 'page.tvf'
+            page.write_bytes(rgb565_frame(image) + b'WAVE' + struct.pack('<I', len(payload)) + payload)
+            # The real screen takes about 45 ms to draw; that does not align
+            # with the old 25 ms water steps.
+            result = subprocess.run([str(exe), str(page), str(folder), '225', '45', 'precise'], capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            for tick in range(1, 6):
+                elapsed = tick * 45
+                step = (elapsed % 3200) * 128 // 400
+                expected = board_beach.render_words(background, film, step, boat_step=elapsed // 100, water_substeps=128)
+                actual = (folder / f'screen_{tick}.bin').read_bytes()
+                self.assertEqual(actual, struct.pack('<76800H', *expected), f'{elapsed} ms')
 
     def test_native_water_adds_in_between_frames_without_changing_the_loop_speed(self):
         import anim_harness
@@ -323,12 +431,14 @@ class NativeBeachFilmTests(unittest.TestCase):
             result = subprocess.run([str(exe), str(page), str(folder), '6400', '50'], capture_output=True, text=True)
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertIn('wave=1', result.stdout)
+            self.assertIn('beachStreamed=1', result.stdout)
             for tick in range(128):
                 # The harness samples on 20 ms ticks, just before each 50 ms
                 # capture boundary. The boat stays on its 100 ms clock.
                 elapsed = ((tick + 1) * 50 - 1) // 20 * 20
-                expected = board_beach.render_words(background, film, (elapsed // 25) % 128,
-                                                    boat_step=(elapsed // 100) % 64, water_substeps=16)
+                step = (elapsed % 3200) * 128 // 400
+                expected = board_beach.render_words(background, film, step,
+                                                    boat_step=(elapsed // 100) % 64, water_substeps=128)
                 self.assertEqual((folder / f'screen_{tick}.bin').read_bytes(),
                                  struct.pack('<76800H', *expected), f'tick {tick}')
             self.assertEqual((folder / 'screen_6400.bin').read_bytes(), struct.pack('<76800H', *background))

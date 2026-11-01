@@ -42,6 +42,7 @@ static uint16_t fixColor(uint16_t p) { return p; }
 static String pagePath(int n) { return "/p" + std::to_string(n) + ".raw"; }
 static std::map<String, std::vector<uint8_t>> g_files;
 static size_t g_fileBytesRead = 0;
+static size_t g_fileOpens = 0;
 static bool g_failCacheRead = false;
 struct File {
   std::vector<uint8_t> *data = nullptr; size_t pos = 0;
@@ -52,9 +53,9 @@ struct File {
     if (g_failCacheRead && pos == 8u+132u*320u*2u) { g_failCacheRead = false; return 0; }
     size_t k = std::min(n, data->size() - pos); memcpy(dst, data->data() + pos, k); pos += k; g_fileBytesRead += k; return k;
   }
-  void close() {}
+  void close() { data = nullptr; pos = 0; }
 };
-struct FS { File open(const String &path, const char *) { File f; auto it = g_files.find(path); if (it != g_files.end()) f.data = &it->second; return f; } } LittleFS;
+struct FS { File open(const String &path, const char *) { g_fileOpens++; File f; auto it = g_files.find(path); if (it != g_files.end()) f.data = &it->second; return f; } } LittleFS;
 static uint16_t g_screen[320 * 240];
 static int g_pushes = 0;
 struct TFT {
@@ -89,6 +90,7 @@ int main(int argc, char **argv) {
   if (capture < (precise ? 10u : 40u)) return 4;
   if (precise && argc > 6 && !animationClock.setSpeed(0, atoi(argv[6]))) return 5;
   if (precise && argc > 7 && strcmp(argv[7], "partial_cache") == 0) ESP.freeBytes = 128000;
+  if (precise && argc > 7 && strcmp(argv[7], "tight_compact") == 0) ESP.freeBytes = 122000;
   if (precise && argc > 7 && strcmp(argv[7], "no_cache") == 0) ESP.freeBytes = 80000;
   if (precise && argc > 7 && strcmp(argv[7], "recover_cache") == 0) ESP.freeBytes = 80000;
   if (precise && argc > 7 && strcmp(argv[7], "fragmented_cache") == 0) ESP.maxBytes = 16000;
@@ -99,8 +101,10 @@ int main(int argc, char **argv) {
   bool ok = readAnim(file, 320, 240);
   printf("readAnim=%d sprites=%d stars=%d meteor=%d region=%zu\n", ok, spriteCount, animStarCount, meteor.present, regionPixels);
   printf("wave=%d waveTexture=%u\n", (int)ocean.active, ocean.active ? ocean.offsets[WAVE_ROWS-1]+320-ocean.starts[WAVE_ROWS-1] : 0u);
+  printf("beachStreamed=%d\n", (int)ocean.streamFilm);
   const int beachCacheRows = ocean.cachedRows;
   g_fileBytesRead = 0;
+  g_fileOpens = 0;
   if (precise && argc > 7 && strcmp(argv[7], "no_lut") == 0 && ocean.clampLut) {
     free(ocean.clampLut); ocean.clampLut = nullptr; // simulate constrained memory
   }
@@ -116,7 +120,13 @@ int main(int argc, char **argv) {
   for (unsigned long t = increment; t <= total; t += increment) {
     g_now = t;
     if (precise && argc > 7 && strcmp(argv[7], "recover_cache") == 0 && t >= 1000) ESP.freeBytes = 128000;
-    animTick(t);
+    // An actual beach frame takes longer than the harness's 5 ms clock. Only
+    // draw the captured instants; the clock-driven scene skips the same way
+    // when hardware is busy, without spending minutes rendering unseen frames.
+    const bool observeCadence = precise && argc > 7 && strcmp(argv[7], "observe_cadence") == 0;
+    if (observeCadence) {
+      if (beachFrameDue(t)) animTick(t);  // same pacing decision as the board loop
+    } else if (!(precise && ocean.active) || t % capture == 0) animTick(t);
     // SCRO tests need the frame at the actual timestamp, not the last frame
     // before the next capture boundary: there may now be intermediate poses.
     if (precise || scrolling.active) {
@@ -130,7 +140,9 @@ int main(int argc, char **argv) {
   printf("pushes=%d meteorActive=%d\n", g_pushes, (int)meteor.active);
   printf("beachCacheRows=%d renderReadBytes=%zu\n", beachCacheRows, g_fileBytesRead);
   printf("beachFinalCacheRows=%u cacheStatus=%u cacheAttemptAt=%lu\n", ocean.cachedRows, waveCacheStatus, waveCacheAttemptAt);
+  printf("animationFileOpens=%zu\n", g_fileOpens);
   freeAnim();
+  printf("animationFileClosed=%d\n", !oceanFile);
   return 0;
 }
 '''

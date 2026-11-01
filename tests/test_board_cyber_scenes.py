@@ -197,6 +197,43 @@ class CyberSceneTests(unittest.TestCase):
                 self.assertEqual(claude.args[1], 'claude')
                 self.assertIsNone(claude.args[3])
 
+    def test_signs_show_each_weekly_reset_and_hide_stale_values(self):
+        data = deepcopy(self.data)
+        data['accounts']['codex']['windows'][0]['resets_at'] = 1000 + 3 * 86400 + 2 * 3600
+        data['accounts']['claude']['windows'][0]['resets_at'] = 1000 + 6 * 86400 + 23 * 3600
+        data['accounts']['claude']['windows'].insert(0, {
+            'label': '5H', 'used_percent': 99, 'resets_at': 1000 + 3600,
+        })
+        for scene in city.FILES:
+            with self.subTest(scene=scene), patch('time.time', return_value=1000), \
+                    patch.object(city, 'sign', wraps=city.sign) as signs:
+                city.render_city(scene, data)
+                codex, claude = signs.call_args_list
+                self.assertEqual((codex.args[2], codex.args[5]), (50, '3d 2h'))
+                self.assertEqual((claude.args[2], claude.args[5]), (75, '6d 23h'))
+            stale = deepcopy(data)
+            stale['accounts']['claude']['status'] = 'stale'
+            with patch('time.time', return_value=1000), patch.object(city, 'sign', wraps=city.sign) as signs:
+                city.render_city(scene, stale)
+                self.assertEqual((signs.call_args_list[1].args[2], signs.call_args_list[1].args[5]), (None, '--'))
+
+    def test_animation_pixels_never_cover_city_signs(self):
+        for scene in city.FILES:
+            _, payload = city.render_city(scene, self.data, animated=True)
+            for sprite in board_anim.decode(payload)['sprites']:
+                for frame_index, dx, dy in sprite['script']:
+                    frame = sprite['frames'][frame_index]
+                    for i, pixel in enumerate(frame):
+                        if pixel == board_anim.KEY:
+                            continue
+                        x = sprite['x'] + dx + i % sprite['w'] * 2
+                        y = sprite['y'] + dy + i // sprite['w'] * 2
+                        self.assertFalse(y + 1 >= city.SIGN_TOP and (x + 1 >= 251 or x <= 71), (scene, x, y))
+
+    def test_reset_signs_are_above_the_firmware_page_and_rotation_indicators(self):
+        # Firmware draws the rotation marker and page dots in the bottom 10px.
+        self.assertLessEqual(city.SIGN_TOP + city.SIGN_HEIGHT, 230)
+
     def test_gallery_uses_current_snapshot_and_invalidates_stale_cache(self):
         control = BoardControl(None)
         first = control.archive_preview('neon-district', self.data)

@@ -23,8 +23,9 @@ Paradise beach. Choose the slot and the version you want, then confirm
 later. A slot keeps its animation speed when you replace its screen.
 
 To change the order in which the eight screens appear on the display, choose
-**Reorder screens**. Drag the previews, or use the arrows, and select **Save
-order**. Cancel leaves the current order unchanged. The computer saves the
+**Reorder screens**. Drag the tiles into place, or tap one tile and then its
+new position, and select **Save order**. Keyboard users can focus a tile and
+move it with the arrow keys. Cancel leaves the current order unchanged. The computer saves the
 new order across restarts and sends the changed slots to the display; queued
 slots are retried if it is offline. Animation speed stays with each numbered
 slot, so check those settings after moving a screen if you use custom speeds.

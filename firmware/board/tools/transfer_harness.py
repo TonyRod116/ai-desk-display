@@ -49,7 +49,8 @@ static void animTick(unsigned long t) {
   if (scrolling.active && slowScroll) now+=43; // measured board composition time
   if (ocean.active) { waveLastUs = slowWave ? 240000 : 20000; if (slowWave) now+=240; }
 }
-static void drawPage() { draws++; lastDraw=now; }
+static void freeAnim();
+static void drawPage() { freeAnim(); draws++; lastDraw=now; }
 static RotationClock rotationClock;
 static uint32_t heldSince=0,confirmationUntil=0;
 static unsigned long tapCount=0,longCount=0;
@@ -76,7 +77,8 @@ struct File {
   size_t write(const uint8_t* p,size_t n) { data->insert(data->end(),p,p+n); now+=15; return n; }
   void close() { data=nullptr; }
 };
-static File uploadFile;
+static File uploadFile, oceanFile;
+static void freeAnim() { if (oceanFile) oceanFile.close(); }
 struct FS {
   bool exists(String p) { return files.count(p); }
   File open(String p,const char* mode) {
@@ -136,6 +138,10 @@ int main(int argc,char** argv) {
   if(mode=="touch_mode") { touchStart=1100; touchEnd=3250; }
   if(mode=="touch_connect") { touchStart=1100; touchEnd=6250; }
   if(mode=="upload" || mode=="touch_upload") {
+    // Paradise holds the current page open between frames. Replacing that
+    // page must release the handle before removing its old flash file.
+    oceanFile = LittleFS.open(pagePath(page), "r");
+    assert(oceanFile);
     server.u.status=UPLOAD_FILE_START; handlePageUpload();
     for(size_t i=0;i<expected.size();i+=1024) {
       server.u.status=UPLOAD_FILE_WRITE; server.u.currentSize=std::min(size_t(1024),expected.size()-i);
@@ -143,6 +149,7 @@ int main(int argc,char** argv) {
     }
     server.u.status=UPLOAD_FILE_END; handlePageUpload(); handlePageUploadDone();
     assert(status==200 && files[pagePath(5)]==expected);
+    assert(!oceanFile);
     assert(ticks>100 && maxGap<=40);
     assert(draws==1 && !redrawPending);
     assert(!indicatorMaskValid);

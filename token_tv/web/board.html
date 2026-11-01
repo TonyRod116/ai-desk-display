@@ -66,8 +66,9 @@
     <dialog id="order-dialog" aria-labelledby="order-title">
       <form id="order-form">
         <div class="dialog-head"><div><p class="eyebrow">YOUR SCREENS</p><h2 id="order-title">Reorder screens</h2></div><button class="dialog-close" type="button" aria-label="Close">×</button></div>
-        <p>Drag the screens or use the arrows to choose their order.</p>
-        <div id="order-grid" class="order-grid" role="list" aria-label="Screen order"></div>
+        <p>Drag a screen into place, or tap it and then its new position.</p>
+        <p class="visually-hidden" id="order-keyboard-help">Keyboard: use the arrow keys to move a focused screen.</p>
+        <div id="order-grid" class="order-grid" role="group" aria-label="Screen order" aria-describedby="order-keyboard-help"></div>
         <div class="order-footer">
           <p class="order-hint">Animation speed stays with the position.</p>
           <p id="order-note" role="status" aria-live="polite"></p>

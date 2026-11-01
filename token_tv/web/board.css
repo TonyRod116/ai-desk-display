@@ -45,3 +45,16 @@ dialog{width:min(460px,calc(100% - 32px));max-height:calc(100% - 32px);overflow:
 @media(max-width:700px){#order-form{padding:20px 18px 0}.order-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}}
 @media(max-width:500px){.section-heading{align-items:flex-start;flex-direction:column;gap:13px}.screen-heading-actions{width:100%;justify-content:space-between}.order-footer{grid-template-columns:1fr}.order-footer .dialog-actions{grid-column:1;grid-row:auto}#order-dialog .order-hint{max-width:34ch}}
 @media(max-width:350px){.order-details{align-items:stretch;flex-direction:column;gap:7px}.order-moves{justify-content:flex-end}}
+
+/* Tiles follow the pointer on desktop and touch screens. */
+.order-card{width:100%;padding:0;text-align:left;color:var(--text);touch-action:none;user-select:none;-webkit-user-select:none;transition:border-color .15s,box-shadow .15s}
+.order-card:hover:not(:disabled),.order-card[aria-pressed=true]{border-color:var(--accent)}
+.order-card[aria-pressed=true]{box-shadow:0 0 0 2px var(--accent)}
+.order-card .library-picture{width:100%}
+.order-card .library-picture img{pointer-events:none}
+.order-card[data-dragging=true]{opacity:.28;outline:2px dashed var(--accent);outline-offset:2px}
+.order-grid.is-dragging,.order-grid.is-dragging *{cursor:grabbing}
+.order-details{min-height:42px;flex-direction:row;align-items:center;gap:8px;padding:10px}
+.order-grip{flex:none;width:14px;height:18px;opacity:.7;background:radial-gradient(circle,#a8bdb0 1.5px,transparent 1.8px) 0 0/6px 6px}
+.order-float{position:fixed;z-index:10000;pointer-events:none;margin:0;opacity:.96;transform:rotate(1.5deg) scale(1.02);box-shadow:0 14px 35px #000b;border-color:var(--accent)}
+@media(prefers-reduced-motion:reduce){.order-card{transition:none}.order-float{transform:none}}

@@ -44,7 +44,8 @@
     'Loading preview…':'Cargando vista previa…', 'Preview unavailable':'Vista previa no disponible',
     'Choose a screen':'Elige una pantalla',
     'YOUR SCREENS':'TUS PANTALLAS', 'Reorder screens':'Ordenar pantallas',
-    'Drag the screens or use the arrows to choose their order.':'Arrastra las pantallas o usa las flechas para elegir su orden.',
+    'Drag a screen into place, or tap it and then its new position.':'Arrastra una pantalla hasta su sitio o tócala y después toca la nueva posición.',
+    'Keyboard: use the arrow keys to move a focused screen.':'Teclado: usa las flechas para mover la pantalla seleccionada.',
     'Screen order':'Orden de las pantallas', 'Animation speed stays with the position.':'La velocidad de animación se conserva en cada posición.',
     'Save order':'Guardar orden', 'Saving order…':'Guardando el orden…',
     'Order saved · waiting for the display to receive the screens.':'Orden guardado · esperando a que las pantallas lleguen al dispositivo.',
@@ -115,8 +116,8 @@
     '5-hour window':'Periodo de 5 horas', 'Weekly window':'Periodo semanal', 'CLI budget window':'Periodo del presupuesto CLI'
   };
   const rules = [
-    [/^Move (.+) earlier$/, (_, name) => `Mover ${name} antes`],
-    [/^Move (.+) later$/, (_, name) => `Mover ${name} después`],
+    [/^(.+), position (\d+) of 8$/, (_, name, n) => `${name}, posición ${n} de 8`],
+    [/^Selected (.+)\. Choose its new position\.$/, (_, name) => `${name} seleccionada. Elige su nueva posición.`],
     [/^Moved (.+) to position (\d+) of 8\.$/, (_, name, n) => `${name} se ha movido a la posición ${n} de 8.`],
     [/^Change screen (\d+): (.+)$/, (_, n, name) => `Cambiar pantalla ${n}: ${name}`],
     [/^Change screen (\d+)$/, (_, n) => `Cambiar pantalla ${n}`],

@@ -28,7 +28,8 @@ const orderSave = orderDialog.querySelector('.dialog-save');
 const orderOpen = document.getElementById('reorder-open');
 let orderOriginal = null;
 let orderDraft = [];
-let dragged = null;
+let orderDrag = null;
+let orderSelected = null;
 
 function sceneName(id, fallback) {
   return latest?.scene_catalog?.find(scene => scene.id === id)?.name || fallback;
@@ -160,17 +161,31 @@ function orderIsStale() {
   return !Array.isArray(latest?.scene_ids) || JSON.stringify(latest.scene_ids) !== JSON.stringify(orderOriginal);
 }
 
-function drawOrder(focusIndex = null, direction = null) {
+function drawOrder(focusIndex = null) {
+  const existing = new Map([...orderGrid.children].map(card => [Number(card.dataset.original), card]));
   orderGrid.replaceChildren();
   orderDraft.forEach((originalIndex, index) => {
     const scene = orderOriginal[originalIndex];
     const name = sceneName(scene, defaultNames[originalIndex]);
-    const card = document.createElement('div');
-    card.className = 'order-card'; card.draggable = true; card.dataset.original = String(originalIndex);
-    card.setAttribute('role', 'listitem');
-    const picture = document.createElement('div'); picture.className = 'library-picture';
+    const previous = existing.get(originalIndex);
+    if (previous) {
+      previous.disabled = sending;
+      previous.setAttribute('aria-label', `${name}, position ${index + 1} of 8`);
+      previous.setAttribute('aria-pressed', String(orderSelected === originalIndex));
+      previous.querySelector('.order-position').textContent = String(index + 1).padStart(2, '0');
+      delete previous.dataset.dragging;
+      orderGrid.append(previous);
+      if (originalIndex === focusIndex) requestAnimationFrame(() => previous.focus({preventScroll:true}));
+      return;
+    }
+    const card = document.createElement('button');
+    card.type = 'button'; card.className = 'order-card'; card.dataset.original = String(originalIndex);
+    card.disabled = sending;
+    card.setAttribute('aria-label', `${name}, position ${index + 1} of 8`);
+    card.setAttribute('aria-pressed', String(orderSelected === originalIndex));
+    const picture = document.createElement('span'); picture.className = 'library-picture';
     const placeholder = document.createElement('span'); placeholder.className = 'library-placeholder'; placeholder.textContent = 'Loading preview…';
-    const img = document.createElement('img'); img.alt = ''; img.width = 320; img.height = 240; img.hidden = true;
+    const img = document.createElement('img'); img.alt = ''; img.width = 320; img.height = 240; img.hidden = true; img.draggable = false;
     const libraryUrl = `/board/library/${encodeURIComponent(scene)}.${previewExtension}?v=${previewVersion}`;
     const confirmed = !latest?.scene_pending?.[originalIndex] && latest?.scene_delivered_ids?.[originalIndex] === scene;
     let usingLibrary = !confirmed;
@@ -182,56 +197,121 @@ function drawOrder(focusIndex = null, direction = null) {
     img.src = confirmed ? previewUrl(originalIndex) : libraryUrl;
     const position = document.createElement('span'); position.className = 'order-position'; position.textContent = String(index + 1).padStart(2, '0');
     picture.append(placeholder, img, position);
-    const details = document.createElement('div'); details.className = 'order-details';
+    const details = document.createElement('span'); details.className = 'order-details';
     const title = document.createElement('strong'); title.textContent = name;
-    const moves = document.createElement('div'); moves.className = 'order-moves';
-    for (const [delta, symbol, word] of [[-1, '←', 'earlier'], [1, '→', 'later']]) {
-      const button = document.createElement('button'); button.type = 'button'; button.textContent = symbol;
-      button.dataset.direction = word; button.setAttribute('aria-label', `Move ${name} ${word}`);
-      button.disabled = sending || index + delta < 0 || index + delta >= orderDraft.length;
-      button.addEventListener('click', () => moveOrder(index, index + delta, word));
-      moves.append(button);
-    }
-    details.append(title, moves); card.append(picture, details);
-    card.addEventListener('dragstart', event => {
-      if (sending) { event.preventDefault(); return; }
-      dragged = originalIndex; event.dataTransfer.effectAllowed = 'move';
-      event.dataTransfer.setData('text/plain', String(originalIndex)); card.dataset.dragging = 'true';
-    });
-    card.addEventListener('dragend', () => { dragged = null; orderGrid.querySelectorAll('.order-card').forEach(item => { delete item.dataset.dragging; delete item.dataset.over; }); });
-    card.addEventListener('dragover', event => { if (dragged !== null && dragged !== originalIndex) { event.preventDefault(); event.dataTransfer.dropEffect = 'move'; card.dataset.over = 'true'; } });
-    card.addEventListener('dragleave', () => { delete card.dataset.over; });
-    card.addEventListener('drop', event => {
-      event.preventDefault(); delete card.dataset.over;
-      const from = orderDraft.indexOf(dragged); dragged = null;
-      if (from >= 0 && from !== index) moveOrder(from, index);
+    const grip = document.createElement('span'); grip.className = 'order-grip'; grip.setAttribute('aria-hidden', 'true');
+    details.append(title, grip); card.append(picture, details);
+    card.addEventListener('click', event => { if (event.detail === 0) selectOrderTile(originalIndex); });
+    card.addEventListener('keydown', event => {
+      const columns = getComputedStyle(orderGrid).gridTemplateColumns.split(' ').length;
+      const delta = {ArrowLeft:-1, ArrowRight:1, ArrowUp:-columns, ArrowDown:columns}[event.key];
+      if (delta === undefined) return;
+      event.preventDefault(); orderSelected = null;
+      moveOrder(orderDraft.indexOf(originalIndex), orderDraft.indexOf(originalIndex) + delta);
     });
     orderGrid.append(card);
-    if (originalIndex === focusIndex) {
-      const target = moves.querySelector(`[data-direction="${direction}"]:not(:disabled)`) || moves.querySelector('button:not(:disabled)');
-      if (target) requestAnimationFrame(() => target.focus({preventScroll:true}));
-    }
+    if (originalIndex === focusIndex) requestAnimationFrame(() => card.focus({preventScroll:true}));
   });
   orderSave.disabled = sending || orderIsStale() || orderDraft.every((original, index) => original === index);
 }
 
-function moveOrder(from, to, direction = null) {
+function moveOrder(from, to) {
   if (sending || from === to || to < 0 || to >= orderDraft.length) return;
   const [original] = orderDraft.splice(from, 1); orderDraft.splice(to, 0, original);
   orderNote.dataset.error = 'false';
   orderNote.textContent = `Moved ${sceneName(orderOriginal[original], defaultNames[original])} to position ${to + 1} of 8.`;
-  drawOrder(original, direction);
+  drawOrder(original);
 }
+
+function selectOrderTile(original) {
+  if (sending || orderIsStale()) return;
+  if (orderSelected === null) {
+    orderSelected = original;
+    orderNote.textContent = `Selected ${sceneName(orderOriginal[original], defaultNames[original])}. Choose its new position.`;
+    drawOrder(original);
+  } else if (orderSelected === original) {
+    orderSelected = null; orderNote.textContent = ''; drawOrder(original);
+  } else {
+    const from = orderDraft.indexOf(orderSelected), to = orderDraft.indexOf(original);
+    orderSelected = null; moveOrder(from, to);
+  }
+}
+
+function placeDraggedCard(x, y) {
+  const target = document.elementFromPoint(x, y)?.closest('.order-card');
+  if (!target || target.parentElement !== orderGrid || target === orderDrag.card) return;
+  const cards = [...orderGrid.children];
+  const from = cards.indexOf(orderDrag.card), to = cards.indexOf(target);
+  orderGrid.insertBefore(orderDrag.card, from < to ? target.nextSibling : target);
+}
+
+function scrollWhileDragging() {
+  if (!orderDrag?.ghost) return;
+  const top = orderDialog.getBoundingClientRect().top + 50;
+  const bottom = orderDialog.querySelector('.order-footer').getBoundingClientRect().top - 22;
+  const y = orderDrag.y;
+  const amount = y < top ? -Math.min(14, (top - y) / 2) : y > bottom ? Math.min(14, (y - bottom) / 2) : 0;
+  if (amount) { orderDialog.scrollTop += amount; placeDraggedCard(orderDrag.x, y); }
+  orderDrag.scrollFrame = requestAnimationFrame(scrollWhileDragging);
+}
+
+orderGrid.addEventListener('pointerdown', event => {
+  const card = event.target.closest('.order-card');
+  if (!card || sending || orderIsStale() || !event.isPrimary || event.button !== 0) return;
+  const rect = card.getBoundingClientRect();
+  orderDrag = {card, pointer: event.pointerId, x: event.clientX, y: event.clientY,
+    startX: event.clientX, startY: event.clientY, offsetX: event.clientX - rect.left,
+    offsetY: event.clientY - rect.top, width: rect.width, height: rect.height, ghost: null};
+  orderGrid.setPointerCapture(event.pointerId);
+});
+orderGrid.addEventListener('pointermove', event => {
+  if (!orderDrag || event.pointerId !== orderDrag.pointer) return;
+  orderDrag.x = event.clientX; orderDrag.y = event.clientY;
+  if (!orderDrag.ghost && Math.hypot(event.clientX - orderDrag.startX, event.clientY - orderDrag.startY) >= 7) {
+    orderSelected = null;
+    const ghost = orderDrag.card.cloneNode(true);
+    ghost.classList.add('order-float'); ghost.setAttribute('aria-hidden', 'true'); ghost.tabIndex = -1;
+    ghost.style.width = `${orderDrag.width}px`; ghost.style.height = `${orderDrag.height}px`;
+    orderDialog.append(ghost); orderDrag.ghost = ghost;
+    orderDrag.card.dataset.dragging = 'true'; orderGrid.classList.add('is-dragging');
+    orderDrag.scrollFrame = requestAnimationFrame(scrollWhileDragging);
+  }
+  if (orderDrag.ghost) {
+    event.preventDefault();
+    orderDrag.ghost.style.left = `${event.clientX - orderDrag.offsetX}px`;
+    orderDrag.ghost.style.top = `${event.clientY - orderDrag.offsetY}px`;
+    placeDraggedCard(event.clientX, event.clientY);
+  }
+});
+function finishOrderDrag(event, cancel = false) {
+  if (!orderDrag || event.pointerId !== orderDrag.pointer) return;
+  const {card, ghost, scrollFrame} = orderDrag;
+  const original = Number(card.dataset.original);
+  if (scrollFrame) cancelAnimationFrame(scrollFrame);
+  ghost?.remove(); orderGrid.classList.remove('is-dragging'); orderDrag = null;
+  if (!ghost && !cancel) { selectOrderTile(original); return; }
+  if (ghost && !cancel) {
+    const next = [...orderGrid.children].map(item => Number(item.dataset.original));
+    const from = orderDraft.indexOf(original), to = next.indexOf(original);
+    if (from !== to) { moveOrder(from, to); return; }
+  }
+  drawOrder(original);
+}
+orderGrid.addEventListener('pointerup', event => finishOrderDrag(event));
+orderGrid.addEventListener('pointercancel', event => finishOrderDrag(event, true));
+orderGrid.addEventListener('lostpointercapture', event => finishOrderDrag(event, true));
 
 orderOpen.addEventListener('click', () => {
   if (!Array.isArray(latest?.scene_ids) || latest.scene_ids.length !== defaultNames.length || latest.scene_settings_error) return;
-  orderOriginal = [...latest.scene_ids]; orderDraft = orderOriginal.map((_, index) => index);
+  orderOriginal = [...latest.scene_ids]; orderDraft = orderOriginal.map((_, index) => index); orderSelected = null;
+  orderGrid.replaceChildren();  // Reload previews when the saved screens may have changed.
   orderNote.textContent = ''; orderNote.dataset.error = 'false';
   drawOrder(); orderDialog.showModal(); orderDialog.scrollTop = 0;
   orderDialog.querySelector('.dialog-close').focus({preventScroll:true});
 });
 orderDialog.querySelectorAll('.dialog-close, .dialog-cancel').forEach(button => button.addEventListener('click', () => { if (!sending) orderDialog.close(); }));
 orderDialog.addEventListener('cancel', event => { if (sending) event.preventDefault(); });
+orderDialog.addEventListener('close', () => { if (orderDrag) finishOrderDrag({pointerId:orderDrag.pointer}, true); });
 document.getElementById('order-form').addEventListener('submit', async event => {
   event.preventDefault();
   if (sending || orderIsStale() || orderSave.disabled) return;
