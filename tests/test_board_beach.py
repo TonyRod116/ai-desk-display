@@ -232,14 +232,47 @@ class BeachFilmTests(unittest.TestCase):
                 self.assertEqual((film.mode, film.size), ('P', (160, 54 * 48)))
                 values = film.tobytes()
                 colours = film.convert('RGB')
-                start = colours.getpixel((80, 35))
-                end = colours.getpixel((80, 24 * 54 + 35))
+                # The extra foam from the latter source frames has moved
+                # toward the beach in the perspective-aware version.
+                start = colours.getpixel((65, 35))
+                end = colours.getpixel((65, 24 * 54 + 35))
             stride = 160 * 54
             self.assertEqual(values[stride:2 * stride], values[47 * stride:48 * stride])
             self.assertGreater(sum(abs(a - b) for a, b in zip(start, end)), 30,
                                'the wave reaches the end of the source before returning')
             with self.assertRaises(FileExistsError):
                 prepare_smooth(source, out)
+
+    def test_smooth_preparation_uses_a_valid_palette_when_full_colour_is_too_large(self):
+        from tools.prepare_paradise_smooth import prepare_smooth
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            pictures = []
+            for phase in range(25):
+                frame = Image.new('RGB', (384, 480), (65, 145, 160))
+                ImageDraw.Draw(frame).rectangle((110 + phase, 345, 125 + phase, 365), fill=(225, 220, 210))
+                pictures.append(frame)
+            source = root / 'source.gif'
+            pictures[0].save(source, save_all=True, append_images=pictures[1:], duration=70, loop=0,
+                             optimize=False)
+            encode = board_beach._encode_smooth
+            attempts = []
+
+            def reject_first(palette, frames):
+                attempts.append(1)
+                if len(attempts) == 1:
+                    raise ValueError('Simulated board capacity')
+                return encode(palette, frames)
+
+            with patch('tools.prepare_paradise_smooth.board_beach._encode_smooth', side_effect=reject_first):
+                target = prepare_smooth(source, root / 'out')
+            self.assertGreaterEqual(len(attempts), 2)
+            with Image.open(target) as film:
+                palette = film.getpalette()
+                self.assertEqual(len(palette), 768)
+                words = tuple(board_beach._word(palette[i:i + 3]) for i in range(0, 768, 3))
+                payload = encode(words, film.tobytes())
+            self.assertEqual(board_beach.decode(payload)['frame_count'], 48)
 
     def test_damaged_optional_boat_does_not_disable_the_beach(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -333,13 +366,13 @@ class NativeBeachFilmTests(unittest.TestCase):
             for mode in ('full_cache', 'no_cache'):
                 folder = root / mode
                 folder.mkdir()
-                result = subprocess.run([str(exe), str(page), str(folder), '3200', '200', 'precise', '100', mode],
+                result = subprocess.run([str(exe), str(page), str(folder), '6400', '200', 'precise', '100', mode],
                                         capture_output=True, text=True)
                 self.assertEqual(result.returncode, 0, result.stderr)
                 self.assertIn('wave=1', result.stdout)
-                self.assertLess(int(re.search(r'pushedPixels=(\d+)', result.stdout).group(1)), 16 * 320 * 108 // 2)
-                for tick in (1, 4, 8, 15, 16):
-                    step = (tick * 200 % 3200) * (48 * 128) // 3200
+                self.assertLess(int(re.search(r'pushedPixels=(\d+)', result.stdout).group(1)), 32 * 320 * 108 // 2)
+                for tick in (1, 4, 8, 15, 16, 24, 32):
+                    step = (tick * 200 % 6400) * (48 * 128) // 6400
                     expected = board_beach.render_words(background, film, step, water_substeps=128)
                     self.assertEqual((folder / f'screen_{tick}.bin').read_bytes(), struct.pack('<76800H', *expected), tick)
 

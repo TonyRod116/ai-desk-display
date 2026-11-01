@@ -30,7 +30,7 @@ Back up any existing files in that directory before replacing them. The source
 GIF and prepared files stay on your computer; if the prepared set is missing or
 invalid, the bundled beach remains available.
 
-For the supported beach GIF, a compatible board with firmware 40 can also use
+For the supported beach GIF, a compatible board with firmware 40 or later can also use
 more of the original motion. Once the regular background and water are in place,
 prepare an optional 48-position shoreline loop locally:
 
@@ -39,8 +39,9 @@ python -m tools.prepare_paradise_smooth ./my-beach.gif
 ```
 
 This creates `water48.png` alongside the other private files without replacing
-them. The shoreline samples the entire source GIF before returning over the same
-3.2-second cycle; identical return frames share storage. The rest of the
+them. The shoreline samples the entire source GIF and carries its moving foam
+farther onto the sand, adjusting its reach with the perspective of the beach.
+Identical return frames share storage. The rest of the
 photograph, including the boat, stays still. For a different shoreline,
 `--mask` accepts a local 320 × 108 grayscale mask; `--output` selects another
 directory. The new film is optional:
@@ -48,15 +49,16 @@ older boards, an absent or oversized film, and an animated `boat.png` continue
 to use the existing eight-frame animation. Back up `water48.png` before using
 `--replace`.
 
-Firmware 40 samples the water according to the animation clock and spreads small
+Firmware 40 and later sample the water according to the animation clock and spread small
 color changes across the image, so large groups of pixels do not change at the
 same instant. It redraws only the bands and horizontal regions that can actually
 change; still areas of the photo stay untouched. On compatible boards the main
 loop aims for 20 ms between water frames, up to 50 frames per second when the
-device can keep up. The water keeps its 3.2-second cycle and an optional moving
-boat its 6.4-second cycle at normal speed; the speed control still works.
-The source-frame colors and the loop seam remain exact. Older WAVE2 animations
-retain their original appearance.
+device can keep up. Firmware 41 plays this film over a calmer 6.4-second cycle
+at normal speed (firmware 40 uses 3.2 seconds); the speed control still works.
+The older optional boat animation keeps its own 6.4-second cycle.
+The prepared frame colors are preserved and the loop returns cleanly to its
+first frame. Older WAVE2 animations retain their original appearance.
 
 When memory permits, the board caches the sharp photograph in separate bands and
 keeps only the needed water-film frames in memory. The film is compacted in place

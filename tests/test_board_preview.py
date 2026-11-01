@@ -70,7 +70,7 @@ class AnimatedPreviewTests(unittest.TestCase):
             self.assertEqual(call.args[2], i * 2 % 64)
             self.assertEqual(call.kwargs['boat_step'], i)
 
-    def test_smooth_beach_preview_preserves_the_three_point_two_second_loop(self):
+    def test_smooth_beach_preview_preserves_the_six_point_four_second_loop(self):
         from token_tv.board_preview import _sequence
         background = Image.new('RGB', (320, 240), '#407080')
         palette = tuple(board_anim.rgb565((i, i, 255)) for i in range(256))
@@ -83,8 +83,8 @@ class AnimatedPreviewTests(unittest.TestCase):
             self.assertEqual(sum(1 for _ in sequence), 64)
         self.assertEqual(duration, 100)
         for i, call in enumerate(draw.call_args_list):
-            self.assertEqual(call.args[2], i * 12)
-        self.assertEqual(draw.call_args_list[32].args[2] % (48 * 8), 0)
+            self.assertEqual(call.args[2], i * 6)
+        self.assertEqual(draw.call_args_list[32].args[2], 24 * 8)
 
     def test_missing_webp_support_falls_back_to_a_still_without_board_access(self):
         control = BoardControl(None)

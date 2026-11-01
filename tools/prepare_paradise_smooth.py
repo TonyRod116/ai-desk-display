@@ -15,11 +15,36 @@ def _default_mask():
     pixels = mask.load()
     for y in range(board_beach.ROWS):
         shore = _shore(board_beach.TOP + y)
+        # The beach gets wider towards the foreground; let the wash reach
+        # farther across the sand there while keeping the distant water still.
+        reach = 36 + 36 * y / (board_beach.ROWS - 1)
         for x in range(320):
             distance = x - shore
-            alpha = min(1, max(0, (distance + 36) / 16), max(0, (80 - distance) / 20))
+            alpha = min(1, max(0, (distance + reach) / 16), max(0, (45 - distance) / 18))
             pixels[x, y] = round(alpha * 255)
     return mask.filter(ImageFilter.GaussianBlur(2))
+
+
+def _shoreline_blend():
+    """Move the filmed foam near the beach without dragging the open sea."""
+    blend = Image.new('L', (board_beach.WIDTH, board_beach.HEIGHT))
+    pixels = blend.load()
+    for y in range(board_beach.HEIGHT):
+        shore = _shore(board_beach.TOP + 2 * y + 1)
+        for x in range(board_beach.WIDTH):
+            distance = 2 * x + 1 - shore
+            pixels[x, y] = round(255 * max(0, min(1, (80 - distance) / 35)))
+    return blend
+
+
+def _advance_shoreline(difference, progress, blend):
+    """Carry the original moving water farther over the sand, in perspective."""
+    shifted = difference.transform(
+        difference.size, Image.Transform.AFFINE,
+        (1, 13 * progress / (board_beach.HEIGHT - 1), 7 * progress, 0, 1, 0),
+        resample=Image.Resampling.BICUBIC, fillcolor=(128, 128, 128),
+    )
+    return Image.composite(shifted, difference, blend)
 
 
 def prepare_smooth(source, destination, *, mask_path=None, replace=False):
@@ -71,17 +96,20 @@ def prepare_smooth(source, destination, *, mask_path=None, replace=False):
     else:
         mask = _default_mask()
     mask = mask.resize((board_beach.WIDTH, board_beach.HEIGHT), Image.Resampling.LANCZOS)
+    shoreline_blend = _shoreline_blend()
     neutral = Image.new('RGB', mask.size, (128, 128, 128))
     film = Image.new('RGB', (board_beach.WIDTH, board_beach.HEIGHT * board_beach.SMOOTH_FRAMES))
     for phase in range(board_beach.SMOOTH_FRAMES):
         index = round(min(phase, board_beach.SMOOTH_FRAMES - phase) * last / 24)
         difference = ImageChops.subtract(crops[index], crops[0], scale=1, offset=128)
+        difference = _advance_shoreline(difference, index / last, shoreline_blend)
         film.paste(Image.composite(difference, neutral, mask), (0, phase * board_beach.HEIGHT))
 
     prepared = None
     for colors in (256, 128, 64, 32):
         candidate = film.quantize(colors=colors, method=Image.Quantize.MEDIANCUT, dither=Image.Dither.NONE)
-        palette = candidate.getpalette()
+        palette = (candidate.getpalette() + [0] * 768)[:768]
+        candidate.putpalette(palette)
         words = tuple(board_beach._word(palette[i:i + 3]) for i in range(0, 768, 3))
         try:
             board_beach._encode_smooth(words, candidate.tobytes())

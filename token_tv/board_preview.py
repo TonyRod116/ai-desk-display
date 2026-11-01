@@ -102,10 +102,10 @@ def _sequence(frame):
             def waves():
                 for i in range(count):
                     step = i * 64 // count
-                    # WAVE3 plays two water cycles during one boat cycle on
-                    # the board. The preview must use that same clock.
+                    # WAVE3 plays two water cycles during one boat cycle;
+                    # WAVE4's calmer water uses the whole preview cycle.
                     if spec.get('version') == 4:
-                        water_step = i * spec['frame_count'] * 8 * 2 // count
+                        water_step = i * spec['frame_count'] * 8 // count
                     else:
                         water_step = (step * 2) % 64 if spec.get('version') == 3 else step
                     words = (render(background, spec, water_step, boat_step=step)
