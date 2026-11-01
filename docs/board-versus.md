@@ -23,4 +23,9 @@ available in the [screen library](board-control.md).
 The included arena works on its own. You may optionally supply a different
 local stage and ambient art; no game graphics are shipped or downloaded. If the
 optional files are missing or invalid, the display falls back to the bundled
-scene. Use assets you have permission to use.
+scene. Use assets you have permission to use. Place an RGB `stage.png`
+(320 × 240) and two sets of four transparent RGBA frames in
+`~/.local/share/ai-desk-display/arcade-local/`: `ambient-0-0.png` through
+`ambient-0-3.png` (25 × 14 each), and `ambient-1-0.png` through
+`ambient-1-3.png` (27 × 14 each). The effects have fixed positions, so they
+need to be composed for the chosen stage.

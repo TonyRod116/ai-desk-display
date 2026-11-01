@@ -60,7 +60,7 @@ The **Usage dashboard** can also display any available scene on your computer, a
 
 ![The screen library in the local usage dashboard, showing fictional readings](docs/images/screen-library.png)
 
-Two additional photo scenes, **Violet Horizon** and **Neon District**, become available when you supply the matching local images. The platform, fight and beach scenes also support optional local artwork; the gallery above shows the included alternatives. No game ROMs, extracted game assets or private photo collections are shipped. See [the local control room guide](docs/board-control.md) and [platform artwork format](docs/board-platform.md).
+Two additional photo scenes, **Violet Horizon** and **Neon District**, become available when you supply the matching local images. The platform, fight and beach scenes also support optional local artwork; the gallery above shows the included alternatives. No game ROMs, extracted game assets or private photo collections are shipped. See the guides for the [control room](docs/board-control.md), [platform](docs/board-platform.md), [fight](docs/board-versus.md) and [beach](docs/board-paradise.md).
 
 ### Your display's control room
 
