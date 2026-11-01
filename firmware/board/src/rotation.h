@@ -2,8 +2,12 @@
 #include <stdint.h>
 
 enum class Gesture { None, Page, Mode, Connect };
-inline Gesture gesture(uint32_t held) {
-  return held >= 5000 ? Gesture::Connect : held >= 2000 ? Gesture::Mode :
+inline bool validTouchSeconds(int mode, int connect) {
+  return mode >= 1 && mode <= 4 && connect >= 5 && connect <= 10;
+}
+inline Gesture gesture(uint32_t held, int modeSeconds=2, int connectSeconds=5) {
+  return held >= uint32_t(connectSeconds)*1000 ? Gesture::Connect :
+         held >= uint32_t(modeSeconds)*1000 ? Gesture::Mode :
          held > 30 ? Gesture::Page : Gesture::None;
 }
 

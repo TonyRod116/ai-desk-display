@@ -410,7 +410,8 @@ def board(args):
                 print(f'Board updated over the wifi: {before} -> {after}.')
         except HTTPError as error:
             if error.code in (401, 403):
-                return fail('The board refused it. For an update, hold 5 seconds and release '
+                return fail('The board refused it. For an update, hold for the configured connection time '
+                            '(5 seconds by default) and release '
                             '(2 seconds on firmware 9 or older) to show its address, then repeat.')
             return fail(f'The board answered {error.code}.')
         except (OSError, ValueError) as error:
@@ -531,7 +532,7 @@ def main(argv=None):
     b.add_argument('--check', action='store_true', help='ask the saved board who it is; sends nothing else')
     b.add_argument('--find', action='store_true', help='search the board\'s network for it (after its address changed)')
     b.add_argument('--update', nargs='?', const='auto', metavar='FILE',
-                   help='install firmware over wifi; show its address first (5 s and release; 2 s on firmware <=9)')
+                   help='install firmware over wifi; show its address first (hold 5 s by default and release; 2 s on firmware <=9)')
     b.add_argument('--variant', choices=('cyd', 'cyd_st7789'), default='cyd', help='which built image --update uses')
     b.add_argument('--rotation', type=int, choices=(1, 3), help='landscape either way up, if the screen is upside down')
     b.add_argument('--invert', type=int, choices=(0, 1), help='1 if colours look like a photographic negative')

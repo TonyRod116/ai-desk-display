@@ -1,10 +1,11 @@
-"""Each board page counts its saved resets with an icon of its own (the user, 2026-10-20), with the hearts' meaning."""
+"""Each board page counts its saved resets with an icon of its own (Tony, 2026-10-20), with the hearts' meaning."""
 import unittest
 from unittest.mock import patch
 
 from token_tv import board_reset_icons as icons
 from token_tv.board_arcade import render_arcade
-from token_tv.board_art import render_cockpit, render_countdown
+from token_tv.board_art import render_countdown
+from token_tv.board_platform import render_platform
 from token_tv.board_dials import render_dials
 from token_tv.board_forge import render_forge
 from token_tv.board_paradise import render_paradise
@@ -13,7 +14,7 @@ from token_tv.sample import snapshot
 
 NOW = 1_800_000_000
 PAGES = {'paradise': render_paradise, 'code-forge': render_forge, 'surf': render_surf, 'dials': render_dials,
-         'cockpit': render_cockpit, 'countdown': render_countdown}
+         'cockpit': render_platform, 'countdown': render_countdown}
 
 
 def case(hearts=2, last_known=None):

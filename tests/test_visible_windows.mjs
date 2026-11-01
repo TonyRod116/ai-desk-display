@@ -9,6 +9,8 @@ const body = source.match(/function visibleWindows\(a\) \{[\s\S]*?\n\}\n/)[0];
 const context = {offline: false, Date, Number};
 vm.createContext(context);
 vm.runInContext(body, context);
+const creditFns = source.match(/function formatCredits\(value\) \{[\s\S]*?\n\}\nfunction exhaustedBalance\(a, primary\) \{[\s\S]*?\n\}\n/)[0];
+vm.runInContext(creditFns, context);
 
 const now = () => Date.now() / 1000;
 function account(origin, fiveHourReset, weekReset = now() + 86400) {
@@ -52,4 +54,26 @@ test('codex blocked with explicit exhausted week keeps only its zero', () => {
   ]) assert.equal(labels(changed), '');
   context.offline = true;
   try { assert.equal(labels(a), ''); } finally { context.offline = false; }
+});
+
+test('extra credits appear only for a fresh, verified, exhausted Codex week', () => {
+  const a = {...account('codex_official_cli', now() + 600), provider:'codex', identity_verified:true, credits_balance:'12.345'};
+  a.windows[1].used_percent = 100;
+  const show = row => context.exhaustedBalance(row, context.visibleWindows(row).find(w => w.label === 'WEEK'));
+  assert.equal(show(a), '12.34');
+  assert.equal(show({...a, credits_balance:null}), '?');
+  for (const changed of [
+    {...a, identity_verified:false}, {...a, provider:'claude'}, {...a, quota_origin:'other'},
+    {...a, fetched_at:now() - 181}, {...a, status:'quota_unavailable'},
+    {...a, windows:a.windows.map(w => ({...w, used_percent:99}))},
+  ]) assert.equal(show(changed), null);
+  context.offline = true;
+  try { assert.equal(show(a), null); } finally { context.offline = false; }
+});
+
+test('credit formatting truncates safely and rejects malformed or oversized values', () => {
+  for (const [input, expected] of [['0', '0'], ['12.345', '12.34'], ['0.001', '<0.01'],
+    ['-0.001', '-<0.01'], ['0002.50', '2.5'], ['1000000000', '1000000000'],
+    ['1e6', '?'], ['1000000000.01', '?'], ['0.00000000001', '?'], [null, '?']])
+    assert.equal(context.formatCredits(input), expected, String(input));
 });

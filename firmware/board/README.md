@@ -5,6 +5,9 @@ ESP32-2432S028R, 320×240), with native animation, touch navigation and wall-clo
 rotation. The host sends rendered pages over the local network. The board holds
 no provider accounts or credentials and never contacts AI services itself.
 
+The [local control room](../../docs/board-control.md) lets you choose a scene,
+animation speed, automatic rotation and touch timings from your computer.
+
 ## Build (isolated toolchain, nothing global)
 
     python3 -m venv ~/code/tools/pio-venv && ~/code/tools/pio-venv/bin/pip install platformio
@@ -33,16 +36,37 @@ and open `http://127.0.0.1:8790/flasher/` in Chrome or Edge with the board on US
 
 | Call | Token | Purpose |
 |---|---|---|
-| `GET /info` | no | model, firmware, page slots, `active` (slots cycled), `paired`, `stars`, `anim`, `anim_frames` (maximum stored poses), `anim_active` (engine loaded), `free_heap`, `waves`, `wave_us`/`wave_max_us`, plus uptime, last reset reason, taps, wifi signal, PC silence and current page |
+| `GET /info` | no | model, firmware, page slots, `active` (slots cycled), `paired`, `stars`, `anim`, `anim_frames` (maximum stored poses), `anim_active` (engine loaded), `free_heap`, `waves`, `wave_us`/`wave_max_us`, `scroll`, `scroll_us`/`scroll_max_us`/`scroll_frames`, plus uptime, last reset reason, taps, wifi signal, PC silence and current page |
 | `POST /pair?token=<16 hex>` | only if already paired | an unpaired board is claimed by the first caller (the PC chooses the token) |
 | `POST /update` multipart `file` | yes **and** address screen showing | install a firmware image (`firmware.bin`) over the wifi |
-| `POST /page?n=0..7` multipart `file` | yes | store page n (`TVF1` + w,h u16 LE + RGB565 LE, then optional `STAR`, `ANIM` or `WAVE`; at most 235528 bytes on firmware 14) |
+| `POST /page?n=0..7` multipart `file` | yes | store page n (`TVF1` + w,h u16 LE + RGB565 LE, then optional `STAR`, `ANIM`, `WAVE` or `SCRO`; at most 235528 bytes) |
 | `GET /page?n=` | yes | read it back (the PC verifies every upload) |
 | `POST /ping` | yes | heartbeat, answers one character per page (`1` = stored); without one for 3 minutes the board shows NO DATA |
 | `POST /show?n=` | yes | select a page |
 | `POST /config?rotation=1\|3&invert=0\|1&swaprb=0\|1&swapbytes=0\|1&pages=1..8` | yes | panel options and how many page slots are cycled, kept across reboots |
 
 The PC chooses the token and claims an unpaired board, so reflashing needs nothing typed.
+
+## Photographic ocean (firmware 22–23)
+
+Boards advertising `waves:1` animate the entire photographed sea at native
+resolution, including the water behind the transparent readings. The original
+photo, text and dry sand remain fixed; incoming foam advances and retreats in a
+6.4-second loop. The board stores one compact texture and renders locally, with
+no video streaming or per-frame flash writes. Older firmware continues using the
+existing smaller surf animation.
+
+Firmware 23 separates the motion into independent, broken foam crests that
+travel shorewards, gentler open-water ripples and the advancing shoreline.
+The crest animation is periodic across the loop boundary; the first loaded
+still remains the original photograph until its animation begins.
+
+During a page transfer, ocean redraws are limited to one every 200 ms, and
+holding the touchscreen pauses them so the physical controls remain usable.
+Navigation and rotation indicators are redrawn after each ocean frame. The
+`wave_us` and `wave_max_us` fields report measured frame time on the device;
+simulation alone does not establish smoothness on the physical panel. Firmware
+updates still require the paired token and the five-second connection screen.
 
 Firmware 14 accepts up to eight poses per sprite and an 80,000-byte ANIM payload.
 Token Run uses this for continuously approaching resort palms: eight perspective
@@ -52,6 +76,61 @@ The host checks `anim_frames: 8`; earlier firmware receives a complete static
 Token Run page, while the other seven scenes retain their existing animation.
 Update through the normal paired, physical connection-screen gate. No erase,
 account access or pairing reset is needed.
+
+## Optional private artwork (firmware 20)
+
+Boards advertising `scroll:3` accept an additional 66,964-byte `SCRO` format,
+with eight 28 × 32 rider poses displayed at double size, locally supplied
+sprites and clean block backgrounds. It remains
+below the existing 80,000-byte limit and supports both earlier formats. No game
+assets are shipped or fetched by the project. If the optional private files are
+missing or invalid, the host sends the previous scene instead. See
+[`docs/board-platform.md`](../../docs/board-platform.md) for the local format.
+The physical five-second connection-screen gate still applies to firmware updates.
+
+## Closer platform scene (firmware 19)
+
+Boards advertising `scroll:2` receive a second `SCRO` variant: the same indexed
+world format with five 48 × 54 rider poses and a closer camera. The local
+compositor uses a continuous jump over each enemy, a second hop that bumps a
+block from below, and a short coin animation. It wraps after 23.04 seconds and
+keeps the scoreboard untouched. The 76,116-byte payload stays below the
+80,000-byte animation limit. Firmware 19 also accepts the original `scroll:1`
+payload; the PC continues sending it to firmware 17–18. The physical five-second
+connection-screen gate remains required for any firmware update.
+
+## Smoother platform scrolling (firmware 29)
+
+The zoomed platform formats keep their original timeline but add one-pixel
+positions every 15 ms. The camera and jump do not run faster, and the actor stays outside
+the block before the hit. Repeated landscape rows are composed once and pushed
+in 16-row bands. Frame timing remains limited by the physical panel and is
+reduced during transfers; the finer positions do not guarantee a particular fps. `scroll_frames` counts
+frames since the current scrolling page was loaded for on-device measurements.
+Older unzoomed scenes keep their 60 ms cadence and all formats remain unchanged.
+
+## Smoother platform scrolling (firmware 18)
+
+The same `SCRO` data works on both firmware 17 and 18. Firmware 18 draws an
+intermediate camera position every 60 ms, preserving travel speed and the loop,
+and reduces repeated page-dot storage lookups. During page transfer it budgets
+the scrolling redraws to at most one per 100 ms and services touch in between.
+This reduces contention while allowing the scene to keep moving. One physical
+board measured approximately 30 ms per redraw, below the 60 ms frame interval;
+perceived smoothness and transfer performance still depend on the device.
+
+## Platform scrolling (firmware 17)
+
+The optional `SCRO` trailer holds a 512 × 96 indexed landscape, terrain heights,
+and four small rider poses. The board composes 8-row bands every 120 ms beneath
+the unchanged scoreboard. The periodic landscape wraps without a camera jump,
+and its phase survives page redraws. No per-frame transfer, flash write, provider
+query, or extra account access is involved. Invalid payloads fail closed to the
+still frame, and the host sends this format only when `/info` advertises `scroll:1`.
+`scroll_us` and `scroll_max_us` report frame composition time on the actual board;
+the simulated engine cannot establish real-device smoothness. Touch pauses the
+scene while held and remains available during transfers. Rotation and page
+indicators are redrawn over the scrolling area.
 
 ## English interface (firmware 16)
 
@@ -77,7 +156,7 @@ reports the last reset reason, but unplugging the board replaces that evidence
 with a power-on reset. Use a direct, stable USB supply when investigating; this
 software change cannot correct a power dip.
 
-## Touch and wall-clock rotation (firmware 10)
+## Touch and wall-clock rotation
 
 Actions happen on release: a short tap advances one page; 2 to less than 5 seconds
 cycles fixed → 30 minutes → 1 hour → fixed; 5 seconds or more opens the address
@@ -85,6 +164,9 @@ screen (and arms the existing authenticated firmware-update gate). Holding longe
 never deletes pairing. While held, a small hint indicates the action on release.
 A mode confirmation lasts two seconds. A tap on the address screen returns to the
 selected page. The eight-second unpair gesture from earlier builds is removed.
+Starting with firmware 27, these are the defaults: the control room can change
+the rotation threshold to 1–4 seconds and the connection threshold to 5–10 seconds.
+The hint follows the saved thresholds and the physical update gate still applies.
 
 A dim 29×9-pixel bottom-left indicator shows pause, a divided circle with `30m`,
 or a whole circle with `1h`; the circle fills toward the next boundary. A tiny dot

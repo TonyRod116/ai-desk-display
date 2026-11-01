@@ -1,18 +1,15 @@
 'use strict';
-/* TokenTV web dashboard. Every theme renders the same nodes; style.css composes them. */
+/* Local dashboard: the appearance changes, the account data stays the same. */
 const PERSONAL_THEMES = [
- {id:'game-boy', name:'Game Boy Green', eyebrow:'LOCAL DASHBOARD', title:'AI RESERVES', note:'Hearts: saved resets · Bar: remaining quota', remaining:true},
- {id:'game-boy-pocket', name:'Game Boy Pocket', eyebrow:'POCKET · LOCAL DASHBOARD', title:'AI RESERVES', note:'Hearts: saved resets · Bar: remaining quota', remaining:true},
+ {id:'game-boy', name:'Game Boy Green', eyebrow:'LOCAL DASHBOARD', title:'USAGE DASHBOARD', note:'Hearts: saved resets · Bar: remaining quota', remaining:true},
+ {id:'game-boy-pocket', name:'Game Boy Pocket', eyebrow:'POCKET · LOCAL DASHBOARD', title:'USAGE DASHBOARD', note:'Hearts: saved resets · Bar: remaining quota', remaining:true},
  {id:'retro', name:'Pixel Retro', eyebrow:'', title:'AI PROVIDERS', note:'REMAINING QUOTA', remaining:true},
  {id:'amber-terminal', name:'Amber Terminal', eyebrow:'LOCAL DASHBOARD', title:'QUOTA / TERMINAL', note:'Remaining quota and saved resets', remaining:true},
  {id:'orbit', name:'Orbit', eyebrow:'LOCAL DASHBOARD', title:'ORBIT', note:'Remaining quota and saved resets', remaining:true}
 ];
-const PERSONAL_NAMES = Object.fromEntries(PERSONAL_THEMES.map(t => [t.id, t.name]));
-const THEMES = [...PERSONAL_THEMES,
- {id:'digital', name:'Digital Terminal', eyebrow:'', title:'AI USAGE DASHBOARD', note:''},
- {id:'neon', name:'Neon Cyberpunk', eyebrow:'Today', title:'AI USAGE', note:''},
- {id:'hud', name:'Sci-Fi HUD', eyebrow:'', title:'AI PROVIDER USAGE', note:'Real-time usage monitor'}
-];
+const THEMES = PERSONAL_THEMES;
+const SCENE_THEME = {id:'scene', eyebrow:'LOCAL DASHBOARD', title:'USAGE DASHBOARD', note:'Hearts: saved resets · Bar: remaining quota', remaining:true};
+const themeConfig = id => id === 'scene' ? SCENE_THEME : THEMES.find(t => t.id === id);
 const STATUS = {ok:'Connected', loading:'Loading', auth_required:'Login needed', identity_mismatch:'Check identity', quota_unavailable:'Quota unavailable', usage_blocked:'Blocked by Codex', stale:'OLD · Previous value', rate_limited:'Retry later', error:'Fetch failed'};
 const PROVIDERS = ['codex', 'claude', 'grok'];
 const COMPANIES = {claude:'ANTHROPIC', codex:'OPENAI', grok:'XAI'};
@@ -24,7 +21,9 @@ let accountChoices = readPreference('tokentv.accounts', {});
 if (!accountChoices || typeof accountChoices !== 'object' || Array.isArray(accountChoices)) accountChoices = {};
 // The static demo (scripts/build_demo.py) serves sample data and pre-rendered clock frames.
 const DEMO = document.documentElement.hasAttribute('data-demo');
-let snapshot = null, offline = false, polling = false, displayInfo = null, displayOffline = false, clockChoice = null, applying = false, clockError = false;
+let snapshot = null, offline = false, polling = false, displayInfo = null, displayOffline = false;
+let selectedScene = readPreference('ai-desk-display.dashboard-scene', null);
+if (typeof selectedScene !== 'string' || !/^[a-z0-9-]+$/.test(selectedScene)) selectedScene = null;
 const el = (tag, text, cls) => {const n = document.createElement(tag); if (text !== undefined) n.textContent = text; if (cls) n.className = cls; return n};
 function svgNode(tag, attrs) {const n = document.createElementNS(svgNS, tag); for (const [k, v] of Object.entries(attrs)) n.setAttribute(k, v); return n}
 const clamp = v => Math.max(0, Math.min(100, v));
@@ -97,25 +96,6 @@ function scene(provider) {
  }
  return s;
 }
-/* The TokenTV cube mascot for the Pixel Retro banner (36×32 logical pixels). */
-function retroMascot() {
- const s = svgNode('svg', {viewBox:'0 0 44 34', 'shape-rendering':'crispEdges', class:'mascot-art'});
- const r = (x, y, w, h, fill, cls) => {const n = svgNode('rect', {x, y, width:w, height:h, fill}); if (cls) n.setAttribute('class', cls); s.append(n)};
- const O = '#151238', C = '#fff1d6', D = '#e3c79c', N = '#1c2a63', M = '#7ff5c8', P = '#ff7aa8', Y = '#ffd86b';
- r(15, 1, 3, 3, P); r(15, 1, 1, 1, '#ffd0e0'); r(16, 4, 1, 4, O);
- r(5, 8, 22, 1, O); r(4, 9, 1, 16, O); r(27, 9, 1, 16, O); r(5, 25, 22, 1, O);
- r(5, 9, 22, 16, C); r(25, 10, 2, 15, D); r(5, 23, 22, 2, D); r(6, 10, 4, 1, '#ffffff');
- r(8, 11, 16, 10, O); r(9, 12, 14, 8, N); r(9, 12, 14, 1, '#25367a');
- r(12, 14, 2, 1, M); r(11, 15, 1, 1, M); r(14, 15, 1, 1, M); r(18, 14, 2, 1, M); r(17, 15, 1, 1, M); r(20, 15, 1, 1, M);
- r(14, 18, 4, 1, M); r(13, 17, 1, 1, M); r(18, 17, 1, 1, M); r(10, 17, 2, 1, P); r(20, 17, 2, 1, P);
- r(1, 15, 3, 1, O); r(1, 16, 1, 5, O); r(2, 16, 2, 4, C); r(1, 21, 3, 1, O);
- r(28, 13, 2, 2, O); r(29, 9, 2, 4, O); r(28, 5, 4, 1, O); r(27, 6, 1, 3, O); r(32, 6, 1, 3, O); r(28, 6, 4, 3, C); r(28, 9, 4, 1, O);
- r(8, 26, 1, 4, O); r(9, 26, 4, 3, '#2a2f6a'); r(13, 26, 1, 4, O); r(8, 30, 6, 1, O);
- r(18, 26, 1, 4, O); r(19, 26, 4, 3, '#2a2f6a'); r(23, 26, 1, 4, O); r(18, 30, 6, 1, O);
- for (const [x, y, w, h] of [[36,2,2,1],[39,2,2,1],[35,3,7,2],[36,5,5,1],[37,6,3,1],[38,7,1,1]]) r(x, y, w, h, '#ff5d8f', 'beat');
- for (const [x, y] of [[33, 13], [40, 18], [1, 3]]) {r(x, y - 1, 1, 3, Y, 'twinkle'); r(x - 1, y, 3, 1, Y, 'twinkle')}
- return s;
-}
 function buildStarfield() {
  const rnd = seeded(5), s = svgNode('svg', {viewBox:'0 0 480 300', preserveAspectRatio:'xMidYMid slice', 'shape-rendering':'crispEdges'});
  for (let i = 0; i < 140; i++) {const big = i % 17 === 0, r = svgNode('rect', {x:Math.floor(rnd() * 480), y:Math.floor(rnd() * 300), width:big ? 2 : 1, height:big ? 2 : 1, fill:['#ffffff', '#b9c8ff', '#ffe9a8'][i % 3]}); if (i % 4 === 0) r.setAttribute('class', 'twinkle'); r.style.animationDelay = (-rnd() * 4).toFixed(2) + 's'; s.append(r)}
@@ -172,8 +152,31 @@ function visibleWindows(a) {
  return windows;
 }
 
+// Balance is a decimal string from the verified official reader, never a
+// floating-point quota percentage. Keep tiny positive balances visible.
+function formatCredits(value) {
+ if (typeof value !== 'string' || value.length < 1 || value.length > 24) return '?';
+ const text = value.trim();
+ if (!/^-?(?:\d+(?:\.\d*)?|\.\d+)$/.test(text)) return '?';
+ const negative = text.startsWith('-');
+ let [integer, fraction = ''] = (negative ? text.slice(1) : text).split('.');
+ integer = (integer || '0').replace(/^0+(?=\d)/, '');
+ fraction = fraction.replace(/0+$/, '');
+ if (fraction.length > 10 || integer.length > 10 || Number(integer) > 1000000000 || (Number(integer) === 1000000000 && fraction)) return '?';
+ const nonzero = Number(integer) !== 0 || /[1-9]/.test(fraction);
+ if (!nonzero) return '0';
+ if (Number(integer) === 0 && Number((fraction + '00').slice(0, 2)) === 0) return (negative ? '-' : '') + '<0.01';
+ const decimals = fraction.slice(0, 2).replace(/0+$/, '');
+ return (negative ? '-' : '') + integer + (decimals ? '.' + decimals : '');
+}
+function exhaustedBalance(a, primary) {
+ if (offline || a.provider !== 'codex' || a.status !== 'ok' || a.identity_verified !== true ||
+     a.quota_origin !== 'codex_official_cli' || !primary || primary.label !== 'WEEK' || primary.used_percent !== 100) return null;
+ return formatCredits(a.credits_balance);
+}
+
 function setTheme(theme) {
- const config = THEMES.find(t => t.id === theme) || THEMES[0];
+ const config = (theme !== 'scene' || selectedScene && !DEMO ? themeConfig(theme) : null) || THEMES[0];
  document.documentElement.dataset.theme = config.id; savePreference('tokentv.theme', config.id);
  $('#eyebrow').textContent = config.eyebrow; $('#eyebrow').hidden = !config.eyebrow;
  $('#page-title').textContent = config.title;
@@ -183,6 +186,10 @@ function setTheme(theme) {
  $('.legend .section-label').textContent = config.remaining ? 'Remaining quota' : 'Used quota';
  document.querySelectorAll('.legend i').forEach((n, i) => {n.nextSibling.textContent = labels[i]});
  for (const b of document.querySelectorAll('[data-theme-choice]')) b.setAttribute('aria-pressed', String(b.dataset.themeChoice === config.id));
+ const libraryButton = $('#scene-browse');
+ if (libraryButton) libraryButton.setAttribute('aria-pressed', String(config.id === 'scene'));
+ $('#dashboard-scene').hidden = config.id !== 'scene';
+ if (config.id === 'scene') refreshScene(); else clearScene();
  renderAccounts();
 }
 for (const t of THEMES) {
@@ -190,10 +197,8 @@ for (const t of THEMES) {
  const sw = el('span', undefined, 'swatch'); sw.dataset.swatch = t.id; sw.setAttribute('aria-hidden', 'true'); sw.append(el('i'), el('i'), el('i'));
  b.append(sw, el('span', t.name, 'theme-name')); b.onclick = () => setTheme(t.id); $('#themes').append(b);
 }
-setTheme(readPreference('tokentv.theme', 'game-boy'));
-
 function providerCard(provider, accounts) {
- const remaining = Boolean(THEMES.find(t => t.id === document.documentElement.dataset.theme)?.remaining);
+ const remaining = Boolean(themeConfig(document.documentElement.dataset.theme)?.remaining);
  let a = accounts.find(x => x.key === accountChoices[provider]) || accounts[0];
  if (!a) a = {key:provider, alias:provider.toUpperCase(), provider, status:'loading', windows:[]};
  const prior = $(`.provider-card[data-provider="${provider}"] .more-windows`);
@@ -202,9 +207,10 @@ function providerCard(provider, accounts) {
  const candidates = remaining && ['claude', 'codex'].includes(provider) ? windows.filter(w => w.label === 'WEEK') : windows;
  const primary = candidates.reduce((p, w) => !p || w.used_percent > p.used_percent ? w : p, null);
  const value = primary ? clamp(remaining ? 100 - primary.used_percent : primary.used_percent) : null;
+ const credits = exhaustedBalance(a, primary);
  const shell = el('div', undefined, 'card-shell'); shell.dataset.provider = provider;
  const card = el('article', undefined, 'provider-card');
- Object.assign(card.dataset, {provider, key:a.key, stale:String(stale), level:primary ? level(primary.used_percent) : 'unknown'});
+ Object.assign(card.dataset, {provider, key:a.key, stale:String(stale), level:primary ? level(primary.used_percent) : 'unknown', credits:String(credits !== null)});
  const art = el('div', undefined, 'card-art'); art.setAttribute('aria-hidden', 'true'); art.append(scene(provider));
  const head = el('div', undefined, 'card-head'), logo = el('div', undefined, 'provider-icon'); logo.append(icon(provider), mascot(provider));
  const name = el('div', undefined, 'provider-name'); name.append(el('h2', provider.toUpperCase(), 'provider-title'), el('span', COMPANIES[provider], 'company'));
@@ -214,15 +220,16 @@ function providerCard(provider, accounts) {
  tabs.hidden = remaining && accounts.length <= 1;
  head.append(logo, name, tabs);
  const reading = el('div', undefined, 'reading'), meta = el('div', undefined, 'reading-meta');
- meta.append(el('span', period(primary) + (remaining ? ' LEFT' : ' USED'), 'reading-label'));
- if (primary) meta.append(el('span', stale ? 'OLD · Last known usage' : levelText(primary.used_percent), 'level-label'));
+ meta.append(el('span', credits !== null ? 'EXTRA CREDITS' : period(primary) + (remaining ? ' LEFT' : ' USED'), 'reading-label'));
+ if (credits !== null) meta.append(el('span', credits === '?' ? 'Balance unavailable' : 'Weekly limit reached', 'level-label'));
+ else if (primary) meta.append(el('span', stale ? 'OLD · Last known usage' : levelText(primary.used_percent), 'level-label'));
  else meta.append(el('span', ['claude_official_cli', 'codex_official_cli'].includes(a.quota_origin) ?
   'No recent weekly reading. Retrying automatically.' :
   a.status === 'quota_unavailable' && a.source === 'local' && provider === 'claude' ?
   'No current local Claude reading. This page does not refresh the Claude Code reader.' :
   a.status === 'quota_unavailable' ? 'No quota reported.' : STATUS[a.status] || 'No reading available.', 'unknown-message'));
- const num = el('div', value === null ? '—' : undefined, 'percentage');
- if (value !== null) {const digits = el('span', String(Math.round(value)), 'pct-num'); digits.dataset.ghost = ghost(digits.textContent); num.append(digits, el('span', '%', 'percent-sign'))}
+ const num = el('div', credits !== null ? credits : value === null ? '—' : undefined, 'percentage');
+ if (credits === null && value !== null) {const digits = el('span', String(Math.round(value)), 'pct-num'); digits.dataset.ghost = ghost(digits.textContent); num.append(digits, el('span', '%', 'percent-sign'))}
  num.style.setProperty('--quota', (value ?? 0) + '%');
  reading.append(meta, num);
  const timer = el('div', undefined, 'timer'), until = el('span', primary ? resetTime(primary.resets_at) : '—', 'timer-value');
@@ -253,7 +260,7 @@ function renderAccounts() {
  for (const provider of used.length ? used : PROVIDERS) fragment.append(providerCard(provider, rows.filter(a => a.provider === provider)));
  $('#providers').replaceChildren(fragment);
  const reporting = offline ? 0 : rows.filter(a => a.status === 'ok' && visibleWindows(a).length).length;
- $('#account-count').textContent = pad(rows.length); $('#reporting-count').textContent = pad(reporting);
+ $('#account-count').textContent = pad(rows.length); $('#reporting-count').textContent = pad(reporting); $('#provider-count').textContent = pad(used.length);
  $('#foot-reporting').textContent = `${reporting} / ${rows.length} reporting`;
  if (focused) {const b = [...document.querySelectorAll('[data-account]')].find(b => b.dataset.account === focused); b?.focus({preventScroll:true})}
 }
@@ -265,6 +272,7 @@ function demoSnapshot(data) {
 }
 async function update() {
  if (polling) return; polling = true;
+ const wasOffline = offline;
  try {
   const r = await fetch(DEMO ? '/demo-snapshot.json' : '/snapshot', {cache:'no-store', signal:AbortSignal.timeout(4000)}); if (!r.ok) throw Error();
   const data = DEMO ? demoSnapshot(await r.json()) : await r.json(); if (!data.accounts || !Number.isFinite(data.updated_at)) throw Error();
@@ -276,30 +284,28 @@ async function update() {
   $('#signal').dataset.strength = staleCount ? '2' : '3';
  } catch {
   offline = true; $('#connection').textContent = 'Server offline'; $('#notice').hidden = false; $('#signal').dataset.strength = '0';
-  $('#notice').textContent = snapshot ? 'Local connection lost. Official quotas remain unknown until readings recover.' : 'Cannot reach TokenTV. Is token-tv still running?';
+  $('#notice').textContent = snapshot ? 'Local connection lost. Official quotas remain unknown until readings recover.' : 'Cannot reach the local monitor. Is it running?';
   if (!snapshot) $('#providers').replaceChildren(el('p', 'No usage data received.', 'loading'));
- } finally {polling = false; document.body.dataset.offline = String(offline); renderAccounts()}
+ } finally {
+  polling = false; document.body.dataset.offline = String(offline); renderAccounts();
+  if (document.documentElement.dataset.theme === 'scene') {
+   if (offline) showSceneOffline();
+   else if (wasOffline) refreshScene();
+  }
+  if (offline && library.open) pauseLibrary('Local connection lost. Waiting for current readings.');
+ }
 }
 function tick() {
  const now = new Date(), t = $('#local-time');
  const iso = t.querySelector('.date-iso'), time = t.querySelector('.time');
  iso.textContent = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`; iso.dataset.ghost = '8888-88-88';
- t.querySelector('.date-long').textContent = now.toLocaleDateString('en-US', {month:'short', day:'2-digit', year:'numeric'}).toUpperCase();
+ t.querySelector('.date-long').textContent = now.toLocaleDateString(document.documentElement.lang === 'es' ? 'es-ES' : 'en-US', {month:'short', day:'2-digit', year:'numeric'}).toUpperCase();
  time.textContent = `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`; time.dataset.ghost = '88:88:88';
 }
 $('#clock-zone').textContent = new Intl.DateTimeFormat('en-US', {timeZoneName:'short'}).formatToParts(new Date()).find(p => p.type === 'timeZoneName')?.value || 'Local';
 
-function showClock(show) {$('#clock-panel').hidden = !show; $('#clock-toggle').setAttribute('aria-expanded', String(show)); if (show) {refreshDisplay(true); $('#close-clock').focus()} else $('#clock-toggle').focus()}
+function showClock(show) {$('#clock-panel').hidden = !show; $('#clock-toggle').setAttribute('aria-expanded', String(show)); if (show) {refreshDisplay(); $('#close-clock').focus()} else $('#clock-toggle').focus()}
 $('#clock-toggle').onclick = () => showClock($('#clock-panel').hidden); $('#close-clock').onclick = () => showClock(false);
-let lastImageStyle = null, lastImageAt = 0;
-function paintClock(forceImage = false) {
- const style = clockChoice || displayInfo?.style;
- $('#clock-style').disabled = applying || !displayInfo; $('#apply').disabled = DEMO || applying || !displayInfo || (style === displayInfo.style && displayInfo.status !== 'error' && !clockError);
- $('#apply').textContent = applying ? 'Sending image…' : 'Apply to clock'; $('#apply').dataset.state = applying ? 'loading' : clockError || displayInfo?.status === 'error' ? 'error' : displayInfo?.status === 'ok' ? 'success' : 'default';
- $('#display-state').textContent = DEMO ? 'Demo · install AI Desk Display to use a clock' : displayOffline ? 'Clock status unavailable' : clockError ? 'Could not apply. Please try again.' : !displayInfo ? 'Clock status unavailable' : style !== displayInfo.style ? 'Preview · select Apply to send' : displayInfo.status === 'queued' ? 'Sending image…' : displayInfo.status === 'error' ? 'Could not send to the clock. Please try again.' : displayInfo.status === 'preview_only' ? 'Preview · no clock connected' : 'Image sent · ' + styleName(displayInfo.applied_style);
- if (style && !$('#clock-panel').hidden && (forceImage || style !== lastImageStyle || Date.now() - lastImageAt > 30000)) {lastImageStyle = style; lastImageAt = Date.now(); $('#frame').src = DEMO ? displayInfo.frames?.[style] || `/frames/${encodeURIComponent(style)}.jpg` : '/frame/0.jpg?style=' + encodeURIComponent(style) + '&t=' + lastImageAt; $('#frame').alt = styleName(style) + ' live clock preview'}
- paintSavedResets();
-}
 function paintSavedResets() {
  const form = $('#saved-resets-form'); form.hidden = DEMO;
  if (!displayInfo || DEMO) return;
@@ -327,57 +333,189 @@ $('#saved-resets-form').onsubmit = async e => {
    displayInfo = await response.json(); displayOffline = false; delete input.dataset.dirty;
   }
   $('#saved-resets-status').textContent = 'Balance saved locally. No reset was used.';
-  paintClock(true);
+  paintSavedResets();
  } catch {$('#saved-resets-status').textContent = 'Could not save. Check the values and try again.'}
 };
-const styleName = s => PERSONAL_NAMES[s] || (s === 'hud' ? 'Sci-Fi HUD' : s ? s.split('-').map(word => word[0].toUpperCase() + word.slice(1)).join(' ') : 'Unknown');
 let displayPolling = false;
-async function refreshDisplay(forceImage = false) {if (displayPolling) return; displayPolling = true; try {const r = await fetch(DEMO ? '/demo-display.json' : '/display', {cache:'no-store', signal:AbortSignal.timeout(4000)}); if (!r.ok) throw Error(); const data = await r.json(); const dirty = displayInfo && clockChoice !== displayInfo.style; displayInfo = data; displayOffline = false; if (!clockChoice || !dirty) clockChoice = data.style; const select = $('#clock-style'); if (!select.options.length) for (const s of data.styles) {const o = el('option', styleName(s)); o.value = s; select.append(o)} select.value = clockChoice; paintClock(forceImage); if (DEMO && themeData && !lastThumbFrames) {lastThumbFrames = true; paintThemes()}} catch {displayOffline = true; $('#display-state').textContent = 'Clock status unavailable'; paintSavedResets()} finally {displayPolling = false}}
-$('#clock-style').onchange = e => {clockChoice = e.target.value; clockError = false; paintClock(true); paintThemes()};
-$('#apply').onclick = async () => {if (applying || !clockChoice) return; applying = true; clockError = false; paintClock(); try {const r = await fetch('/display/style', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({style:clockChoice})}); if (!r.ok) throw Error(); displayInfo = await r.json(); displayOffline = false} catch {clockError = true} finally {applying = false; paintClock(true)}};
-let themeData = null, themeSort = 'popular', lastThumbFrames = false;
-const REPO_URL = 'https://github.com/click6067-ship-it/token-tv';
-const day = s => new Date(s).toLocaleDateString('en-GB');
-const likeText = t => ({counted: `👍 ${t.likes} · counted ${day(t.likes_counted_at)}`, stale: `👍 ${t.likes} · last counted ${t.likes_counted_at ? day(t.likes_counted_at) : 'at an unknown time'}`, unavailable: 'Likes unavailable', not_open: 'Likes not open yet', local: 'Your local face'})[t.likes_state] || 'Likes unavailable';
-function sortThemes(list, mode) {
- const added = t => t.added_at ? -Date.parse(t.added_at) : Infinity;
- const fresh = [...list].sort((a, b) => added(a) - added(b) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
- return mode === 'new' ? fresh : [...fresh.filter(t => t.likes !== null).sort((a, b) => b.likes - a.likes), ...fresh.filter(t => t.likes === null)];
+async function refreshDisplay() {
+ if (displayPolling) return;
+ displayPolling = true;
+ try {
+  const r = await fetch(DEMO ? '/demo-display.json' : '/display', {cache:'no-store', signal:AbortSignal.timeout(4000)});
+  if (!r.ok) throw Error();
+  displayInfo = await r.json(); displayOffline = false;
+ } catch {displayOffline = true}
+ finally {displayPolling = false; paintSavedResets()}
 }
-function thumbSrc(id) {
- if (DEMO) return displayInfo?.frames?.[id] || `/frames/${encodeURIComponent(id)}.jpg`;
- return '/frame/0.jpg?style=' + encodeURIComponent(id);
+/* Screen previews are rendered by the local service; opening this library never
+ * changes a device setting or polls the physical board. */
+const library = $('#screen-library'), libraryContent = $('#library-content');
+let sceneImage = $('#scene-image');
+const sceneMessage = $('#scene-message');
+const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
+let catalogPromise = null, sceneEpoch = 0, sceneLoading = false, sceneUpdatedAt = 0;
+let libraryEpoch = 0, libraryQueue = [], libraryBusy = false, libraryObserver = null;
+let libraryOpenedAt = 0, libraryPaused = false;
+
+async function getCatalog() {
+ if (!catalogPromise) catalogPromise = fetch('/board/catalog', {cache:'no-store', signal:AbortSignal.timeout(5000)})
+  .then(r => {if (!r.ok) throw Error(); return r.json()})
+  .then(data => {
+   if (!Array.isArray(data.scene_catalog) || !Array.isArray(data.scene_ids)) throw Error();
+   const screens = data.scene_catalog.filter(s => typeof s.id === 'string' && /^[a-z0-9-]+$/.test(s.id) && typeof s.name === 'string');
+   return {screens, assigned:data.scene_ids};
+  }).catch(error => {catalogPromise = null; throw error});
+ return catalogPromise;
 }
-function paintThemes() {
- const list = $('#theme-list'); list.replaceChildren();
- document.querySelectorAll('.theme-sort button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.sort === themeSort)));
- if (!themeData) return;
- $('#likes-as-of').textContent = themeData.last_attempt_at ? 'Last likes refresh: ' + day(themeData.last_attempt_at) : 'Likes not counted yet';
- const personal = PERSONAL_THEMES.map(p => themeData.themes.find(t => t.id === p.id)).filter(Boolean);
- for (const t of [...personal, ...sortThemes(themeData.themes.filter(t => !PERSONAL_NAMES[t.id]), themeSort)]) {
-  const name = PERSONAL_NAMES[t.id] || t.name;
-  const item = el('li', undefined, 'theme-card'); item.dataset.id = t.id;
-  const usable = t.installed && !t.needs_update;
-  const src = usable ? thumbSrc(t.id) : t.preview_url;
-  if (src) {const img = el('img', undefined, 'theme-thumb'); img.src = src; img.alt = name + ' clock face'; img.width = 240; img.height = 240; img.loading = 'lazy'; item.append(img)}
-  const head = el('div', undefined, 'theme-title'); head.append(el('strong', name), el('span', t.local ? 'Local' : 'by ' + t.author, 'theme-author')); item.append(head);
-  item.append(el('p', likeText(t), 'theme-likes'));
-  const actions = el('div', undefined, 'theme-actions');
-  if (usable) {
-   const preview = el('button', clockChoice === t.id ? 'Previewing' : 'Preview', 'control'); preview.type = 'button';
-   preview.onclick = () => {clockChoice = t.id; clockError = false; $('#clock-style').value = t.id; showClock(true); paintClock(true); paintThemes(); $('#clock-panel').scrollIntoView({block:'start'})};
-   actions.append(preview);
-  } else actions.append(el('span', `Needs v${t.min_version} · update TokenTV`, 'theme-update'));
-  const link = (text, href) => {const a = el('a', text); a.href = href; a.rel = 'noopener'; a.target = '_blank'; actions.append(a)};
-  if (DEMO) link('Get', REPO_URL + '/blob/main/docs/setup.md');
-  if (t.like_url) link('Like on GitHub', t.like_url);
-  if (t.source_url) link('Source', t.source_url);
-  item.append(actions); list.append(item);
+function previewURL(id, animation) {return `/board/library/${encodeURIComponent(id)}.${animation ? 'webp' : 'png'}?t=${Date.now()}`}
+function loadPreview(image, id, animation) {
+ return new Promise((resolve, reject) => {
+  image.onload = () => resolve();
+  image.onerror = () => {
+   if (animation) {animation = false; image.src = previewURL(id, false)}
+   else reject(Error('Preview unavailable'));
+  };
+  image.src = previewURL(id, animation);
+ });
+}
+function clearScene() {
+ sceneEpoch++; sceneLoading = false; sceneUpdatedAt = 0;
+ sceneImage.hidden = true; sceneImage.removeAttribute('src');
+}
+function showSceneOffline() {
+ clearScene(); sceneMessage.hidden = false;
+ sceneMessage.textContent = 'Local connection lost. Waiting for current readings.';
+}
+async function refreshScene() {
+ if (DEMO || document.hidden || !selectedScene || document.documentElement.dataset.theme !== 'scene' || sceneLoading) return;
+ if (offline) {showSceneOffline(); return}
+ const epoch = ++sceneEpoch, id = selectedScene;
+ sceneLoading = true;
+ if (!sceneImage.hasAttribute('src')) {sceneMessage.hidden = false; sceneMessage.textContent = 'Loading preview…'}
+ try {
+  const catalog = await getCatalog();
+  const item = catalog.screens.find(s => s.id === id);
+  if (!item) {
+   if (epoch === sceneEpoch) {sceneImage.hidden = true; sceneMessage.hidden = false; sceneMessage.textContent = 'Screen unavailable. Choose another screen.'}
+   return;
+  }
+  if (epoch === sceneEpoch) $('#scene-title').textContent = item.name;
+  const next = new Image(); next.id = 'scene-image'; next.alt = 'Selected screen with current usage';
+  await loadPreview(next, id, !reducedMotion.matches);
+  if (epoch !== sceneEpoch || offline) return;
+  sceneImage.replaceWith(next); sceneImage = next; sceneMessage.hidden = true;
+  sceneUpdatedAt = Date.now();
+ } catch {
+  if (epoch === sceneEpoch) {
+   sceneImage.hidden = true; sceneImage.removeAttribute('src'); sceneMessage.hidden = false;
+   sceneMessage.textContent = 'Preview unavailable.';
+  }
+ } finally {if (epoch === sceneEpoch) sceneLoading = false}
+}
+function chooseScene(item) {
+ selectedScene = item.id; savePreference('ai-desk-display.dashboard-scene', selectedScene);
+ clearScene(); $('#scene-title').textContent = item.name;
+ library.close(); setTheme('scene');
+ $('#dashboard-scene').scrollIntoView({behavior:reducedMotion.matches ? 'auto' : 'smooth', block:'start'});
+}
+function pumpLibrary(epoch) {
+ if (epoch !== libraryEpoch || !library.open || document.hidden || libraryBusy || !libraryQueue.length) return;
+ const {image, state, item} = libraryQueue.shift();
+ libraryBusy = true;
+ loadPreview(image, item.id, !reducedMotion.matches).then(() => {
+  if (epoch === libraryEpoch) {image.hidden = false; state.hidden = true}
+ }).catch(() => {if (epoch === libraryEpoch) state.textContent = 'Preview unavailable.'})
+  .finally(() => {if (epoch === libraryEpoch) {libraryBusy = false; pumpLibrary(epoch)}});
+}
+function librarySection(title, screens, epoch) {
+ if (!screens.length) return;
+ const section = el('section', undefined, 'library-section');
+ section.append(el('h3', title));
+ const grid = el('div', undefined, 'library-grid');
+ for (const item of screens) {
+  const button = el('button', undefined, 'library-card'); button.type = 'button';
+  button.dataset.sceneId = item.id;
+  button.setAttribute('aria-pressed', String(document.documentElement.dataset.theme === 'scene' && selectedScene === item.id));
+  const frame = el('span', undefined, 'library-frame');
+  const image = el('img'); image.alt = ''; image.hidden = true; image.decoding = 'async';
+  const state = el('span', 'Loading preview…', 'library-frame-state'); state.setAttribute('aria-hidden', 'true');
+  frame.append(image, state); button.append(frame, el('span', item.name, 'library-card-name'));
+  button.onclick = () => chooseScene(item); grid.append(button);
+  const entry = {image, state, item};
+  if (libraryObserver) {button._previewEntry = entry; libraryObserver.observe(button)}
+  else libraryQueue.push(entry);
+ }
+ section.append(grid); libraryContent.append(section);
+ pumpLibrary(epoch);
+}
+async function openLibrary() {
+ if (!library.open) library.showModal();
+ libraryContent.replaceChildren(el('p', 'Loading screens…', 'library-message'));
+ libraryPaused = false; libraryOpenedAt = Date.now();
+ const epoch = ++libraryEpoch;
+ catalogPromise = null; // Pick up screen versions added since the last visit.
+ try {
+  const {screens, assigned} = await getCatalog();
+  if (epoch !== libraryEpoch || !library.open) return;
+  const byId = new Map(screens.map(s => [s.id, s]));
+  const onDisplay = [...new Set(assigned)].map(id => byId.get(id)).filter(Boolean);
+  const assignedIds = new Set(onDisplay.map(s => s.id));
+  const other = screens.filter(s => !assignedIds.has(s.id));
+  libraryContent.replaceChildren();
+  if ('IntersectionObserver' in window) libraryObserver = new IntersectionObserver(entries => {
+   for (const entry of entries) if (entry.isIntersecting) {
+    libraryObserver.unobserve(entry.target); libraryQueue.push(entry.target._previewEntry);
+   }
+   pumpLibrary(epoch);
+  }, {root:library, rootMargin:'100px'});
+  librarySection('On your display', onDisplay, epoch);
+  librarySection('More screens', other, epoch);
+ } catch {
+  if (epoch !== libraryEpoch || !library.open) return;
+  pauseLibrary('Could not load the screen library.');
  }
 }
-async function loadThemes() {try {const r = await fetch(DEMO ? '/demo-themes.json' : '/themes', {cache:'no-store'}); if (!r.ok) throw Error(); themeData = await r.json(); paintThemes()} catch {$('#likes-as-of').textContent = 'Themes unavailable · your clock styles still work'}}
-document.querySelectorAll('.theme-sort button').forEach(b => {b.onclick = () => {themeSort = b.dataset.sort; paintThemes()}});
-$('#frame').onerror = () => {$('#display-state').textContent = 'Clock preview unavailable. Reopen to retry.'};
-
-$('#mascot').append(retroMascot()); buildStarfield(); tick();
-update(); refreshDisplay(); loadThemes(); setInterval(update, 30000); setInterval(tick, 1000); setInterval(() => {renderAccounts(); if (!$('#clock-panel').hidden) refreshDisplay()}, 5000);
+function pauseLibrary(message) {
+ if (!library.open || libraryPaused) return;
+ libraryPaused = true; libraryEpoch++; libraryQueue = []; libraryBusy = false;
+ libraryObserver?.disconnect(); libraryObserver = null;
+ const retry = el('button', 'Try again', 'library-retry'); retry.type = 'button';
+ retry.onclick = openLibrary;
+ libraryContent.replaceChildren(el('p', message, 'library-message'), retry);
+}
+library.addEventListener('close', () => {
+ libraryEpoch++; libraryQueue = []; libraryBusy = false;
+ libraryObserver?.disconnect(); libraryObserver = null;
+ if (Date.now() - sceneUpdatedAt >= 60000) refreshScene();
+});
+$('#library-close').onclick = () => library.close();
+$('#scene-change').onclick = openLibrary;
+if (!DEMO) {
+ const button = el('button', undefined, 'theme-button library-button');
+ button.id = 'scene-browse'; button.type = 'button'; button.setAttribute('aria-haspopup', 'dialog'); button.setAttribute('aria-pressed', 'false');
+ const swatch = el('span', undefined, 'library-swatch'); swatch.setAttribute('aria-hidden', 'true');
+ swatch.append(el('i'), el('i'), el('i')); button.append(swatch, el('span', 'Screen library', 'theme-name'));
+ button.onclick = openLibrary; $('#themes').append(button);
+}
+reducedMotion.addEventListener?.('change', () => {if (document.documentElement.dataset.theme === 'scene') {clearScene(); refreshScene()}});
+document.addEventListener('visibilitychange', () => {
+ if (!document.hidden && library.open) {
+  if (Date.now() - libraryOpenedAt >= 120000) pauseLibrary('Previews paused. Reload them for current readings.');
+  else pumpLibrary(libraryEpoch);
+ }
+ if (!document.hidden && !library.open && document.documentElement.dataset.theme === 'scene' && Date.now() - sceneUpdatedAt >= 60000) {
+  clearScene(); refreshScene();
+ }
+});
+setTheme(readPreference('tokentv.theme', 'game-boy'));
+buildStarfield(); tick();
+update(); refreshDisplay(); setInterval(update, 30000); setInterval(tick, 1000); setInterval(() => {renderAccounts(); if (!$('#clock-panel').hidden) refreshDisplay()}, 5000);
+setInterval(() => {
+ if (library.open && Date.now() - libraryOpenedAt >= 120000) pauseLibrary('Previews paused. Reload them for current readings.');
+ else if (!library.open && document.documentElement.dataset.theme === 'scene') {
+  if (sceneUpdatedAt && Date.now() - sceneUpdatedAt >= 120000) {
+   sceneImage.hidden = true; sceneMessage.hidden = false; sceneMessage.textContent = 'Waiting for an updated preview…';
+  }
+  if (Date.now() - sceneUpdatedAt >= 60000) refreshScene();
+ }
+}, 10000);

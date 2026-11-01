@@ -12,6 +12,7 @@ MOCK = r'''
 #include <cstdint>
 static RotationClock rotationClock;
 static bool showingInfo=false,stale=false,touchHeld=false,haveBeat=true,updateStarted=false;
+static int modeHoldSeconds=2,connectHoldSeconds=5;
 static uint32_t confirmationUntil=0,heldSince=0,now=0,lastBeat=0;
 static const uint32_t STALE_MS=180000;
 static unsigned long tapCount=0,longCount=0;
@@ -69,6 +70,9 @@ int main(int argc,char**argv) {
  assert(page==6 && savedPage==6 && rotationClock.mode==60);
  prefs.values["page"]=99; prefs.values["cycle"]=99; restoreSelection();
  assert(page==0 && rotationClock.mode==0);
+ modeHoldSeconds=1;connectHoldSeconds=7;showingInfo=false;rotationClock.setMode(0,28000);
+ handleTouch(true,30000);handleTouch(false,31000);assert(rotationClock.mode==30 && !showingInfo);
+ handleTouch(true,32000);handleTouch(false,39000);assert(showingInfo && rotationClock.mode==30);
 }
 '''
 

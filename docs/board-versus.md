@@ -1,18 +1,26 @@
-# Versus: rooftop rumble
+# Versus · the arcade fight
 
-![Versus with fictional usage readings](images/arcade.gif)
+Codex and Claude face off in a pixel-art arena inspired by 1990s fighting games.
+The animation below uses fictional readings and the bundled stage.
 
-Claude and Codex face off on a broad metal train roof. Planted feet and small breathing/guard movements keep the fighting-game stance; the city does the traveling. Two layers of moving buildings have their own silhouettes, windows, signs and rooftop details. Stars fill the sky, with an occasional shooting star.
+![Versus animated with fictional readings](images/arcade.gif)
 
-The health bars show **weekly quota remaining**: green above 50%, amber from above 20% through 50%, and red at 20% or less. A fresh reading of zero leaves that fighter KO on the roof. An unavailable reading never triggers a KO. Three small bars show saved resets where that information is available.
+The health bars show weekly allowance remaining: green when there's plenty,
+amber in the middle and red when it's running low. A fighter falls when a
+verified weekly allowance reaches zero. Unknown quota is shown as unknown,
+never as an empty bar or a knockout. The small bars beneath the names represent
+saved resets; Claude's two narrow meters also show the five-hour session and
+time left when those readings are available. Weekly reset times sit along the
+bottom of the scene. Verified extra credits can replace Codex's percentage
+when its weekly allowance is exhausted.
 
-Four native poses run at **160 ms** intervals. Each city layer moves at a different speed and wraps after a complete cycle. Compatible firmware animates locally, without a new account request or image upload for each frame; older firmware receives a still image.
+The distinct fighters use whole-body idle stances, while the stage and ambient
+details animate locally on supported boards. The computer supplies the readings;
+it does not need to stream each frame. Screen refreshes preserve the animation
+where the firmware supports it. A previous **Night Train** version remains
+available in the [screen library](board-control.md).
 
-Start in `token_tv/board_arcade.py`. Generate previews with fictional readings:
-
-```bash
-python scripts/render_gallery.py --out preview
-python scripts/render_animations.py --out preview
-```
-
-The GIF generator needs `g++`. [Full-color still](images/arcade.png) · [All eight screens](../README.md#eight-screens-zero-boredom) · [Hardware guide](hardware.md).
+The included arena works on its own. You may optionally supply a different
+local stage and ambient art; no game graphics are shipped or downloaded. If the
+optional files are missing or invalid, the display falls back to the bundled
+scene. Use assets you have permission to use.

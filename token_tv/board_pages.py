@@ -4,8 +4,8 @@ The board holds the pages and changes between them when touched, so it never
 asks this PC for anything. Quotas are the same readings as the clock faces;
 unknown stays `--` and Claude's session is drawn only from a fresh reading.
 Page 2 is PARADISE, page 3 Neon City (the Code Forge slot), page 4 TIDAL RUSH,
-page 5 TOKEN RUN (an Out Run-style road with two usage dials), and page 6 a fighting game.
-See board_paradise.py, board_forge.py, board_surf.py, board_dials.py and board_arcade.py.
+page 5 TOKEN RUN (an Out Run-style road with two usage dials), page 6 a fighting game,
+and page 7 an animated 16-bit platform level. See board_platform.py and the other board modules.
 
 Pages travel as exact RGB565 pixels, not JPEG: a 2.8-inch panel makes
 compression artefacts obvious and the board then needs no decoder at all.
@@ -20,14 +20,14 @@ FACES = ('game-boy', 'game-boy-pocket', 'retro', 'amber-terminal', 'orbit')  # t
 BOARD_FACES = ('game-boy',)
 PAGE_NAMES = BOARD_FACES + ('paradise', 'code-forge', 'surf', 'dials', 'arcade', 'cockpit', 'countdown')
 # LCD grid of the two Game Boy faces on the board, as (axes, strength). The panel shimmered with a line every
-# 2 px in both directions (the user, 2026-10-13); one direction only is calm, and the user confirmed neither of these
+# 2 px in both directions (Tony, 2026-10-13); one direction only is calm, and Tony confirmed neither of these
 # flickers. Never put a period-2 grid back on both axes.
 LCD_GRID = {'game-boy': ('vertical', .22), 'game-boy-pocket': ('horizontal', .22)}
 MAGIC = b'TVF1'
 _FRAMES = {}
 
 
-def rgb565_frame(image, stars=None, anim=None, waves=None):
+def rgb565_frame(image, stars=None, anim=None, waves=None, scroll=None):
     """Exact RGB565 frame of a PIL image; the result is cached by content.
 
     `stars` is an optional list of (x, y, rgb565) the board may make twinkle: they travel as a trailer,
@@ -40,16 +40,23 @@ def rgb565_frame(image, stars=None, anim=None, waves=None):
     stars = tuple(stars or ())
     anim = bytes(anim or b'')
     waves = bytes(waves or b'')
-    if waves and (anim or stars):
-        raise ValueError('A wave page cannot also contain sprites or stars')
-    key = (image.size, hash(data), stars, anim, waves)
+    scroll = bytes(scroll or b'')
+    if (waves and (anim or stars or scroll)) or (scroll and (anim or stars)):
+        raise ValueError('A wave or scrolling page cannot contain another animation')
+    key = (image.size, hash(data), stars, anim, waves, scroll)
     if key not in _FRAMES:
         if len(_FRAMES) > 24:
             _FRAMES.clear()
         words = [((r >> 3) << 11) | ((g >> 2) << 5) | (b >> 3)
                  for r, g, b in zip(data[0::3], data[1::3], data[2::3])]
         trailer = b''
-        if waves:
+        if scroll:
+            from token_tv.board_scroll import decode
+            decode(scroll)
+            if image.size != PAGE_SIZE:
+                raise ValueError('Scrolling requires a full-screen page')
+            trailer = b'SCRO' + struct.pack('<I', len(scroll)) + scroll
+        elif waves:
             from token_tv.board_wave import decode
             decode(waves)
             if image.size != PAGE_SIZE:
@@ -86,8 +93,17 @@ def frame_size(frame):
             return width, height
     if extra >= 20 and frame[base:base + 4] == b'WAVE' and (width, height) == PAGE_SIZE:
         length = struct.unpack('<I', frame[base + 4:base + 8])[0]
-        if extra == 8 + length and length <= 40000:
+        if extra == 8 + length and length <= 80000:
             from token_tv.board_wave import decode
+            try:
+                decode(frame[base + 8:])
+            except (ValueError, struct.error):
+                return None
+            return width, height
+    if extra >= 28 and frame[base:base + 4] == b'SCRO' and (width, height) == PAGE_SIZE:
+        length = struct.unpack('<I', frame[base + 4:base + 8])[0]
+        if extra == 8 + length and length <= 80000:
+            from token_tv.board_scroll import decode
             try:
                 decode(frame[base + 8:])
             except (ValueError, struct.error):
@@ -96,13 +112,15 @@ def frame_size(frame):
     return None
 
 
-def render_board_pages(snapshot, stars=False, anim=False, waves=False, anim_frames=8):
+def render_board_pages(snapshot, stars=False, anim=False, waves=False, anim_frames=8, scroll=False, scene_ids=None):
     """One frame per page, in PAGE_NAMES order, keeping the clock's separate album unchanged.
 
-    `stars` adds the twinkling-star trailer to the pages that draw the starfield; `anim` lets PARADISE,
-    Neon City, TIDAL RUSH, the driving CRT, VERSUS, cockpit and city use ANIM (otherwise their first poses are drawn in).
+    `stars` is retained for older clients; none of the current still pages needs a STAR trailer.
+    `anim` lets PARADISE, Neon City, TIDAL RUSH, the driving CRT, VERSUS, the platform level
+    and city use ANIM (otherwise their first poses are drawn in).
     `waves` uses the native WAVE engine for PARADISE only; its other seven pages are unchanged.
-    `anim_frames` comes from /info: eight-pose Token Run requires firmware 14; older boards get its static pose."""
+    `anim_frames` comes from /info: newer boards get more character poses, detailed car occlusion
+    and Token Run animation; older boards retain four-pose scenes and a static Token Run."""
     from token_tv.personal_faces import RENDERERS as PERSONAL
     from token_tv.themes import RENDERERS as THEMES
     from token_tv.board_gameboy import render_gameboy_board
@@ -113,14 +131,16 @@ def render_board_pages(snapshot, stars=False, anim=False, waves=False, anim_fram
     from token_tv.board_neon_bridge import render_neon_bridge as render_forge
     from token_tv.board_surf import render_surf
     from token_tv.board_paradise import render_paradise
-    from token_tv.board_art import free_stars, render_cockpit, render_countdown
+    from token_tv.board_art import render_countdown
+    from token_tv.board_platform import render_platform
     # The Game Boy faces get the LCD's pixel grid on the board (the clock's 240px faces stay as they were).
     images = [faces[name](snapshot, screen=PAGE_SIZE, **({'grid': LCD_GRID[name]} if name in LCD_GRID else {}))
               for name in BOARD_FACES]
     payloads = {}
     wave_payload = None
+    scroll_payload = None
     if waves:
-        paradise, wave_payload = render_paradise(snapshot, waves=True)
+        paradise, wave_payload = render_paradise(snapshot, waves=waves)
     elif anim:
         paradise, payloads['paradise'] = render_paradise(snapshot, animated=True)
     else:
@@ -142,23 +162,42 @@ def render_board_pages(snapshot, stars=False, anim=False, waves=False, anim_fram
         dials = render_dials(snapshot)
     images.append(dials)
     if anim:
-        versus, payloads['arcade'] = render_arcade(snapshot, animated=True)
+        versus, payloads['arcade'] = render_arcade(snapshot, animated=True, anim_frames=anim_frames)
     else:
         versus = render_arcade(snapshot)
     if anim:
-        countdown, payloads['countdown'] = render_countdown(snapshot, animated=True)
+        countdown, payloads['countdown'] = render_countdown(snapshot, animated=True, anim_frames=anim_frames)
     else:
         countdown = render_countdown(snapshot)
-    from token_tv.board_space import space_backdrop, star_field, render_cockpit as space_cockpit
-    if anim:
-        cockpit, payloads['cockpit'] = space_cockpit(snapshot, animated=True)
+    if anim and scroll:
+        cockpit, scroll_payload = render_platform(snapshot, animated=True, scroll=scroll)
+    elif anim:
+        cockpit, payloads['cockpit'] = render_platform(snapshot, animated=True, anim_frames=anim_frames)
     else:
-        cockpit = render_cockpit(snapshot)
+        cockpit = render_platform(snapshot)
     images += [versus, cockpit, countdown]
     from token_tv.board_credits import apply_credit_badges
-    apply_credit_badges(images, PAGE_NAMES, snapshot)
-    twinkle = {'cockpit'} if stars and not anim else set()
-    sky = {'cockpit': {'backdrop': space_backdrop, 'field': star_field}}      # and it has its own
-    return [rgb565_frame(image, free_stars(image, **sky.get(name, {})) if name in twinkle else None, payloads.get(name),
-                        wave_payload if name == 'paradise' else None)
-            for name, image in zip(PAGE_NAMES, images)]
+    # These two layouts draw their own balances in the right location. Older
+    # Paradise and platform layouts still use the shared overlaid badge.
+    own_credits = set()
+    if scroll_payload and scroll_payload[0] == 4:
+        own_credits.add('cockpit')
+    if wave_payload and wave_payload[0] in (2, 3):
+        own_credits.add('paradise')
+    credit_pages = [(image, name) for image, name in zip(images, PAGE_NAMES) if name not in own_credits]
+    apply_credit_badges([image for image, _ in credit_pages], [name for _, name in credit_pages], snapshot)
+    frames = [rgb565_frame(image, anim=payloads.get(name), waves=wave_payload if name == 'paradise' else None,
+                           scroll=scroll_payload if name == 'cockpit' else None)
+              for name, image in zip(PAGE_NAMES, images)]
+    if scene_ids is None:
+        return frames
+    from token_tv.board_scenes import SCENES, render_archive
+    if (len(scene_ids) != len(PAGE_NAMES)
+            or any(not isinstance(scene, str) or scene not in SCENES for scene in scene_ids)):
+        raise ValueError('Invalid screen selection')
+    by_name = dict(zip(PAGE_NAMES, frames))
+    for name in scene_ids:
+        if name not in by_name:
+            image, payload = render_archive(name, snapshot, animated=anim)
+            by_name[name] = rgb565_frame(image, anim=payload)
+    return [by_name[name] for name in scene_ids]

@@ -96,6 +96,13 @@ class FakeBoard(BaseHTTPRequestHandler):
 
 
 class BoardTests(unittest.TestCase):
+    def setUp(self):
+        # The bundled scene is tested independently of any private artwork on
+        # the machine running the suite.
+        local = patch('token_tv.board_arcade.local_stage.load', return_value=None)
+        local.start()
+        self.addCleanup(local.stop)
+
     def serve(self):
         FakeBoard.pages, FakeBoard.corrupt, FakeBoard.options = {}, False, []
         FakeBoard.token, FakeBoard.touching, FakeBoard.firmware, FakeBoard.updates = TOKEN, False, 'tokentv-board 3', []
@@ -484,9 +491,9 @@ class BoardTests(unittest.TestCase):
             return [(x, y) for y in range(240) for x in range(320) if a.getpixel((x, y)) != b.getpixel((x, y))]
         meter = changed(base, without)
         self.assertGreater(len(meter), 40)                                   # the two lines of five parts are drawn,
-        self.assertTrue(all(204 <= x < 316 and 40 <= y < 58 for x, y in meter), 'the session left its place')
-        self.assertTrue(all(x >= 200 for x, _ in changed(base, claude_other)))   # Claude's numbers stay on its side
-        self.assertTrue(all(x < 120 for x, _ in changed(base, codex_other)))     # and Codex's on its own
+        self.assertTrue(all(178 <= x < 221 and 35 <= y < 42 for x, y in meter), 'the session left its place')
+        self.assertTrue(all(x >= 174 for x, _ in changed(base, claude_other)))   # Claude's numbers stay on its side
+        self.assertTrue(all(x < 146 for x, _ in changed(base, codex_other)))     # and Codex's on its own
 
     def test_the_dials_page_keeps_the_session_inside_claudes_dial_and_never_antialiases(self):
         import math
@@ -560,7 +567,7 @@ class BoardTests(unittest.TestCase):
         self.assertEqual(moving[arcade][base:base + 4], b'ANIM')
         payload = moving[arcade][base + 8:]
         spec = board_anim.decode(payload)
-        self.assertEqual(len(spec['sprites']), 2)                          # composed city/fighter halves
+        self.assertEqual(len(spec['sprites']), 4)                          # two gloves, lantern and drifting clouds
         self.assertEqual(spec['meteor']['period_ms'],14000)
         self.assertGreaterEqual(len(spec['stars']),10)
         # putting the first pose of each sprite back (2x2 per pixel) gives exactly the static page
@@ -583,6 +590,9 @@ class BoardTests(unittest.TestCase):
         self.assertTrue(board.anim)
         self.assertTrue(board.waves)
         self.assertEqual(board.active, 8)
+        FakeBoard.diagnostics['waves'] = 2
+        board.ensure_paired()
+        self.assertEqual(board.waves, 2)
         board.set_active_pages(7)
         self.assertEqual(FakeBoard.options, ['pages=7'])
         self.assertEqual(board.active, 7)
@@ -602,13 +612,14 @@ class BoardTests(unittest.TestCase):
         import inspect
         import re
         from PIL import ImageColor
-        from token_tv import board_arcade
+        from token_tv import board_arcade, board_arcade_stage
         from token_tv.board_arcade import render_arcade
         with patch('time.time', return_value=1000), patch('token_tv.state.time.time', return_value=1000):
             image = render_arcade(self.arcade_snapshot())
         # Every pixel must be an explicitly authored flat colour, not a blended
         # edge. Richer architecture may add colours without adding antialiasing.
-        palette={ImageColor.getrgb(c) for c in re.findall(r'#[0-9a-fA-F]{6}',inspect.getsource(board_arcade))}
+        palette={ImageColor.getrgb(c) for module in (board_arcade,board_arcade_stage)
+                 for c in re.findall(r'#[0-9a-fA-F]{6}',inspect.getsource(module))}
         palette.update(ImageColor.getrgb(c) for c in (board_arcade.CODEX,board_arcade.CLAUDE))
         self.assertTrue({c for _,c in image.getcolors(maxcolors=100000)} <= palette)
 
@@ -628,7 +639,7 @@ class BoardTests(unittest.TestCase):
         covered.putpixel((x + 2, y), (255, 0, 0))                        # something drawn on the tip of one arm
         self.assertNotIn((x, y), [(a, b) for a, b, _ in free_stars(covered)])
 
-    def test_stars_are_only_sent_to_firmware_that_says_it_can_twinkle(self):
+    def test_star_capability_does_not_add_stars_to_a_daytime_level(self):
         from token_tv.board_pages import render_board_pages
         board = BoardDisplay(self.serve(), TOKEN)
         board.ensure_paired()
@@ -643,13 +654,7 @@ class BoardTests(unittest.TestCase):
         names = list(PAGE_NAMES)
         for number, (a, b) in enumerate(zip(still, twinkling)):
             with self.subTest(page=names[number]):
-                if names[number] == 'cockpit':
-                    self.assertGreater(len(b), len(a))                   # a trailer with the free stars
-                    self.assertEqual(b[:len(a)], a)                      # on top of identical pixels
-                    self.assertLessEqual(len(b), MAX_PAGE_BYTES)
-                    self.assertIsNotNone(frame_size(b))
-                else:
-                    self.assertEqual(a, b)                               # faces never carry a trailer
+                self.assertEqual(a, b)  # no active still page has a twinkling night sky
         last = names.index('cockpit')
         board.upload(last, twinkling[last])                              # and the board accepts the long frame
         self.assertEqual(FakeBoard.pages[last], twinkling[last])
@@ -735,6 +740,38 @@ class BoardTests(unittest.TestCase):
         calls.clear()
         publish_pages(spy, pages, sent)
         self.assertEqual([c for c in calls if c[0] == 'upload'], [('upload', 0), ('upload', 1), ('upload', 2)])
+
+    def test_interrupted_modern_upload_retries_only_unconfirmed_pages(self):
+        class IntermittentBoard:
+            held = '111'
+            failed = True
+            uploads = []
+
+            def ping(self):
+                return self.held
+
+            def upload(self, number, image):
+                self.uploads.append(number)
+                if number == 1 and self.failed:
+                    raise TimeoutError('interrupted')
+                return {'page': number, 'status': 200, 'bytes': len(image)}
+
+        board, sent = IntermittentBoard(), {}
+        pages = [b'TVF1a', b'TVF1b', b'TVF1c']
+        with self.assertRaises(TimeoutError) as raised:
+            publish_pages(board, pages, sent)
+        self.assertEqual(set(sent), {0})
+        self.assertEqual(raised.exception.board_page, 1)
+        self.assertEqual([r['page'] for r in raised.exception.board_receipts], [0])
+        board.failed = False
+        board.uploads.clear()
+        publish_pages(board, pages, sent)
+        self.assertEqual(board.uploads, [1, 2])
+        # A missing stored page still wins over the remembered digest.
+        board.held = '011'
+        board.uploads.clear()
+        publish_pages(board, pages, sent)
+        self.assertEqual(board.uploads, [0])
 
     def test_the_network_guard_allows_the_board_and_nothing_else(self):
         policy = LocalPolicy('http://192.168.0.50', 'http://192.168.0.60')

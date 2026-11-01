@@ -73,7 +73,7 @@ class DrivingSceneTests(unittest.TestCase):
         self.assertEqual(board_drive._resort_pose(0).tobytes(),
                          board_drive._resort_pose(board_drive.RESORT_PHASES).tobytes())
 
-    def test_older_firmware_gets_a_complete_static_driving_page_only(self):
+    def test_older_firmware_gets_the_static_drive_and_supported_scene_poses(self):
         with patch('time.time', return_value=NOW):
             current = render_board_pages(sample(), anim=True)
             legacy = render_board_pages(sample(), anim=True, anim_frames=4)
@@ -81,6 +81,30 @@ class DrivingSceneTests(unittest.TestCase):
                 if name == 'dials':
                     self.assertEqual(after, rgb565_frame(render_dials(sample())))
                     self.assertNotEqual(before, after)
+                elif name == 'countdown':
+                    # The same city uses extra car-occlusion poses only on newer boards.
+                    base = 8 + 320 * 240 * 2
+                    self.assertEqual(before[:base], after[:base])
+                    current_city = board_anim.decode(before[base + 8:])
+                    legacy_city = board_anim.decode(after[base + 8:])
+                    self.assertGreater(len(current_city['sprites'][2]['frames']), 4)
+                    self.assertLessEqual(len(legacy_city['sprites'][2]['frames']), 4)
+                elif name == 'cockpit':
+                    # The platform characters also use four-frame poses on old boards.
+                    base = 8 + 320 * 240 * 2
+                    self.assertEqual(before[:base], after[:base])
+                    current_level = board_anim.decode(before[base + 8:])
+                    legacy_level = board_anim.decode(after[base + 8:])
+                    self.assertGreater(len(current_level['sprites'][0]['frames']), 4)
+                    self.assertTrue(all(len(s['frames']) <= 4 for s in legacy_level['sprites']))
+                elif name == 'arcade':
+                    # Newer boards get smoother, independently timed guards.
+                    base = 8 + 320 * 240 * 2
+                    self.assertEqual(before[:base], after[:base])
+                    current_fight = board_anim.decode(before[base + 8:])
+                    legacy_fight = board_anim.decode(after[base + 8:])
+                    self.assertEqual([len(s['frames']) for s in current_fight['sprites'][:2]], [8, 8])
+                    self.assertEqual([len(s['frames']) for s in legacy_fight['sprites'][:2]], [4, 4])
                 else:
                     self.assertEqual(before, after, name)
 

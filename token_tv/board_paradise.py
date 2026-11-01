@@ -1,6 +1,6 @@
 """PARADISE: a locally prepared beach photo and stable weekly readings.
 
-The user explicitly authorized a clean crop of his photo and offline processing.
+Tony explicitly authorized a clean crop of his photo and offline processing.
 Build 8 moves the whole photographic sea, including behind translucent panels,
 while preserving every foreground pixel. Build 7 keeps the advancing surf and
 gently swaying palm fallback. No repeated uploads, per-frame flash writes, clock
@@ -16,6 +16,8 @@ from PIL import Image
 from token_tv import board_anim, board_reset_icons as icons
 from token_tv.board_art import SS, Scene, _row
 from token_tv.personal_faces import banked_hearts, remaining_reading, session_pace
+from token_tv.credits import exhausted_credits, format_balance
+from token_tv.themes import face
 
 W, H = 320, 240
 STEP_MS = 200
@@ -108,7 +110,7 @@ def _instrument(scene, row, provider, y):
     have = count if count is not None else 0
     for index in range(3):
         _heart(scene, 267 + 12 * index, y + 3, have > index, colour, old_hearts)
-    if icons.marked(count, old_hearts):  # unknown or old: one faint dot at the end of the row, no ? and no OLD (the user, 2026-10-20)
+    if icons.marked(count, old_hearts):  # unknown or old: one faint dot at the end of the row, no ? and no OLD (Tony, 2026-10-20)
         scene.dot((303.5, y + 6.6), 1.0, MUTED, glow=False)
     if icons.mark(count, old_hearts):
         scene.text((312, y + 3), "+", "manrope.ttf", 9, colour, anchor="rt")
@@ -171,7 +173,70 @@ def _glass_background():
     return image, scene.ink.getchannel("A").resize((W, H), Image.Resampling.LANCZOS)
 
 
+def _film_instrument(scene, row, provider, x):
+    """Two compact panels leave the sailboat and the whole shore visible."""
+    colour, track = COLORS[provider], '#a2b6a2'
+    value, _, old, reset = remaining_reading(row)
+    count, old_hearts = banked_hearts(row)
+    scene.rect((x, 4, x + 152, 72), fill=(242, 247, 226, 210), radius=9)
+    scene.text((x + 7, 8), provider.upper(), 'manrope.ttf', 12, colour, anchor='lt')
+    for index in range(3):
+        _heart(scene, x + 104 + 11 * index, 8, (count or 0) > index, colour, old_hearts)
+    if icons.marked(count, old_hearts):
+        scene.dot((x + 140, 11.6), 1, MUTED, glow=False)
+    if icons.mark(count, old_hearts):
+        scene.text((x + 149, 7), '+', 'manrope.ttf', 8, colour, anchor='rt')
+    credits = exhausted_credits(row) if provider == 'codex' else None
+    if credits is not None:
+        balance = format_balance(credits)
+        scene.text((x + 7, 21), 'CREDITS', 'manrope.ttf', 8, colour, anchor='lt')
+        for size in range(22, 5, -1):
+            if scene.d.textlength(balance, font=face('manrope.ttf', size * SS)) <= 64 * SS:
+                break
+        scene.text((x + 7, 31), balance, 'manrope.ttf', size, colour, anchor='lt')
+    else:
+        scene.text((x + 7, 21), '--' if value is None else str(round(value)),
+                   'manrope.ttf', 30, colour, anchor='lt')
+        if value is not None:
+            scene.text((x + 63, 32), '%', 'manrope.ttf', 12, colour, anchor='lt')
+    if old:
+        scene.text((x + 65, 45), 'OLD', 'manrope.ttf', 7, MUTED, anchor='lt')
+    scene.text((x + 78, 23), 'RESET', 'manrope.ttf', 9, MUTED, anchor='lt')
+    scene.text((x + 143, 34), reset.upper().replace(' ', ''),
+               'manrope.ttf', 16, INK, anchor='rt')
+    lit = 0 if value is None else math.ceil(value / 5)
+    for index in range(20):
+        left = x + 7 + index * 6.8
+        scene.rect((left, 56, left + 5, 61), fill=colour if index < lit else track, radius=.5)
+    pace = session_pace(row) if provider == 'claude' else None
+    if pace is not None:
+        for line, units in enumerate((math.ceil(pace[0] / 5) / 4, round(pace[1] * 4) / 4)):
+            for index in range(5):
+                left, yy = x + 10 + index * 27, 64 + line * 3
+                scene.rect((left, yy, left + 22, yy + 2), fill=track, radius=.3)
+                amount = max(0, min(1, units - index))
+                if amount:
+                    scene.rect((left, yy, left + 22 * amount, yy + 2), fill=colour, radius=.3)
+
+
+def _film_page(snapshot, art):
+    photo = art[0]
+    scene = Scene()
+    scene.base = photo.convert('RGBA').resize((W * SS, H * SS), Image.Resampling.BICUBIC)
+    for provider, x in (('codex', 4), ('claude', 164)):
+        _film_instrument(scene, _row(snapshot, provider), provider, x)
+    image = scene.finish(blur=0)
+    # Keep the boat, sea and sand as sharp as the supplied photographic still.
+    image.paste(photo.crop((0, 73, W, H)), (0, 73))
+    return image
+
+
 def render_paradise(snapshot, animated=False, waves=False):
+    if type(waves) is int and waves in (2, 3):
+        from token_tv import board_beach
+        art = board_beach.load()
+        if art:
+            return _film_page(snapshot, art), board_beach.encode(art, version=waves)
     scene = Scene()
     scene.base = (
         _landscape().convert("RGBA").resize((W * SS, H * SS), Image.Resampling.BICUBIC)

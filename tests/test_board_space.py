@@ -1,4 +1,4 @@
-"""The cockpit page (7): two glass orbs in deep space, readable numbers, a sky the firmware can twinkle."""
+"""The retained space renderer: two glass orbs, readable numbers and a sky that can twinkle."""
 import math
 import struct
 import unittest
@@ -61,7 +61,9 @@ class SpaceCockpitTests(unittest.TestCase):
                 self.assertGreater(math.dist(nearest,(cx,cy)),73)
         for x,y,*_ in spec['stars']:
             self.assertFalse(114 <= x <= 206 and 12 <= y <= 42)
-        self.assertEqual(render_board_pages(sample(),stars=True,anim=True)[6],rgb565_frame(image,anim=payload))
+        # The legacy renderer remains usable even though page seven now hosts
+        # a different level; replacing the active page must not delete it.
+        self.assertNotEqual(render_board_pages(sample(),stars=True,anim=True)[6],rgb565_frame(image,anim=payload))
 
     def test_the_page_is_deterministic_and_real_readings_change_it(self):
         with patch('time.time', return_value=NOW):
@@ -132,13 +134,11 @@ class SpaceCockpitTests(unittest.TestCase):
         self.assertNotIn(stars[0][:2], [s[:2] for s in free_stars(covered, backdrop=board_space.space_backdrop,
                                                                   field=board_space.star_field)])
 
-    def test_the_board_gets_the_cockpits_own_stars(self):
+    def test_the_legacy_space_is_retained_but_is_not_the_active_seventh_page(self):
         with patch('time.time', return_value=NOW):
             frames = render_board_pages(sample(), stars=True)
-        cockpit = frames[PAGE_NAMES.index('cockpit')]
-        at = 8 + 320 * 240 * 2
-        self.assertEqual(cockpit[at:at + 4], b'STAR')
-        self.assertGreater(struct.unpack('<H', cockpit[at + 4:at + 6])[0], 100)
+            legacy = rgb565_frame(board_space.render_cockpit(sample()))
+        self.assertNotEqual(frames[PAGE_NAMES.index('cockpit')], legacy)
 
 
 if __name__ == '__main__':

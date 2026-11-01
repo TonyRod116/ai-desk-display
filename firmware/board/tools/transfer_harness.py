@@ -21,10 +21,12 @@ MOCK = r'''
 #define MSG_DONTWAIT 1
 using String = std::string;
 using std::min;
+using std::max;
 static unsigned long now = 1000, lastBeat = 0, lastDraw = 1000, maxGap = 0;
+static unsigned long waveLastUs = 0;
 static int ticks = 0, draws = 0, status = 0, calls = 0;
 static bool haveBeat = true, showingInfo = false, stale = false, updateStarted = false;
-static bool auth = true, connected = true, stall = false, failSend = false;
+static bool auth = true, connected = true, stall = false, failSend = false, slowWave = false, slowScroll = false;
 static const unsigned long STALE_MS = 180000;
 static const int PAGES = 8;
 static const size_t MAX_PAGE_BYTES = 235528;
@@ -32,12 +34,23 @@ static int page = 5, uploadPage = 5;
 static bool uploadAllowed = false, uploadOk = false, redrawPending = false;
 static size_t uploadBytes = 0, contentLength = 0;
 static std::vector<uint8_t> output;
+static bool touchHeld=false;
+static int modeHoldSeconds=2,connectHoldSeconds=5;
+static bool indicatorMaskValid=true;
+static struct { bool active=false; unsigned long lastStep=0; } scrolling;
+static struct { bool active=false; int lastStep=0; } ocean;
+static int indicatorDraws=0, rotationDraws=0, ticksHeld=0;
 static unsigned long millis() { return now; }
 static void delay(int n) { now += n; }
-static void animTick(unsigned long t) { ticks++; maxGap = std::max(maxGap, t-lastDraw); lastDraw=t; }
+static void animTick(unsigned long t) {
+  if (scrolling.active) { scrolling.lastStep++; if(touchHeld) ticksHeld++; }
+  if (ocean.active) { ocean.lastStep++; if(touchHeld) ticksHeld++; }
+  ticks++; maxGap = std::max(maxGap, t-lastDraw); lastDraw=t;
+  if (scrolling.active && slowScroll) now+=43; // measured board composition time
+  if (ocean.active) { waveLastUs = slowWave ? 240000 : 20000; if (slowWave) now+=240; }
+}
 static void drawPage() { draws++; lastDraw=now; }
 static RotationClock rotationClock;
-static bool touchHeld=false;
 static uint32_t heldSince=0,confirmationUntil=0;
 static unsigned long tapCount=0,longCount=0;
 static const uint32_t TAP_DEBOUNCE_MS=300;
@@ -47,7 +60,8 @@ struct Prefs { void putInt(const char*,int) {} } prefs;
 static void saveSelection() { responseAt=now; }
 static int nextStoredPage(int p) { return (p+1)%PAGES; }
 static void serviceRotation(unsigned long) {}
-static void drawRotationIndicator() {}
+static void drawRotationIndicator() { rotationDraws++; }
+static void drawIndicator() { indicatorDraws++; }
 static void beat() { haveBeat=true; lastBeat=now; stale=false; }
 static bool authorized() { return auth; }
 static String pagePath(int n) { return "/p"+std::to_string(n); }
@@ -112,7 +126,11 @@ int main(int argc,char** argv) {
   if(mode=="stale") now=STALE_MS+1;
   if(mode=="stall") stall=true;
   if(mode=="disconnect") failSend=true;
-  bool touchCase=mode=="touch_read" || mode=="touch_upload" || mode=="touch_info";
+  if(mode=="scroll_read" || mode=="scroll_touch" || mode=="scroll_slow") scrolling.active=true;
+  if(mode=="scroll_slow") slowScroll=true;
+  if(mode=="wave_read" || mode=="wave_touch" || mode=="wave_slow") ocean.active=true;
+  if(mode=="wave_slow") slowWave=true;
+  bool touchCase=mode=="touch_read" || mode=="touch_upload" || mode=="touch_info" || mode=="scroll_touch" || mode=="wave_touch";
   if(touchCase) { touchStart=1100; touchEnd=1250; }
   if(mode=="touch_info") showingInfo=true;
   if(mode=="touch_mode") { touchStart=1100; touchEnd=3250; }
@@ -127,6 +145,7 @@ int main(int argc,char** argv) {
     assert(status==200 && files[pagePath(5)]==expected);
     assert(ticks>100 && maxGap<=40);
     assert(draws==1 && !redrawPending);
+    assert(!indicatorMaskValid);
   } else {
     handlePageRead();
     if(mode=="unauthorized") { assert(status==401 && output.empty() && ticks==0); }
@@ -135,7 +154,14 @@ int main(int argc,char** argv) {
       if(mode=="stall") assert(ticks>100 && maxGap<=40);
     } else {
       assert(status==200 && output==expected && contentLength==expected.size());
-      if(mode=="read" || touchCase || mode=="touch_mode" || mode=="touch_connect") assert(ticks>100 && maxGap<=40);
+      if(mode=="scroll_read" || mode=="scroll_touch" || mode=="scroll_slow" || mode=="wave_read" || mode=="wave_touch" || mode=="wave_slow") {
+        assert(ticks>10 && ticks*2<calls);
+        if(mode=="scroll_read") assert(maxGap<=150);
+        if(mode=="scroll_slow") assert(maxGap<=130);
+        if(mode=="wave_read") assert(maxGap<=240);
+        if(mode=="wave_slow") assert(maxGap<=500);
+      } else if(mode=="read" || mode=="touch_read" || mode=="touch_upload" ||
+         mode=="touch_info" || mode=="touch_mode" || mode=="touch_connect") assert(ticks>100 && maxGap<=40);
       else assert(ticks==0);
       if(mode=="stale") assert(stale && draws==1);
     }
@@ -147,6 +173,9 @@ int main(int argc,char** argv) {
   }
   if(mode=="touch_mode") assert(rotationClock.mode==30 && tapCount==0 && !showingInfo);
   if(mode=="touch_connect") assert(showingInfo && longCount==1 && rotationClock.mode==0);
+  if(mode=="scroll_read" || mode=="scroll_touch") assert(indicatorDraws>0 && ticksHeld==0);
+  if(mode=="wave_read" || mode=="wave_touch" || mode=="wave_slow") assert(indicatorDraws>0 && ticksHeld==0);
+  assert(rotationDraws <= int((now-1000)/80)+3);
   printf("%s OK ticks=%d gap=%lu bytes=%zu\n",mode.c_str(),ticks,maxGap,output.size());
 }
 '''

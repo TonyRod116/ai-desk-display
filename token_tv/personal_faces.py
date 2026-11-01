@@ -112,7 +112,7 @@ def banked_hearts(row):
 
 
 def hearts(cv, x, y, count, ink, paper, scale=2, old=False, quiet=False):
-    """Three hearts for the saved resets. `quiet` (the board's wider screen; the user, 2026-10-20): while the number is unknown or old the
+    """Three hearts for the saved resets. `quiet` (the board's wider screen; Tony, 2026-10-20): while the number is unknown or old the
     hearts stay and ONE faint dot ends the row, with no `?` and no OLD."""
     shape = ('.##.##.', '#######', '#######', '.#####.', '..###..', '...#...')
     fills = reset_heart_fills(count)
@@ -166,14 +166,14 @@ def lcd_grid(image, shade, strength=.22, cell=2, axes='both'):
     """The dot-matrix look of a real Game Boy LCD: a thin darker line between neighbouring pixels.
 
     `axes` is 'both', 'vertical' (lines between columns) or 'horizontal' (between rows). A line every
-    2 px in both directions made the board's panel shimmer (the user, 2026-10-13).
+    2 px in both directions made the board's panel shimmer (Tony, 2026-10-13).
     """
     image = image.convert('RGB')
     dark = Image.blend(image, Image.new('RGB', image.size, shade), strength)
     return Image.composite(dark, image, _grid_mask(image.size, cell, axes))
 
 
-def gameboy(data, paper, ink, title, screen=(240, 240), grid=False):
+def gameboy(data, paper, ink, title, screen=(240, 240), grid=False, show_credits=False):
     dx = screen[0] - 240  # the faces are drawn for 240 and stretch to wider screens, not the other way
     cv = Canvas(paper, screen)
     cv.draw.rectangle((3, 3, 236 + dx, 236), outline=ink, width=3)
@@ -193,8 +193,18 @@ def gameboy(data, paper, ink, title, screen=(240, 240), grid=False):
         count, old_count = banked_hearts(row)
         hearts(cv, 111 + dx // 2, y + 5, count, ink, paper, scale=2, old=old_count, quiet=dx > 0)
         size = 16 if compact else 25
-        number = '--' if value is None else f'{round(value)}%'
-        cv.text((15, y + 24), number, pixel(size), ink)
+        from token_tv.credits import exhausted_credits, format_balance
+        credits = exhausted_credits(row) if show_credits else None
+        if credits is not None:
+            number = format_balance(credits)
+            cv.text((15, y + 22), 'CREDITS', pixel(6), ink)
+            size = 12 if compact else 17
+            while size > 6 and pixel(size).getlength(number) > 110:
+                size -= 1
+            cv.text((15, y + 31), number, pixel(size), ink)
+        else:
+            number = '--' if value is None else f'{round(value)}%'
+            cv.text((15, y + 24), number, pixel(size), ink)
         cv.text((222 + dx, y + (20 if compact else 23)), 'RESET', pixel(7 if compact else 9), ink, anchor='ra')
         cv.text((222 + dx, y + (32 if compact else 38)), reset.replace(' ', ''), pixel(8 if compact else 16), ink, anchor='ra')
         bar_y = y + pitch - (12 if compact else 17)
@@ -219,12 +229,12 @@ def render_gameboy(data, screen=(240, 240), colors=DMG, grid=False):
 POCKET = ('#6cc24a', '#08240c')  # a clear mid green with near-black ink: it read as pale grey on the board's panel when softer
 
 
-def render_pocket(data, screen=(240, 240), colors=POCKET, grid=False):
+def render_pocket(data, screen=(240, 240), colors=POCKET, grid=False, show_credits=False):
     paper, ink = colors
-    return gameboy(data, paper, ink, 'TOKEN POCKET LOCAL', screen, grid)
+    return gameboy(data, paper, ink, 'TOKEN POCKET LOCAL', screen, grid, show_credits=show_credits)
 
 
-def render_amber(data, screen=(240, 240)):
+def render_amber(data, screen=(240, 240), show_credits=False):
     dx = screen[0] - 240
     cv = Canvas('#110d06', screen)
     ink, dim = '#ffc66b', '#73532b'
@@ -242,8 +252,13 @@ def render_amber(data, screen=(240, 240)):
         cv.text((222 + dx, y + 4), 'OLD' if old else 'N/A' if period == 'NO DATA' else period, pixel(8), ink, anchor='ra')
         count, old_count = banked_hearts(row)
         hearts(cv, 113 + dx // 2, y + 5, count, ink, '#110d06', scale=2, old=old_count)
-        number = '--' if value is None else f'{round(value)}%'
-        cv.text((18, y + 18), number, face('vt323.woff2', 25 if compact else 43), ink)
+        from token_tv.credits import exhausted_credits, format_balance
+        credit = exhausted_credits(row) if show_credits else None
+        number = format_balance(credit) if credit is not None else '--' if value is None else f'{round(value)}%'
+        if credit is not None:
+            cv.text((18, y + 18), 'CREDITS', face('vt323.woff2', 12), ink)
+        cv.text((18, y + (28 if credit is not None else 18)), number,
+                face('vt323.woff2', (22 if compact else 32) if credit is not None else (25 if compact else 43)), ink)
         cv.text((221 + dx, y + (20 if compact else 24)), 'RESET', face('vt323.woff2', 11 if compact else 15), dim, anchor='ra')
         cv.text((221 + dx, y + (31 if compact else 39)), reset, face('vt323.woff2', 14 if compact else 17), ink, anchor='ra')
         bar_y = y + pitch - (11 if compact else 16)
@@ -253,7 +268,7 @@ def render_amber(data, screen=(240, 240)):
     return cv.finish()
 
 
-def render_orbit(data, screen=(240, 240)):
+def render_orbit(data, screen=(240, 240), show_credits=False):
     dx = screen[0] - 240
     cv = Canvas('#07141b', screen)
     white, muted = '#e4f3eb', '#8daeb5'
@@ -276,10 +291,16 @@ def render_orbit(data, screen=(240, 240)):
         # Claude's session line sits under the text column, where the ring has no room for it.
         session_pace_line(cv, text_x, y + (55 if compact else 80), 123 + dx // 2, session_pace(row), '#ffd8bf', '#3a555d',
                           '#7be1d7', row=1 if compact else 3)
-        number = '--' if value is None else f'{round(value)}'
+        from token_tv.credits import exhausted_credits, format_balance
+        credit = exhausted_credits(row) if show_credits else None
+        number = format_balance(credit) if credit is not None else '--' if value is None else f'{round(value)}'
         cx = ring_x + diameter / 2
-        cv.text((cx, y + diameter / 2 - 12), number, face('oxanium.woff2', 26), white, anchor='ma')
-        cv.text((cx, y + diameter / 2 + 14), '%' if value is not None else '?', pixel(8), ink, anchor='ma')
+        size = 26
+        if credit is not None:
+            while size > 8 and face('oxanium.woff2', size).getlength(number) > diameter - 12:
+                size -= 1
+        cv.text((cx, y + diameter / 2 - 12), number, face('oxanium.woff2', size), white, anchor='ma')
+        cv.text((cx, y + diameter / 2 + 14), 'CRED' if credit is not None else '%' if value is not None else '?', pixel(7 if credit is not None else 8), ink, anchor='ma')
         cv.text((text_x, y + 4), row['provider'].upper(), face('orbitron.ttf', 13), ink)
         count, old_count = banked_hearts(row)
         hearts(cv, 175 + dx // 2, y + 5, count, ink, '#07141b', scale=1, old=old_count)

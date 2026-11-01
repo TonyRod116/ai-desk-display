@@ -83,6 +83,9 @@ def encode(image, glass_only, glass_alpha):
 def decode(payload):
     if len(payload) < HEADER.size:
         raise ValueError("Truncated WAVE header")
+    if payload[0] in (2, 3):
+        from token_tv.board_beach import decode as decode_beach
+        return decode_beach(payload)
     version, flags, top, rows, ms, steps, glass_colour = HEADER.unpack_from(payload)
     if (version, flags, top, rows, ms, steps) != (1, 0, TOP, ROWS, STEP_MS, STEPS):
         raise ValueError("Unsupported photographic ocean")
@@ -124,12 +127,30 @@ def sample(ocean, xq, yq):
     return out
 
 
+def foam_alpha(x, yy, shore, step):
+    """An irregular crest travels shorewards independently of the photo.
+
+    Phase advances twice per 64-frame cycle, so foam does not have to rewind
+    with the broader tidal motion. Small, moving gaps break up the crest.
+    """
+    distance = x - shore
+    if distance < 0:
+        return 0
+    bend = ((SIN[(yy * 2) & 127] + 128) >> 3) + ((SIN[(yy * 5) & 127] + 128) >> 4)
+    phase = (distance * 4 + step * 8 + bend) & 255
+    if phase >= 48:
+        return 0
+    texture = SIN[(yy * 7 + x * 3 + step * 2) & 127] + 128
+    if texture < 28:
+        return 0
+    strength = 70 + 80 * yy // (ROWS - 1)
+    return ((48 - phase) * strength // 48) * (80 + texture) // 336
+
+
 def render_words(background, ocean, step):
     """Integer reference for the native engine, not a runtime PC animation loop."""
     out = list(background)
     step %= STEPS
-    if step == 0:
-        return out
     cosine = SIN[(step*2+32)&127]
     for yy in range(ROWS):
         y = TOP+yy
@@ -142,7 +163,9 @@ def render_words(background, ocean, step):
             if ocean['keep'][idx//8] & (1 << (idx%8)):
                 continue
             distance = max(0, x-shore)
-            near = max(64, 256-distance*3)
+            # Keep the mapping monotonic as the tide enters: too steep a
+            # falloff folds the photo and smears it into horizontal bands.
+            near = max(0, 256-distance*3)
             k = (carrier+x//18)&127
             dx = tide*near//256 + ripple*(SIN[(k-step*2)&127]-SIN[k])//128
             dy = ripple*(SIN[(k-step*2+32)&127]-SIN[(k+32)&127])//160
@@ -151,6 +174,9 @@ def render_words(background, ocean, step):
             if not wet:
                 continue
             c = sample(ocean, x*256+dx, yy*256+dy)
+            foam = foam_alpha(x, yy, shore, step)
+            if foam:
+                c = blend(c, 0xffff, foam)
             if ocean['glass'][idx//8] & (1 << (idx%8)):
                 c = blend(c, ocean['glass_colour'], 156)
             at = y*W+x

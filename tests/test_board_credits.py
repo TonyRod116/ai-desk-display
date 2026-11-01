@@ -17,6 +17,11 @@ def sample(week=100, balance='137.5'):
 
 
 class BoardCreditTests(unittest.TestCase):
+    def setUp(self):
+        local = patch('token_tv.board_arcade.local_stage.load', return_value=None)
+        local.start()
+        self.addCleanup(local.stop)
+
     def test_badge_only_changes_each_codex_instrument_when_week_exhausted(self):
         originals = [Image.new('RGB', (320, 240), '#303030') for _ in PAGE_NAMES]
         controls = [im.copy() for im in originals]
@@ -44,3 +49,17 @@ class BoardCreditTests(unittest.TestCase):
                 for y in range(max(y0,top), min(y1+1,top+2*sprite['h'])):
                     for x in range(max(x0,left), min(x1+1,left+2*sprite['w'])):
                         self.assertEqual(sprite['frames'][f][((y-top)//2)*sprite['w']+(x-left)//2], KEY)
+
+    def test_fighting_game_credits_replace_only_the_player_one_readout(self):
+        from token_tv.board_arcade import render_arcade
+        with patch('time.time', return_value=1000):
+            data = sample()
+            image = render_arcade(data)
+            before = image.copy()
+            apply_credit_badges([image], ['arcade'], data)
+        x0, y0, x1, y1 = BOXES['arcade']
+        self.assertNotEqual(before.crop((x0,y0,x1+1,y1+1)).tobytes(),
+                            image.crop((x0,y0,x1+1,y1+1)).tobytes())
+        # Weekly bars, Claude's data and the fighters must remain identical.
+        self.assertEqual(before.crop((0,18,320,240)).tobytes(), image.crop((0,18,320,240)).tobytes())
+        self.assertEqual(before.crop((160,0,320,18)).tobytes(), image.crop((160,0,320,18)).tobytes())

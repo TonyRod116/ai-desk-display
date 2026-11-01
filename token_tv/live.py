@@ -11,11 +11,13 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 from token_tv.board import BoardDisplay, publish_pages
+from token_tv.board_control import BoardControl
 from token_tv.board_pages import render_board_pages
+from token_tv.board_scenes import BoardScenes
 from token_tv.device import ALBUM_FACES, FILES, PhotoDisplay
 from token_tv.catalog import payload as theme_payload
 from token_tv.display import STYLES, render_page
-from token_tv.web_assets import HTML, ASSETS, asset
+from token_tv.web_assets import HTML, BOARD_HTML, ASSETS, asset
 from token_tv.sources import load_config
 from token_tv.state import UsageStore
 from token_tv.reset_balances import ResetBalances, attach_balances
@@ -102,7 +104,7 @@ class DisplayPreferences:
             self.status = ('queued' if style != self.style else 'ok' if success else 'error')
 
 
-def handler(store, preferences=None):
+def handler(store, preferences=None, board_control=None):
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, *args):
             return
@@ -125,6 +127,68 @@ def handler(store, preferences=None):
                 return
             url = urlparse(self.path)
             path = url.path
+            if path == '/board/catalog' or path.startswith(('/board/preview/', '/board/library/')):
+                # Screens can contain account readings. Do not let another site
+                # embed them or trigger their relatively expensive rendering.
+                origin = self.headers.get('Origin')
+                if (self.headers.get('Sec-Fetch-Site') == 'cross-site' or
+                        (origin and (urlparse(origin).scheme not in ('http', 'https') or
+                                     urlparse(origin).netloc != self.headers.get('Host')))):
+                    self.send_error(403, 'Origin mismatch')
+                    return
+            if path == '/board':
+                self.reply(200, BOARD_HTML.encode(), 'text/html; charset=utf-8')
+                return
+            if path == '/board/catalog':
+                # The dashboard only needs the local library, not a board poll.
+                if board_control is None or board_control.scenes is None:
+                    self.send_error(404)
+                else:
+                    self.reply(200, json.dumps(board_control.scenes.status()).encode())
+                return
+            if path == '/board/status':
+                result = board_control.status() if board_control else {'state': 'not_configured', 'page': None, 'controls': False}
+                self.reply(200, json.dumps(result).encode())
+                return
+            if path in tuple(f'/board/preview/{n}.png' for n in range(8)):
+                number = int(path.rsplit('/', 1)[1][:-4])
+                preview = board_control.preview(number) if board_control else None
+                if preview is None:
+                    self.send_error(404, 'Preview is not ready')
+                else:
+                    self.reply(200, preview, 'image/png')
+                return
+            if path in tuple(f'/board/preview/{n}.webp' for n in range(8)):
+                number = int(path.rsplit('/', 1)[1][:-5])
+                preview = board_control.preview_animation(number) if board_control else None
+                if preview is None:
+                    self.send_error(404, 'Preview is not ready')
+                else:
+                    self.reply(200, *preview)
+                return
+            from token_tv.board_scenes import SCENES
+            if path in tuple(f'/board/library/{name}.png' for name in SCENES):
+                if board_control is None or board_control.scenes is None:
+                    self.send_error(404)
+                else:
+                    current = store.snapshot()
+                    if preferences:
+                        attach_balances(current, preferences.reset_snapshot())
+                    self.reply(200, board_control.archive_preview(path.rsplit('/', 1)[1][:-4], current), 'image/png')
+                return
+            if path in tuple(f'/board/library/{name}.webp' for name in SCENES):
+                if board_control is None or board_control.scenes is None:
+                    self.send_error(404)
+                else:
+                    current = store.snapshot()
+                    if preferences:
+                        attach_balances(current, preferences.reset_snapshot())
+                    preview = board_control.archive_animation(path.rsplit('/', 1)[1][:-5], current)
+                    if preview is None:
+                        self.send_error(404, 'Preview is not ready')
+                    else:
+                        self.reply(200, *preview)
+                return
             snapshot = store.snapshot()
             if preferences:
                 attach_balances(snapshot, preferences.reset_snapshot())
@@ -233,10 +297,14 @@ def handler(store, preferences=None):
                 self.receive_claude_bank()
                 return
             path = urlparse(self.path).path
-            if path not in ('/display/style', '/display/resets', '/display/reset-refresh', '/display/usage-refresh'):
+            if path not in ('/display/style', '/display/resets', '/display/reset-refresh', '/display/usage-refresh',
+                            '/board/page', '/board/rotation', '/board/speed', '/board/touch', '/board/scene'):
                 self.send_error(404)
                 return
-            if preferences is None:
+            if path.startswith('/board/') and board_control is None:
+                self.send_error(409, 'Display controls unavailable')
+                return
+            if not path.startswith('/board/') and preferences is None:
                 self.send_error(409, 'Display settings unavailable')
                 return
             origin = self.headers.get('Origin')
@@ -250,6 +318,13 @@ def handler(store, preferences=None):
                 data = json.loads(self.rfile.read(length))
                 if not isinstance(data, dict):
                     raise ValueError('Invalid request')
+                if path.startswith('/board/'):
+                    command = path.rsplit('/', 1)[-1]
+                    if set(data) != {'value'}:
+                        raise ValueError('Invalid display control')
+                    result = board_control.execute(command, data['value'])
+                    self.reply(200, json.dumps(result).encode())
+                    return
                 if path == '/display/style':
                     if set(data) != {'style'} or data['style'] not in STYLES:
                         raise ValueError('Unknown display style')
@@ -267,10 +342,11 @@ def handler(store, preferences=None):
                         preferences.request_quota_refresh()
                     preferences.changed.set()
             except (ValueError, UnicodeError):
-                self.send_error(400, 'Choose a supported style or reset balance')
+                self.send_error(400, 'Invalid display control' if path.startswith('/board/') else
+                                'Choose a supported style or reset balance')
                 return
             except OSError:
-                self.send_error(500, 'Could not save display choice')
+                self.send_error(503 if path.startswith('/board/') else 500, 'Display is unavailable')
                 return
             self.reply(200, json.dumps(preferences.snapshot()).encode())
     return Handler
@@ -316,6 +392,8 @@ def main():
     else:
         store = UsageStore(config["accounts"])
     preferences = DisplayPreferences(args.config, config)
+    board_scenes = BoardScenes(state_dir / 'board-scenes.json', preferences.changed)
+    board_control = BoardControl(board, board_scenes)
     interval = max(60, int(config.get("poll_seconds", 300)))
     if config.get('local_only') and (config.get('automatic_codex_resets') or config.get('automatic_claude_usage')):
         interval = 60  # Recover missed notifications and expire stopped readers without session activity.
@@ -380,10 +458,14 @@ def main():
         if not args.once and board:
             # Independent of the clock: a missing board never delays or fails the clock's cycle.
             try:
+                scene_ids = board_scenes.snapshot()
                 board.ensure_paired()  # a reflashed board is claimed again without anyone typing
                 pages = render_board_pages(snapshot, stars=board.stars, anim=board.anim, anim_frames=board.anim_frames,
-                                           waves=getattr(board, 'waves', False))
-                receipts = publish_pages(board, pages, board_sent)
+                                           waves=getattr(board, 'waves', False), scroll=getattr(board, 'scroll', False),
+                                           scene_ids=scene_ids)
+                board_control.update_frames(pages)
+                receipts = publish_pages(board, pages, board_sent,
+                                         on_verified=lambda slot: board_scenes.confirm_slot(slot, scene_ids[slot]))
                 board.set_active_pages(len(pages))  # a page that was deleted is no longer cycled
                 if not board_selected['done']:  # firmware that stays on its address screen until touched
                     board.select_initial_page()
@@ -391,7 +473,10 @@ def main():
                 write_json(state_dir / "board-receipt.json", {"at": int(time.time()), "uploads": receipts})
             except (OSError, ValueError) as error:
                 write_json(state_dir / "board-receipt.json", {"at": int(time.time()), "status": "error",
-                           "http_status": getattr(error, "code", None)})
+                           "http_status": getattr(error, "code", None),
+                           "error_type": type(error).__name__,
+                           "failed_page": getattr(error, "board_page", None),
+                           "uploads": getattr(error, "board_receipts", [])})
         snapshot['display'] = preferences.snapshot()
         write_json(state_dir / "snapshot.json", snapshot)
         if args.output:
@@ -421,7 +506,7 @@ def main():
     thread = threading.Thread(target=poll, daemon=True)
     thread.start()
     try:
-        with ThreadingHTTPServer((args.host, args.port), handler(store, preferences)) as server:
+        with ThreadingHTTPServer((args.host, args.port), handler(store, preferences, board_control)) as server:
             print(f"TokenTV live listening at http://{args.host}:{args.port}", flush=True)
             server.serve_forever()
     except KeyboardInterrupt:

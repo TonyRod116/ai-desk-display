@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>Display controls · AI Desk Display</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="/assets/board.css">
+  <script defer src="/assets/i18n.js"></script>
+  <script defer src="/assets/board.js"></script>
+</head>
+<body>
+  <a class="skip" href="#screens">Skip to screens</a>
+  <header class="topbar">
+    <a class="brand" href="/board"><span class="brand-mark" aria-hidden="true"></span><span>AI DESK DISPLAY</span></a>
+    <div class="top-actions"><a class="back-link" href="/">Usage dashboard</a><label class="language-label"><span class="visually-hidden">Language</span><select class="language-switch" aria-label="Language"><option value="en">EN</option><option value="es">ES</option></select></label><span class="connection" id="connection" data-state="connecting"><i aria-hidden="true"></i><span>Connecting</span></span></div>
+  </header>
+
+  <main class="shell">
+    <header class="page-heading"><div><p class="eyebrow">YOUR DESK DISPLAY</p><h1>Display controls</h1><p>Choose a screen and set how it plays.</p></div><a href="#touch-settings">Touch settings <span aria-hidden="true">↓</span></a></header>
+
+    <section class="workbench" aria-label="Current screen and playback settings">
+      <div class="stage">
+        <div class="stage-heading"><div><p class="eyebrow">NOW SHOWING</p><h2 id="current-name">Your display</h2></div><span class="stage-number" id="current-number">— / 08</span></div>
+        <div class="device-screen"><img id="current-preview" alt="Preview of the selected display screen" hidden><div id="preview-empty" class="preview-empty"><span aria-hidden="true">□</span><p>Waiting for a preview</p></div></div>
+        <p class="stage-caption"><span><i class="tiny-dot" aria-hidden="true"></i> Local preview</span><span>Animated screens move here too</span></p>
+      </div>
+
+      <div class="settings">
+        <div class="settings-heading"><p class="eyebrow">SETTINGS</p><h2>Playback</h2><p>Saved on your display.</p></div>
+        <fieldset id="rotation-controls" disabled>
+          <legend>Auto-rotate</legend>
+          <p class="control-description">Change screens on the hour or half-hour.</p>
+          <div class="segments" role="group" aria-label="Automatic screen rotation"><button type="button" data-rotation="0" aria-pressed="false">Never</button><button type="button" data-rotation="30" aria-pressed="false">30 min</button><button type="button" data-rotation="60" aria-pressed="false">1 hour</button></div>
+        </fieldset>
+        <fieldset id="speed-controls" disabled>
+          <legend>Animation speed</legend>
+          <p class="control-description" id="speed-description">For the selected screen.</p>
+          <div class="segments" role="group" aria-label="Animation speed"><button type="button" data-speed="75" aria-pressed="false">Slower <small>75%</small></button><button type="button" data-speed="100" aria-pressed="false">Normal <small>100%</small></button><button type="button" data-speed="125" aria-pressed="false">Faster <small>125%</small></button></div>
+          <p class="hint">Changes motion speed, not frame rate.</p>
+        </fieldset>
+        <p id="setting-note" class="setting-note" role="status">Connecting to your display…</p>
+      </div>
+    </section>
+
+    <section class="gallery" id="screens" aria-labelledby="screens-title">
+      <div class="section-heading"><div><h2 id="screens-title">Screens</h2><p>Tap a screen to show it. Change a slot to bring back an earlier version.</p></div><span class="section-count">8 SLOTS</span></div>
+      <div class="screen-grid" id="screen-grid" aria-label="Display screens"></div>
+    </section>
+
+    <dialog id="scene-dialog" aria-labelledby="scene-dialog-title">
+      <form id="scene-form">
+        <div class="dialog-head"><div><p class="eyebrow">SCREEN LIBRARY</p><h2 id="scene-dialog-title">Change screen</h2></div><button class="dialog-close" type="button" aria-label="Close">×</button></div>
+        <p>Choose what to put in this slot. You can bring the current screen back later.</p>
+        <input id="scene-select" name="scene" type="hidden">
+        <p class="library-explainer">Screens move in the preview and use your latest available local readings.</p>
+        <div id="scene-library" class="library-grid" role="group" aria-label="Choose a screen"></div>
+        <div class="dialog-footer"><div class="dialog-info"><p class="library-selection" role="status"><span>Selected:</span> <strong id="scene-selected-name"></strong></p><p class="dialog-hint">Animation speed belongs to the slot and stays the same when you change its screen.</p></div>
+          <div class="dialog-actions"><button class="dialog-cancel" type="button">Cancel</button><button class="dialog-save" type="submit">Replace screen</button></div>
+          <p id="scene-note" role="status"></p>
+        </div>
+      </form>
+    </dialog>
+
+    <section class="touch-section" id="touch-settings" aria-labelledby="touch-title">
+      <div class="touch-intro"><p class="eyebrow">ON THE DISPLAY</p><h2 id="touch-title">Touch controls</h2><p>A short tap changes the screen. Hold and release for the shortcuts below.</p></div>
+      <form id="touch-form" class="touch-form">
+        <fieldset id="touch-controls" disabled>
+          <label for="mode-hold"><span>Change auto-rotate mode</span><select id="mode-hold" name="mode"><option value="1">1 second</option><option value="2">2 seconds</option><option value="3">3 seconds</option><option value="4">4 seconds</option></select></label>
+          <label for="connect-hold"><span>Open connection screen</span><select id="connect-hold" name="connect"><option value="5">5 seconds</option><option value="6">6 seconds</option><option value="7">7 seconds</option><option value="8">8 seconds</option><option value="9">9 seconds</option><option value="10">10 seconds</option></select></label>
+          <div class="touch-footer"><p>Connection always requires a physical hold of at least 5 seconds.</p><button type="submit">Save touch settings</button></div>
+        </fieldset>
+        <p id="touch-note" class="touch-note" role="status">Connecting to your display…</p>
+      </form>
+    </section>
+  </main>
+  <footer><span>AI DESK DISPLAY</span><span>Running locally on this computer</span></footer>
+</body>
+</html>

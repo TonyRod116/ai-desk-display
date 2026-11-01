@@ -4,9 +4,10 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="color-scheme" content="dark light">
-<title>TokenTV · AI usage</title>
+<title>AI Desk Display · Usage dashboard</title>
 <link rel="icon" href="data:,">
 <link rel="stylesheet" href="/assets/style.css">
+<script src="/assets/i18n.js" defer></script>
 <script src="/assets/app.js" defer></script>
 </head>
 <body>
@@ -19,16 +20,12 @@
 </div>
 <div class="shell">
   <header class="topbar">
-    <a class="brand" href="/" aria-label="TokenTV home"><span class="brandmark" aria-hidden="true"></span><span class="brand-word">TOKEN<b>TV</b></span></a>
+    <a class="brand" href="/" aria-label="AI Desk Display home"><span class="brandmark" aria-hidden="true"></span><span class="brand-word">AI DESK <b>DISPLAY</b></span></a>
     <div class="connection"><span class="status-dot" aria-hidden="true"></span><span id="connection">Connecting</span></div>
-    <a class="control gallery-link" href="#gallery">Clock faces</a>
-    <button id="clock-toggle" class="control clock-toggle" type="button" aria-expanded="false" aria-controls="clock-panel">Clock display</button>
+    <label class="language-label"><span class="visually-hidden">Language</span><select class="language-switch" aria-label="Language"><option value="en">EN</option><option value="es">ES</option></select></label>
+    <a class="control" href="/board">Desk display</a>
+    <button id="clock-toggle" class="control clock-toggle" type="button" aria-expanded="false" aria-controls="clock-panel">Saved resets</button>
   </header>
-  <nav class="theme-section" aria-label="Dashboard appearance">
-    <span class="section-label">Dashboard appearance</span>
-    <div id="themes" class="themes" role="group" aria-label="Dashboard theme"></div>
-    <p class="quiet">These buttons change the dashboard. To choose an image for the clock, open <a href="#gallery">Clock faces</a>.</p>
-  </nav>
   <div class="workspace">
     <main class="screen" id="dashboard">
       <header class="screen-head">
@@ -37,15 +34,25 @@
           <h1 id="page-title">AI USAGE DASHBOARD</h1>
           <p class="intro-note" id="intro-note" hidden></p>
         </div>
-        <div class="mascot" id="mascot" aria-hidden="true"></div>
         <dl class="summary">
           <div class="summary-accounts"><dt>Accounts</dt><dd id="account-count">—</dd></div>
           <div class="summary-reporting"><dt>Reporting</dt><dd id="reporting-count">—</dd></div>
-          <div class="summary-providers"><dt>Providers</dt><dd>3</dd></div>
+          <div class="summary-providers"><dt>Providers</dt><dd id="provider-count">—</dd></div>
           <div class="summary-clock"><dt>Today</dt><dd id="local-time"><span class="zone" id="clock-zone">Local</span><span class="date-iso"></span><span class="date-long"></span><span class="time"></span></dd></div>
         </dl>
       </header>
       <div id="notice" class="notice" role="status" hidden></div>
+      <section id="dashboard-scene" class="dashboard-scene" aria-labelledby="scene-title" hidden>
+        <div class="scene-heading">
+          <div><p class="scene-kicker">YOUR SCREEN</p><h2 id="scene-title">Screen</h2></div>
+          <button class="scene-change" id="scene-change" type="button">Change screen <span aria-hidden="true">↗</span></button>
+        </div>
+        <div class="scene-stage">
+          <img id="scene-image" alt="Selected screen with current usage" hidden>
+          <p class="scene-message" id="scene-message" role="status">Loading preview…</p>
+        </div>
+        <p class="scene-caption">Live local readings · This page only</p>
+      </section>
       <section class="provider-list" id="providers" aria-label="Provider usage"><p class="loading">Loading your accounts…</p></section>
       <footer class="screen-foot">
         <div class="footer-meta">
@@ -57,16 +64,9 @@
         <div class="legend" aria-label="Used quota levels"><span class="section-label">Used quota</span><span><i data-level="low"></i>0–49%</span><span><i data-level="medium"></i>50–79%</span><span><i data-level="high"></i>80–89%</span><span><i data-level="critical"></i>90–100%</span></div>
       </footer>
     </main>
-    <aside id="clock-panel" class="clock-panel" aria-label="Physical clock" hidden>
-      <div class="aside-head"><div><p class="eyebrow">Physical display</p><h2>Your clock</h2></div><button class="control icon-control" id="close-clock" type="button" aria-label="Close clock panel">×</button></div>
-      <div class="device"><div class="lcd"><img id="frame" width="240" height="240" alt="Live clock preview"></div></div>
-      <label for="clock-style">Clock face</label>
-      <select id="clock-style" class="control"></select>
-      <button class="control primary" id="apply" type="button" disabled>Apply to clock</button>
-      <p id="display-state" role="status">Loading clock status</p>
-      <p class="quiet">240 × 240 · The image is rendered here automatically. You can close your browser; the service keeps running.</p>
+    <aside id="clock-panel" class="clock-panel" aria-label="Saved resets" hidden>
+      <div class="aside-head"><div><p class="eyebrow">USAGE SETTINGS</p><h2>Saved resets</h2></div><button class="control icon-control" id="close-clock" type="button" aria-label="Close saved resets panel">×</button></div>
       <form id="saved-resets-form" class="saved-resets">
-        <h3>Saved resets</h3>
         <p class="quiet">Each heart is an available saved reset. The bar shows quota.</p>
         <label for="resets-codex">Codex</label>
         <input class="control" id="resets-codex" type="number" min="0" max="999" step="1" placeholder="?">
@@ -79,14 +79,19 @@
       </form>
     </aside>
   </div>
-  <section class="gallery" id="gallery" aria-labelledby="gallery-title">
-    <div class="themes-head"><h2 id="gallery-title">Clock faces</h2><div class="theme-sort" role="group" aria-label="Sort clock faces"><button type="button" class="control" data-sort="popular" aria-pressed="true">Popular</button><button type="button" class="control" data-sort="new" aria-pressed="false">New</button></div></div>
-    <p class="quiet" id="likes-as-of">Loading clock faces</p>
-    <ul id="theme-list" class="theme-list"></ul>
-    <p class="gallery-links"><a href="https://github.com/click6067-ship-it/token-tv/blob/main/docs/clock-faces.md">Make a face</a> · <a href="https://github.com/click6067-ship-it/token-tv/issues/new?template=share_a_face.md">Share a face</a></p>
-    <p class="quiet">No clock needed to make one: it renders from sample data. With a clock, your own face shows up here as Local and can be applied.</p>
-  </section>
-  <details class="help"><summary>How to read the dashboard</summary><p>Game Boy Green, Game Boy Pocket, Pixel Retro, Amber Terminal and Orbit show <strong>weekly quota remaining</strong> and the time until the weekly reset. Expand a card to see other limits, such as the current session. Other dashboard themes show quota used and the busiest limit. Official readings disappear when a refresh fails, they become more than three minutes old, or their reset time passes. Unknown readings appear as —.</p><p>Hearts count saved resets; they are never calculated from the quota bar. When automatic checks are enabled, balances come from the official account readers. Otherwise, confirm them manually in the official Usage settings. An unknown balance appears as ?.</p></details>
+  <nav class="theme-section" aria-label="Dashboard appearance">
+    <div class="appearance-heading"><span class="section-label">Dashboard appearance</span><span class="appearance-caption">Changes this page only</span></div>
+    <div id="themes" class="themes" role="group" aria-label="Dashboard theme"></div>
+    <p class="quiet">To change the screens on your device, open <a href="/board">Desk display</a>.</p>
+  </nav>
+  <details class="help"><summary>How to read the dashboard</summary><p>Each appearance shows <strong>weekly quota remaining</strong> and the time until the weekly reset. Expand a card to see other limits, such as the current session. When Codex's weekly allowance is exhausted, its card shows extra credits if the official reading provides them; the empty bar still represents weekly quota. Official readings disappear when a refresh fails, they become more than three minutes old, or their reset time passes. Unknown readings appear as — or ?.</p><p>Hearts count saved resets, which are separate from extra credits and are never calculated from the quota bar. When automatic checks are enabled, balances come from the official account readers. Otherwise, confirm them manually in the official Usage settings. An unknown balance appears as ?.</p></details>
 </div>
+<dialog id="screen-library" class="screen-library" aria-labelledby="library-title">
+  <div class="library-top">
+    <div><p class="library-kicker">YOUR COLLECTION</p><h2 id="library-title">Choose a screen</h2><p class="library-description">See any screen here, with your local usage. Your device stays as it is.</p></div>
+    <button class="library-close" id="library-close" type="button" aria-label="Close screen library">×</button>
+  </div>
+  <div id="library-content" class="library-content" aria-live="polite"><p>Loading screens…</p></div>
+</dialog>
 </body>
 </html>

@@ -11,6 +11,7 @@ import ipaddress
 import json
 import re
 import secrets
+import threading
 import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor
@@ -47,11 +48,15 @@ def board_settings(value):
 class BoardDisplay:
     def __init__(self, base_url, token):
         self.base_url, self.token = board_settings({'url': base_url, 'token': token})
+        self.lock = threading.RLock()  # one board request at a time, including upload + readback
+        self.last_info = None
+        self.last_seen = 0.0
         self.capacity = 6  # until the board says otherwise: the first firmware had six slots
         self.stars = False  # firmware 4+ can make the stars of a page twinkle (5 flares them as a cross)
         self.anim = False  # firmware 7+ moves sprites over a page (ANIM trailer)
         self.anim_frames = 4  # firmware 14 advertises eight-frame scenery
         self.waves = False  # firmware 8+ moves the whole photographic sea at native resolution
+        self.scroll = False  # only boards explicitly advertising resident platform scrolling
         self.remembers_selection = False
         self.active = None  # how many page slots the board cycles; None on firmware without the setting
 
@@ -63,13 +68,20 @@ class BoardDisplay:
         # upload/readback took 42/24 s. Keep controls short, allow page I/O
         # enough time, and still verify every stored byte in upload().
         timeout = 60 if path.split('?', 1)[0] == '/page' else 20
-        with open_direct(Request(self.base_url + path, data=data, headers=headers),
-                         timeout=timeout, no_proxy=True) as response:
-            return response.status, response.read()
+        with self.lock:
+            with open_direct(Request(self.base_url + path, data=data, headers=headers),
+                             timeout=timeout, no_proxy=True) as response:
+                return response.status, response.read()
 
     def info(self):
-        _, body = self.request('/info', authorized=False)
-        return json.loads(body)
+        with self.lock:
+            _, body = self.request('/info', authorized=False)
+            info = json.loads(body)
+            if not isinstance(info, dict):
+                raise ValueError('Invalid board status')
+            self.last_info = info
+            self.last_seen = time.monotonic()
+            return info
 
     def ping(self):
         """Heartbeat. Returns which pages the board holds, e.g. '110111' (older firmware answers 'OK')."""
@@ -102,7 +114,9 @@ class BoardDisplay:
         self.stars = info.get('stars') is True
         self.anim = info.get('anim') in (1, True)
         self.anim_frames = 8 if type(info.get('anim_frames')) is int and info['anim_frames'] == 8 else 4
-        self.waves = info.get('waves') in (1, True)
+        self.waves = info['waves'] if type(info.get('waves')) is int and info['waves'] in (2, 3) else info.get('waves') in (1, True)
+        scroll = info.get('scroll')
+        self.scroll = scroll if type(scroll) is int and scroll in (2, 3, 4) else (1 if scroll in (1, True) else False)
         active = info.get('active')
         self.active = active if type(active) is int and 1 <= active <= PAGES else None
         if info.get('paired') is False:
@@ -137,10 +151,28 @@ class BoardDisplay:
                 return before, after
         raise OSError('The board did not come back after the update')
 
-    def configure(self, rotation=None, invert=None, swap_red_blue=None, swap_bytes=None, pages=None):
+    def configure(self, rotation=None, invert=None, swap_red_blue=None, swap_bytes=None, pages=None,
+                  cycle=None, speed=None, speed_page=None, mode_hold=None, connect_hold=None):
         """Panel options kept on the board: 1 or 3 for landscape either way up, inverted colours,
         red and blue swapped, byte order of each pixel swapped, how many page slots are cycled."""
         options = []
+        if cycle is not None:
+            if type(cycle) is not int or cycle not in (0, 30, 60):
+                raise ValueError('Cycle must be fixed, 30 minutes or one hour')
+            options.append(f'cycle={cycle}')
+        if speed is not None:
+            if type(speed) is not int or speed not in (75, 100, 125):
+                raise ValueError('Unsupported animation speed')
+            options.append(f'speed={speed}')
+        if speed_page is not None:
+            if speed is None or type(speed_page) is not int or not 0 <= speed_page < PAGES:
+                raise ValueError('Invalid screen for animation speed')
+            options.append(f'speedpage={speed_page}')
+        if mode_hold is not None or connect_hold is not None:
+            if (type(mode_hold) is not int or type(connect_hold) is not int
+                    or not 1 <= mode_hold <= 4 or not 5 <= connect_hold <= 10):
+                raise ValueError('Invalid touch timing')
+            options.extend((f'holdmode={mode_hold}', f'holdconnect={connect_hold}'))
         if pages is not None:
             if not 1 <= pages <= PAGES:
                 raise ValueError(f'Pages are 1 to {PAGES}')
@@ -177,32 +209,48 @@ class BoardDisplay:
         boundary = 'TokenTV' + uuid.uuid4().hex
         body = (f'--{boundary}\r\nContent-Disposition: form-data; name="file"; filename="p{number}.jpg"\r\n'
                 f'Content-Type: image/jpeg\r\n\r\n').encode() + image + f'\r\n--{boundary}--\r\n'.encode()
-        status, _ = self.request(f'/page?n={number}', body,
-                                 {'Content-Type': 'multipart/form-data; boundary=' + boundary})
-        if self.read(number) != image:  # what the board stored must be what was sent
-            raise ValueError('Board image verification failed')
+        with self.lock:
+            status, _ = self.request(f'/page?n={number}', body,
+                                     {'Content-Type': 'multipart/form-data; boundary=' + boundary})
+            if self.read(number) != image:  # what the board stored must be what was sent
+                raise ValueError('Board image verification failed')
         return {'page': number, 'status': status, 'bytes': len(image)}
 
 
-def publish_pages(board, pages, sent):
+def publish_pages(board, pages, sent, on_verified=None):
     """Heartbeat, then send the pages that changed or that the board lacks. Returns the receipts.
 
-    `sent` maps page number to the digest the board already holds. Any failure
-    forgets it, so a board that rebooted or came back is refreshed in full.
+    `sent` maps page number to the digest verified on the board. A heartbeat
+    failure forgets everything. Modern boards report missing slots, so a failed
+    individual transfer can retain the other verified pages and resume without
+    repeatedly starting from page zero. Legacy boards still retry everything.
     """
     receipts = []
     try:
         held = board.ping()
-        known = bool(held) and set(held) <= {'0', '1'}
-        capacity = getattr(board, 'capacity', len(pages))
+    except (OSError, ValueError):
+        sent.clear()
+        raise
+    capacity = getattr(board, 'capacity', len(pages))
+    known = (bool(held) and len(held) >= min(capacity, len(pages))
+             and set(held) <= {'0', '1'})
+    number = None
+    try:
         for number, image in enumerate(pages[:capacity]):  # never more pages than the board has slots
             digest = hashlib.sha256(image).hexdigest()
             lacks = known and number < len(held) and held[number] == '0'
             if sent.get(number) != digest or lacks:  # identical pages are not rewritten to the board's flash
                 receipts.append(dict(board.upload(number, image), sha256=digest))
                 sent[number] = digest
-    except (OSError, ValueError):
-        sent.clear()
+            if on_verified is not None:
+                on_verified(number)
+    except (OSError, ValueError) as error:
+        if known and number is not None:
+            sent.pop(number, None)  # an interrupted page is never considered verified
+        else:
+            sent.clear()
+        error.board_page = number
+        error.board_receipts = receipts
         raise
     return receipts
 

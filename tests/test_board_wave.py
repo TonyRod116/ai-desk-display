@@ -30,6 +30,36 @@ def scene(data):
 
 
 class OceanTests(unittest.TestCase):
+    def test_independent_crests_advance_toward_the_beach_and_loop(self):
+        # A completely uniform photograph cannot make moving crests on its own:
+        # any visible foam must be created by the animation rather than by
+        # translating the same image back and forth.
+        colour = wave.word((24, 118, 153))
+        background = [colour] * (wave.W * wave.H)
+        masks = bytes(wave.W * wave.ROWS // 8)
+        ocean = dict(starts=(0,) * wave.ROWS,
+                     offsets=tuple(y * wave.W for y in range(wave.ROWS)),
+                     palette=(colour,) * 256,
+                     indices=bytes(wave.W * wave.ROWS), keep=masks, glass=masks,
+                     glass_colour=colour)
+        first = wave.render_words(background, ocean, 8)
+        later = wave.render_words(background, ocean, 12)
+        self.assertTrue(any(a != b for a, b in zip(first, background)),
+                        'a flat-colour sea must still have independent foam')
+        self.assertTrue(wave.render_words(background, ocean, 64) ==
+                        wave.render_words(background, ocean, 0), 'the wave loop must close')
+        y = 210
+        shore = wave.edge(y)
+        def brightness(frame, x):
+            return sum(wave.rgb(frame[y * wave.W + x])) - sum(wave.rgb(colour))
+        # Four steps take a crest approximately eight pixels left, towards
+        # the beach; it must match better than an eight-pixel shift to sea.
+        shoreward = sum(brightness(first, x) * brightness(later, x - 8)
+                        for x in range(shore + 18, 305))
+        seaward = sum(brightness(first, x) * brightness(later, x + 8)
+                      for x in range(shore + 18, 305))
+        self.assertGreater(shoreward, seaward * 2)
+
     def test_only_paradise_changes_and_old_firmware_keeps_its_animation(self):
         with patch('time.time', return_value=NOW):
             old = render_board_pages(sample(), stars=True, anim=True)
@@ -59,7 +89,7 @@ class OceanTests(unittest.TestCase):
         for i in range(320*wave.ROWS):
             if ocean['keep'][i//8] & (1 << (i%8)):
                 self.assertEqual(bg[320*wave.TOP+i],peak[320*wave.TOP+i])
-        self.assertEqual(wave.render_words(bg,ocean,wave.STEPS),bg)
+        self.assertEqual(wave.render_words(bg,ocean,wave.STEPS),wave.render_words(bg,ocean,0))
         # Measure the photographic foam's leading edge, including the old dry sand.
         def foam_edge(words,y):
             return max((sum(abs(a-b) for a,b in zip(wave.rgb(words[y*320+x]),wave.rgb(words[y*320+x+2]))),x)
@@ -148,8 +178,12 @@ class NativeOceanTests(unittest.TestCase):
                 expected = struct.pack('<76800H',*wave.render_words(bg,ocean,step))
                 for cycle in (0,64):
                     got = (folder/f'screen_{step+cycle}.bin').read_bytes()
-                    self.assertEqual(got,expected,f'{name} step {step+cycle}')
-            self.assertEqual((folder/'screen_12800.bin').read_bytes(),struct.pack('<76800H',*bg))
+                    # Before the first tick, the board shows the unmodified
+                    # photograph. All later loop-zero frames contain foam.
+                    initial = struct.pack('<76800H', *bg) if step+cycle == 0 else expected
+                    self.assertEqual(got,initial,f'{name} step {step+cycle}')
+            self.assertEqual((folder/'screen_12800.bin').read_bytes(),
+                             struct.pack('<76800H',*wave.render_words(bg,ocean,0)))
 
     def test_malformed_oceans_leave_the_page_static_and_release_memory(self):
         image,payload,bg,_ = scene(sample())

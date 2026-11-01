@@ -21,6 +21,10 @@ int main() {
  assert(gesture(4999)==Gesture::Mode);
  assert(gesture(5000)==Gesture::Connect);
  assert(gesture(9000)==Gesture::Connect);
+ assert(validTouchSeconds(1,5) && validTouchSeconds(4,10));
+ assert(!validTouchSeconds(0,5) && !validTouchSeconds(4,4) && !validTouchSeconds(2,11));
+ assert(gesture(999,1,7)==Gesture::Page && gesture(1000,1,7)==Gesture::Mode);
+ assert(gesture(6999,1,7)==Gesture::Mode && gesture(7000,1,7)==Gesture::Connect);
  RotationClock c;
  c.setMode(30,0); assert(!c.due(5000,true)); // no guessed wall time
  c.sync(1800001799ULL,5000); // one second before half-hour

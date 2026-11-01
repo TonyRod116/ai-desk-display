@@ -1,7 +1,7 @@
 """Offline README GIFs: real firmware simulation, synthetic readings, no hardware.
 
-Requires g++ for ANIM/WAVE. The legacy STAR effect is reproduced below with the
-firmware's six-phase cross. Game Boy is a labelled mock quota-update sequence.
+Requires g++ for ANIM/WAVE. SCRO uses the matching Python renderer; the legacy
+STAR effect is reproduced below. Game Boy is a mock quota-update sequence.
 """
 import argparse
 import copy
@@ -100,8 +100,11 @@ def main():
     parser.add_argument('--out', default='preview')
     args = parser.parse_args()
     out = Path(args.out); out.mkdir(parents=True,exist_ok=True)
-    with patch('time.time',return_value=NOW):
-        pages = render_board_pages(fixture(), stars=True, anim=True, waves=True)
+    # Never include user-supplied local art in reproducible public examples.
+    with (patch('time.time', return_value=NOW),
+          patch('token_tv.board_arcade_local.load', return_value=None),
+          patch('token_tv.board_beach.load', return_value=None)):
+        pages = render_board_pages(fixture(), stars=True, anim=True, waves=3, scroll=2)
     with tempfile.TemporaryDirectory(prefix='desk-display-gifs-') as tmp:
         root = Path(tmp)
         engine = anim_harness.build(root)
@@ -125,6 +128,10 @@ def main():
                 frames = [picture((folder/f'screen_{i}.bin').read_bytes()) for i in range(total//duration)]
             elif kind==b'STAR':
                 frames = star_frames(page)
+            elif kind==b'SCRO':
+                from token_tv.board_preview import _sequence
+                sequence, duration = _sequence(page)
+                frames = list(sequence)
             else:
                 # Static LCD: show real renderer updates, not made-up movement.
                 from token_tv.board_gameboy import render_gameboy_board

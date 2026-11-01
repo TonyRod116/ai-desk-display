@@ -1,4 +1,4 @@
-"""the reference fine skyline photograph with aerial traffic and breathing neon.
+"""Tony's fine skyline photograph with aerial traffic and breathing neon.
 
 Only disjoint small sprites move; the native photo and weekly instruments stay
 sharp. Motion is decorative, independent of readings and the PC clock.
@@ -37,7 +37,7 @@ def _label(draw, xy, text, size, colour, anchor='lt'):
 
 
 def _resets(draw, x, y, row, bands):
-    """One neon lightning bolt per saved reset (the user, 2026-10-20: something of the screen's own instead of hearts). While the
+    """One neon lightning bolt per saved reset (Tony, 2026-10-20: something of the screen's own instead of hearts). While the
     number is unknown or old the bolts stay and one faint dot ends the row: no `?` and no OLD."""
     count, old = banked_hearts(row)
     have = count if count is not None else 0

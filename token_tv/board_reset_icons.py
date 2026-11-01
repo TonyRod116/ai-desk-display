@@ -1,6 +1,6 @@
-"""One small icon per board page for the saved resets (the user, 2026-10-20).
+"""One small icon per board page for the saved resets (Tony, 2026-10-20).
 
-the user asked for something that fits each screen instead of the same hearts everywhere: little houses on the city,
+Tony asked for something that fits each screen instead of the same hearts everywhere: little houses on the city,
 palm trees on the surf page, and so on. Each of the three icons is ONE saved reset, bright when available and faint
 when not; `+` marks more than three. While the number is unknown, or only an old confirmed one is known, the three icons
 stay (all faint when unknown, the last known count when old) and ONE faint dot is added at the end of the row: no `?`
@@ -58,7 +58,7 @@ def hollow(icon):
 
 def marked(count, old):
     """True while the number of saved resets is unknown, or only an old confirmed one is known: the row then ends in ONE faint
-    dot (the user, 2026-10-20: "el puntito disimulado al final, no un ? ni OLD"). Zero is not marked: three faint icons and no dot."""
+    dot (Tony, 2026-10-20: "el puntito disimulado al final, no un ? ni OLD"). Zero is not marked: three faint icons and no dot."""
     return count is None or bool(old)
 
 

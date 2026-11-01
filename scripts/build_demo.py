@@ -1,4 +1,4 @@
-"""Build the static TokenTV web demo: sample accounts and pre-rendered clock faces.
+"""Build the static local usage-dashboard demo with sample accounts.
 
 The output is plain files for any static host (the live demo runs on Vercel):
     python3 scripts/build_demo.py --out site --site-url https://example.com
@@ -17,14 +17,14 @@ from token_tv.web_assets import ASSETS, WEB  # noqa: E402
 from token_tv.sample import snapshot  # noqa: E402
 from token_tv.catalog import payload as theme_payload  # noqa: E402
 
-REPO = 'https://github.com/click6067-ship-it/token-tv'
-META = '''<meta name="description" content="Your AI limits, on a tiny desk clock. Claude and Codex usage, several accounts, no firmware flashing. Grok CLI budget is experimental.">
-<meta property="og:title" content="TokenTV · Live demo">
-<meta property="og:description" content="Your AI limits, on a tiny desk clock. Claude and Codex · multiple accounts · no flashing.">
+REPO = 'https://github.com/TonyRod116/ai-desk-display'
+META = '''<meta name="description" content="Claude and Codex usage on your desk, with customizable screens and a local dashboard.">
+<meta property="og:title" content="AI Desk Display · Live demo">
+<meta property="og:description" content="Your AI usage on your desk, with customizable screens.">
 <meta property="og:image" content="{site}/og.png">
 <meta property="og:url" content="{site}/">
 <meta name="twitter:card" content="summary_large_image">'''
-BAR = f'<div class="demo-bar">Live demo with sample data<a href="{REPO}">TokenTV on GitHub</a></div>'
+BAR = f'<div class="demo-bar">Live demo with sample data<a href="{REPO}">AI Desk Display on GitHub</a></div>'
 
 
 def build(out, site):
@@ -34,7 +34,7 @@ def build(out, site):
             shutil.rmtree(child) if child.is_dir() else child.unlink()
     html = (WEB / 'index.html').read_text()
     html = html.replace('<html lang="en" data-theme="digital">', '<html lang="en" data-theme="digital" data-demo>', 1)
-    html = html.replace('<title>TokenTV · AI usage</title>', '<title>TokenTV · Live demo</title>\n' + META.format(site=site.rstrip('/')), 1)
+    html = html.replace('<title>AI Desk Display · Usage dashboard</title>', '<title>AI Desk Display · Live demo</title>\n' + META.format(site=site.rstrip('/')), 1)
     html = html.replace('<a class="skip" href="#providers">Skip to usage</a>', '<a class="skip" href="#providers">Skip to usage</a>\n' + BAR, 1)
     assert 'data-demo' in html and 'demo-bar' in html and 'og:image' in html, 'index.html markers changed'
     (out / 'index.html').write_text(html)
@@ -64,7 +64,7 @@ def build(out, site):
 def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument('--out', default='site')
-    parser.add_argument('--site-url', default='https://token-tv.vercel.app', help='absolute URL for link previews')
+    parser.add_argument('--site-url', default='http://127.0.0.1:8787', help='absolute URL for link previews')
     args = parser.parse_args()
     files = build(Path(args.out), args.site_url)
     print(f'{len(files)} files in {args.out}')

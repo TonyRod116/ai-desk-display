@@ -70,32 +70,23 @@ class ThemesEndpointTests(unittest.TestCase):
         self.assertEqual({t['id'] for t in themes['themes'] if t['installed']}, set(STYLES))  # adding a face needs no test edit
         html = (out / 'index.html').read_text()
         self.assertIn('data-demo', html)
-        self.assertIn('id="gallery"', html)
+        self.assertIn('id="saved-resets-form"', html)
         self.assertNotIn('★', html)  # no star request in the demo bar
 
 
-class GalleryTests(unittest.TestCase):
+class PersonalDashboardTests(unittest.TestCase):
     def setUp(self):
         from pathlib import Path
         web = Path(__file__).resolve().parents[1] / 'token_tv' / 'web'
         self.html = (web / 'index.html').read_text()
         self.js = (web / 'app.js').read_text()
 
-    def test_dashboard_has_visible_gallery_with_neutral_links(self):
-        panel_start = self.html.index('id="clock-panel"')
-        panel_end = self.html.index('</aside>', panel_start)
-        gallery = self.html.index('id="gallery"')
-        self.assertFalse(panel_start < gallery < panel_end)  # visible, not hidden inside the clock panel
-        self.assertIn('href="#gallery"', self.html)  # direct entry from the top bar
-        self.assertIn('https://github.com/click6067-ship-it/token-tv/blob/main/docs/clock-faces.md', self.html)
-        self.assertIn('https://github.com/click6067-ship-it/token-tv/issues/new?template=share_a_face.md', self.html)
-        for label in ('Clock faces', 'Make a face', 'Share a face'):
-            self.assertIn(label, self.html)
-        self.assertIn("'theme-thumb'", self.js)  # each card carries a real rendered thumbnail
-
-    def test_no_star_or_fork_request_in_dashboard(self):
-        for text in (self.html, self.js):
-            self.assertNotIn('Fork it', text)
-            self.assertNotRegex(text.lower(), r'\bstar\b|★')
-        self.assertIn('docs/setup.md', self.js)
-        self.assertNotIn('#quick-start', self.js)
+    def test_dashboard_keeps_personal_controls_without_old_brand_or_gallery(self):
+        self.assertIn('AI Desk Display', self.html)
+        self.assertIn('id="saved-resets-form"', self.html)
+        self.assertIn('href="/board"', self.html)
+        self.assertNotIn('id="gallery"', self.html)
+        self.assertNotIn('click6067', self.html + self.js)
+        self.assertNotIn('TokenTV', self.html + self.js)
+        for theme in ('game-boy', 'game-boy-pocket', 'retro', 'amber-terminal', 'orbit'):
+            self.assertIn("id:'" + theme + "'", self.js)

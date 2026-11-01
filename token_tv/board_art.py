@@ -218,7 +218,7 @@ def _rocket(scene, cx, top, filled, color, muted):
 def _resets(scene, cx, y, count, old, color, muted, icon):
     """The saved resets, one icon each: bright when available, an outline when not, `+` beside them for more than three. While the
     number is unknown or old the three icons stay (all outlines when unknown, the last known count when old) and ONE faint dot ends
-    the row: no `?` and no OLD (the user, 2026-10-20). Each page picks its own icon (`board_reset_icons`; the cockpit's rocket is smooth)."""
+    the row: no `?` and no OLD (Tony, 2026-10-20). Each page picks its own icon (`board_reset_icons`; the cockpit's rocket is smooth)."""
     pitch = 9 * 1.4
     x0 = cx - 1.5 * pitch
     have = count if count is not None else 0
@@ -277,7 +277,7 @@ def render_cockpit(snapshot):
     return render(snapshot)
 
 
-def render_countdown(snapshot, animated=False):
+def render_countdown(snapshot, animated=False, anim_frames=4):
     """Page 8: Manhattan seen from above at dusk, three buildings carrying the usage (see board_city.py)."""
     from token_tv.board_city import render_countdown as render
-    return render(snapshot, animated)
+    return render(snapshot, animated, anim_frames)

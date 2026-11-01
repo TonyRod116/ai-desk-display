@@ -23,7 +23,9 @@ MOCK = r'''
 #include <map>
 #include <algorithm>
 #include <chrono>
+#include "animation_clock.h"
 using std::min; using std::max;
+static AnimationClock animationClock;
 typedef std::string String;
 static unsigned long g_now = 0;
 static unsigned long millis() { return g_now; }
@@ -73,7 +75,9 @@ int main(int argc, char **argv) {
   const char *out = argv[2];
   unsigned long total = strtoul(argv[3], nullptr, 10);
   unsigned long capture = argc > 4 ? strtoul(argv[4], nullptr, 10) : 250;
-  if (capture < 40) return 4;
+  bool precise = argc > 5 && strcmp(argv[5], "precise") == 0;
+  if (capture < (precise ? 10u : 40u)) return 4;
+  if (precise && argc > 6 && !animationClock.setSpeed(0, atoi(argv[6]))) return 5;
   srand(7);
   memcpy(g_screen, bytes.data() + 8, 320 * 240 * 2);      // what drawFrame pushes first: the background
   File file = LittleFS.open(pagePath(page), "r");
@@ -88,10 +92,17 @@ int main(int argc, char **argv) {
   }
   file.close();
   dump(out, 0);
-  for (unsigned long t = 20; t <= total; t += 20) {
+  const unsigned long increment = precise ? 5 : 20;
+  for (unsigned long t = increment; t <= total; t += increment) {
     g_now = t;
     animTick(t);
-    if ((t + 20) / capture != t / capture) dump(out, t / capture);  // the last 20 ms of the capture step
+    // SCRO tests need the frame at the actual timestamp, not the last frame
+    // before the next capture boundary: there may now be intermediate poses.
+    if (precise || scrolling.active) {
+      if (t % capture == 0) dump(out, t / capture);
+    } else if ((t + increment) / capture != t / capture) {
+      dump(out, t / capture);
+    }
     if (t == 3040 || t == 3280 || t == 3520) dump(out, 100000 + t);   // frames with the shooting star in flight
   }
   dump(out, total);
@@ -120,7 +131,7 @@ def build(workdir):
     source = workdir / 'harness.cpp'
     source.write_text(MOCK + engine_source() + MAIN)
     exe = workdir / 'harness'
-    result = subprocess.run([compiler, '-std=c++17', '-g', '-O1', '-fsanitize=address,undefined',
+    result = subprocess.run([compiler, '-std=c++17', '-g', '-O1', '-I', str(MAIN_CPP.parent), '-fsanitize=address,undefined',
                              '-fno-omit-frame-pointer', '-Wno-unused-function', '-Wno-unused-variable',
                              str(source), '-o', str(exe)], capture_output=True, text=True)
     if result.returncode:

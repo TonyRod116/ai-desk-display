@@ -712,7 +712,7 @@ LOGO_BOX = (144, 99, 240, 115)       # where the title sits (screen px): nothing
 def _logo(image, left, top):
     """TIDAL RUSH as a quiet title: small spaced letters, cream to peach, a muted violet outline and a soft shadow.
 
-    The first version used big gradient letters with sparkles and shouted over the scene (the user, 2026-10-19)."""
+    The first version used big gradient letters with sparkles and shouted over the scene (Tony, 2026-10-19)."""
     letters = Image.new('L', (96, 16), 0)
     ld = ImageDraw.Draw(letters)
     for i, ch in enumerate('TIDAL RUSH'):

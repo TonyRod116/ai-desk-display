@@ -79,7 +79,7 @@ class CodeForgeTests(unittest.TestCase):
             self.assertLessEqual(len(frame), MAX_PAGE_BYTES)
             self.assertLessEqual(len(payload), board_anim.MAX_PAYLOAD)
             pixels = static.load()
-            # the user requested finer native detail in the art, while instruments
+            # Tony requested finer native detail in the art, while instruments
             # keep the exact 2x bitmap geometry for readability.
             self.assertTrue(all(pixels[x, y] == pixels[x + 1, y] == pixels[x, y + 1] == pixels[x + 1, y + 1]
                                 for y in range(16, 240, 2) for x in range(178, 320, 2)))

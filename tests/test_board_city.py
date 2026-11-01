@@ -159,6 +159,14 @@ class CityTests(unittest.TestCase):
         for r, g, b in [peak(image, q) for left, right in bc.tower_windows('claude')[:6] for q in left + right]:
             self.assertTrue(abs(r - g) < 30 and abs(g - b) < 45 and min(r, g, b) > 180, (r, g, b))      # stone-white windows
 
+    def test_data_towers_have_a_lighter_side_without_changing_their_reading(self):
+        import statistics
+        image = render(case(used=0))
+        for name in ('codex', 'claude'):
+            floors = bc.tower_windows(name)[2:7]
+            mean = lambda side: statistics.mean(sum(image.getpixel(centre(q))) / 3 for floor in floors for q in floor[side])
+            self.assertGreater(mean(1), mean(0) + 10, name)
+
     def test_cards_stay_readable_and_the_session_changes_nothing_but_the_small_building(self):
         card = (12, 16, 26)
         for ink in (board_art._rgb(bc.LABEL), board_art._rgb(board_art.CODEX), board_art._rgb(board_art.CLAUDE), (234, 244, 255)):
@@ -244,6 +252,35 @@ class CityTests(unittest.TestCase):
             moves = {(dx, dy) for _, dx, dy in car['script']}
             self.assertGreater(len(moves), 12)
 
+    def test_car_has_no_visible_jump_when_the_animation_wraps(self):
+        car = bc.city_animation()[2]
+        poses = car['script']
+        for current, nxt in zip(poses, poses[1:] + poses[:1]):
+            frame, x, y = current
+            next_frame, next_x, next_y = nxt
+            visible = car['frames'][frame].getchannel('A').getbbox() is not None
+            next_visible = car['frames'][next_frame].getchannel('A').getbbox() is not None
+            if visible and next_visible:
+                self.assertLessEqual(max(abs(next_x - x), abs(next_y - y)), 3,
+                                     'a visible car teleported between consecutive animation frames')
+
+    def test_new_boards_reveal_the_car_in_small_steps_and_old_boards_keep_four_frames(self):
+        old, new = bc.city_animation(4)[2], bc.city_animation(8)[2]
+        self.assertLessEqual(len(old['frames']), 4)
+        self.assertGreater(len(new['frames']), 4)
+        self.assertLessEqual(len(new['frames']), 8)
+        self.assertEqual([(x, y) for _, x, y in old['script']], [(x, y) for _, x, y in new['script']])
+        sizes = [sum(alpha != 0 for alpha in new['frames'][frame].getchannel('A').tobytes())
+                 for frame, _, _ in new['script']]
+        self.assertEqual((sizes[0], sizes[-1]), (0, 0))
+        self.assertEqual(max(sizes), 6)
+        self.assertLessEqual(max(abs(a - b) for a, b in zip(sizes, sizes[1:] + sizes[:1])), 2)
+        with patch('time.time', return_value=NOW):
+            _, old_payload = bc.render_countdown(case(), animated=True, anim_frames=4)
+            _, new_payload = bc.render_countdown(case(), animated=True, anim_frames=8)
+        self.assertLessEqual(len(board_anim.decode(old_payload)['sprites'][2]['frames']), 4)
+        self.assertGreater(len(board_anim.decode(new_payload)['sprites'][2]['frames']), 4)
+
     def test_the_flock_crosses_the_upper_left_sky_and_leaves_unseen(self):
         flock = bc.city_animation()[1]
         self.assertEqual(flock['name'], 'flock')
@@ -267,24 +304,27 @@ class CityTests(unittest.TestCase):
         with patch('time.time', return_value=NOW):
             static = bc.render_countdown(case())
             background, payload = bc.render_countdown(case(), animated=True)
+            detailed, detailed_payload = bc.render_countdown(case(), animated=True, anim_frames=8)
             other, _ = bc.render_countdown(case(used=80, session=('5H', 90, HOUR), hearts=0), animated=True)
-        spec = board_anim.decode(payload)
-        self.assertLess(len(payload), board_anim.MAX_PAYLOAD)
-        self.assertEqual(len(spec['sprites']), 4)
         import struct
-        self.assertEqual(struct.pack('<76800H', *compose(background, spec, 0)), rgb565_frame(static)[8:])
+        self.assertEqual(background.tobytes(), detailed.tobytes())
         readings = {y * 320 + x for y in range(240) for x in range(320) if background.getpixel((x, y)) != other.getpixel((x, y))}
-        for sprite in spec['sprites']:
-            for step in range(len(sprite['script'])):
-                index, dx, dy = sprite['script'][step]
-                for i, word in enumerate(sprite['frames'][index]):
-                    if word == board_anim.KEY:
-                        continue
-                    x = sprite['x'] + dx + i % sprite['w'] * 2
-                    y = sprite['y'] + dy + i // sprite['w'] * 2
-                    for px, py in ((x, y), (x + 1, y), (x, y + 1), (x + 1, y + 1)):
-                        if 0 <= px < 320 and 0 <= py < 240:
-                            self.assertNotIn(py * 320 + px, readings, (sprite['x'], sprite['y'], step))
+        for candidate in (payload, detailed_payload):
+            spec = board_anim.decode(candidate)
+            self.assertLess(len(candidate), board_anim.MAX_PAYLOAD)
+            self.assertEqual(len(spec['sprites']), 4)
+            self.assertEqual(struct.pack('<76800H', *compose(background, spec, 0)), rgb565_frame(static)[8:])
+            for sprite in spec['sprites']:
+                for step in range(len(sprite['script'])):
+                    index, dx, dy = sprite['script'][step]
+                    for i, word in enumerate(sprite['frames'][index]):
+                        if word == board_anim.KEY:
+                            continue
+                        x = sprite['x'] + dx + i % sprite['w'] * 2
+                        y = sprite['y'] + dy + i // sprite['w'] * 2
+                        for px, py in ((x, y), (x + 1, y), (x, y + 1), (x + 1, y + 1)):
+                            if 0 <= px < 320 and 0 <= py < 240:
+                                self.assertNotIn(py * 320 + px, readings, (sprite['x'], sprite['y'], step))
 
     def test_the_skyline_has_many_skyscrapers_and_many_kinds_of_top(self):
         visible = [b for b in bc._city() if b.kind == 'city']
@@ -298,12 +338,95 @@ class CityTests(unittest.TestCase):
         towers = [b for b in visible if b.h > 80]
         self.assertGreaterEqual(len({b.style['crown'] for b in towers}), 6)            # the tall ones differ among themselves too
 
+    def test_buildings_of_the_same_material_do_not_all_have_the_same_walls_and_roofs(self):
+        import random
+        from collections import defaultdict
+        from PIL import ImageDraw
+        walls, roofs = defaultdict(set), defaultdict(set)
+        _, facade, roof = bc._box_faces(20, 30, 23, 33, 0, 36)
+        for building in bc._city():
+            if building.kind != 'city':
+                continue
+            image = Image.new('RGB', (320 * bc.S, 240 * bc.S))
+            bc._paint_box(ImageDraw.Draw(image), 20, 30, 23, 33, 0, 36, building.material, 1.0,
+                          random.Random(123), 0, windows=False, style=building.style)
+            for groups, quad in ((walls, facade), (roofs, roof)):
+                x = round(sum(p[0] for p in quad) / 4 * bc.S)
+                y = round(sum(p[1] for p in quad) / 4 * bc.S)
+                groups[building.material].add(tuple(channel // 20 for channel in image.getpixel((x, y))))
+        for material in bc.MATERIALS:
+            self.assertGreaterEqual(len(walls[material]), 6, (material, 'facades'))
+            self.assertGreaterEqual(len(roofs[material]), 5, (material, 'roofs'))
+
+    def test_sunlit_and_shaded_faces_remain_distinct_in_board_colour(self):
+        import random
+        import statistics
+        from PIL import ImageDraw
+        left, right, _ = bc._box_faces(20, 30, 23, 33, 0, 36)
+        def sample(image, quad):
+            x = round(sum(p[0] for p in quad) / 4)
+            y = round(sum(p[1] for p in quad) / 4)
+            r, g, b = image.getpixel((x, y))
+            return ((r >> 3) * 255 // 31, (g >> 2) * 255 // 63, (b >> 3) * 255 // 31)
+        ratios = []
+        for building in bc._city():
+            if building.kind != 'city':
+                continue
+            image = Image.new('RGB', (320 * bc.S, 240 * bc.S))
+            bc._paint_box(ImageDraw.Draw(image), 20, 30, 23, 33, 0, 36, building.material, 1.0,
+                          random.Random(123), 0, windows=False, style=building.style)
+            image = image.resize((320, 240), Image.Resampling.LANCZOS)
+            ratios.append(contrast(sample(image, left), sample(image, right)))
+        self.assertGreaterEqual(min(ratios), 1.8)
+        self.assertGreaterEqual(statistics.median(ratios), 2.6)
+
+    def test_new_roof_types_are_drawn_as_distinct_architecture(self):
+        import random
+        from PIL import ImageDraw
+        canvas = Image.new('RGB', (320 * bc.S, 240 * bc.S))
+        style = {'palette': bc.FACADE_PALETTES['brick'][0], 'roof_colour': (150, 95, 68)}
+        bc._paint_box(ImageDraw.Draw(canvas), 20, 30, 24, 34, 0, 36, 'brick', 1.0,
+                      random.Random(1), 0, windows=False, style=style)
+        examples = []
+        for crown in ('gable', 'sawtooth', 'roof_garden', 'roof_deck', 'penthouse'):
+            image = canvas.copy()
+            bc._paint_crown(ImageDraw.Draw(image), (20, 30, 24, 34), 36, 'brick', 1.0,
+                            random.Random(1), 36, crown, style)
+            self.assertNotEqual(image.tobytes(), canvas.tobytes(), crown)
+            examples.append(image.tobytes())
+        self.assertEqual(len(set(examples)), len(examples))
+
+    def test_new_facades_remain_visible_in_the_boards_native_colours(self):
+        import random
+        from PIL import ImageDraw
+        for facade, material in (('braced', 'glass'), ('bay', 'stone')):
+            building = next(b for b in bc._city() if b.kind == 'city' and
+                            b.material == material and b.style['facade'] == facade)
+            pictures = []
+            for kind in ('classic', facade):
+                image = Image.new('RGB', (320 * bc.S, 240 * bc.S))
+                bc._paint_box(ImageDraw.Draw(image), 20, 30, 24, 34, 0, 60, material, 1.0,
+                              random.Random(321), .15, style=dict(building.style, facade=kind))
+                image = image.resize((320, 240), Image.Resampling.LANCZOS)
+                pictures.append(rgb565_frame(image)[8:])
+            changed = sum(pictures[0][i:i + 2] != pictures[1][i:i + 2]
+                          for i in range(0, len(pictures[0]), 2))
+            self.assertGreater(changed, 100, facade)
+
     def test_the_top_of_the_picture_is_city_not_sky(self):
         picture = bc.city_backdrop().resize((320, 240), Image.Resampling.LANCZOS).convert('RGB')
-        sky = bc._gradient_sky((320 * bc.S, 240 * bc.S))
-        bare = [(x, y) for y in range(0, 36) for x in range(320)
-                if all(abs(a - b) < 10 for a, b in zip(picture.getpixel((x, y)), sky.getpixel((x * bc.S, y * bc.S))))]
-        self.assertEqual(bare, [], bare[:6])                             # no patch of blue sky above the first streets
+        # Blue glass can match the sky colour by coincidence. Replace the sky with magenta:
+        # a genuinely uncovered pixel would change, while a painted building would not.
+        bc.city_backdrop.cache_clear()
+        try:
+            with patch.object(bc, '_gradient_sky', side_effect=lambda size: Image.new('RGB', size, (255, 0, 255))):
+                alternate = bc.city_backdrop().resize((320, 240), Image.Resampling.LANCZOS).convert('RGB')
+        finally:
+            bc.city_backdrop.cache_clear()
+            bc.city_backdrop()  # restore the regular backdrop and its animation plan for following tests
+        bare = [(x, y) for y in range(36) for x in range(320)
+                if max(abs(a - b) for a, b in zip(picture.getpixel((x, y)), alternate.getpixel((x, y)))) >= 20]
+        self.assertEqual(bare, [], bare[:6])
 
     def test_buildings_tell_apart_roof_lighter_than_walls_and_the_light_wall_on_the_right(self):
         import random

@@ -1,6 +1,7 @@
 """Page 7 of the touch board: the cockpit, two glass orbs in deep space (320x240).
 
-Two quota instruments float over a detailed nebula, with a galaxy, a ringed planet and an occasional UFO.
+Tony asked (2026-10-19) for the penultimate page, "las dos esferas con las estrellas de fondo", to be brought up to
+the level of the others: a real space for a background, with nebulae and everything, and a better page overall.
 
 - The backdrop is a nebula built from layered smooth noise (violet, magenta, teal and blue gas, dark dust lanes), a
   small spiral galaxy and a fixed starfield, all deterministic and cached. It stays dim around the readings.
@@ -24,6 +25,7 @@ from token_tv.board_art import (CLAUDE, CODEX, DIM, MUTED, RAMP, SS, WHITE, H, W
                                 _row, _session_rings)
 from token_tv.display import pixel_text  # noqa: F401  (kept for parity with the other pages' helpers)
 from token_tv.personal_faces import banked_hearts, remaining_reading, session_pace
+from token_tv.credits import exhausted_credits, format_balance
 from token_tv.themes import face
 
 CENTRES = {'codex': (82, 100), 'claude': (238, 100)}
@@ -279,7 +281,7 @@ def _band_edges(scene, cx, cy, accent):
         scene.arc((cx, cy), r, 135, 270, 1, _hex(_mix('#0c1830', accent, strength)), glow=False)
 
 
-def _gauge(scene, provider, value, banked, pace, reset, accent):
+def _gauge(scene, provider, value, banked, pace, reset, accent, credits=None):
     cx, cy = CENTRES[provider]
     sweep, start = 270, 135
     ramp = RAMP[provider]
@@ -303,9 +305,13 @@ def _gauge(scene, provider, value, banked, pace, reset, accent):
     _orb(scene, cx, cy, ORB_RADIUS, accent)
     if provider == 'claude':
         _session_rings(scene, cx, cy, BAND_RADIUS - 1, pace, accent)
-    number = '--' if value is None else f'{round(value)}'
-    scene.text((cx, cy - 3), number, 'oxanium.woff2', 31, WHITE, anchor='mm', glow=True)
-    scene.text((cx, cy + 20), '%' if value is not None else '?', 'press-start-2p.ttf', 7, accent, anchor='mm')
+    number = format_balance(credits) if credits is not None else '--' if value is None else f'{round(value)}'
+    size = 31
+    while size > 8 and face('oxanium.woff2', size * SS).getlength(number) / SS > 48:
+        size -= 1
+    scene.text((cx, cy - 3), number, 'oxanium.woff2', size, WHITE, anchor='mm', glow=True)
+    label = 'CREDITS' if credits is not None else '%' if value is not None else '?'
+    scene.text((cx, cy + 20), label, 'press-start-2p.ttf', 6 if credits is not None else 7, accent, anchor='mm')
     # name flanked by two short rules, then the weekly reset and the saved resets
     name = provider.upper()
     half = face('orbitron.ttf', 14 * SS).getlength(name) / SS / 2
@@ -362,7 +368,8 @@ def render_cockpit(snapshot, animated=False):
         row = _row(snapshot, provider)
         value, _, _, reset = remaining_reading(row)
         pace = session_pace(row) if provider == 'claude' else None   # only Claude has a five-hour session
-        _gauge(scene, provider, value, banked_hearts(row), pace, reset, accent)
+        _gauge(scene, provider, value, banked_hearts(row), pace, reset, accent,
+               exhausted_credits(row) if provider == 'codex' else None)
     image = scene.finish()
     sprite = _ufo()
     if not animated:

@@ -51,6 +51,9 @@ class AnimationEngineTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         import anim_harness
+        local = patch('token_tv.board_arcade.local_stage.load', return_value=None)
+        local.start()
+        cls.addClassCleanup(local.stop)
         cls.directory = tempfile.mkdtemp()
         cls.exe = anim_harness.build(cls.directory)
         with patch('time.time', return_value=NOW), patch('token_tv.state.time.time', return_value=NOW):
@@ -125,6 +128,91 @@ class AnimationEngineTests(unittest.TestCase):
         self.assertGreater(max(visible),100)
         self.assertEqual(min(visible),0)  # the pause restores the whole ship footprint
 
+    def test_cyber_scenes_restore_the_background_through_two_complete_loops(self):
+        from token_tv.board_cyber_scenes import render_city
+        for scene in ('violet-horizon', 'neon-district'):
+            with self.subTest(scene=scene), patch('time.time', return_value=NOW), \
+                    patch('token_tv.board_cyber_scenes.backdrop', return_value=Image.new('RGB', (320, 240), '#c060c0')):
+                image, payload = render_city(scene, snapshot(), animated=True)
+            spec = board_anim.decode(payload)
+            background = list(struct.unpack('<76800H', rgb565_frame(image)[8:]))
+            star_pixels = {(y+dy)*320+x+dx for x, y, *_ in spec['stars'] for dx in (0, 1) for dy in (0, 1)}
+            capture = 4000 if scene == 'violet-horizon' else 400
+            out = self.run_engine(payload, capture * 16, image=image, capture_ms=capture)
+            visible = []
+            for step in range(16):
+                elapsed = ((step + 1) * capture - 1) // 40 * 40
+                got = struct.unpack('<76800H', (out / f'screen_{step}.bin').read_bytes())
+                expected = self.expected(step, background, spec, elapsed_ms=elapsed)
+                self.assertTrue(all(a == b or i in star_pixels for i, (a, b) in enumerate(zip(got, expected))), step)
+                visible.append(sum(a != b for i, (a, b) in enumerate(zip(got, background)) if i not in star_pixels))
+            self.assertGreater(max(visible), 20)
+            for step in range(8):
+                self.assertEqual((out / f'screen_{step}.bin').read_bytes(),
+                                 (out / f'screen_{step + 8}.bin').read_bytes(),
+                                 f'{scene}: full cycle at {step}')
+
+    def test_platform_actors_repeat_without_trails_or_erasing_the_score(self):
+        from token_tv.board_platform import render_platform
+        for limit in (4,8):
+            with self.subTest(frame_limit=limit), patch('time.time', return_value=NOW):
+                image,payload=render_platform(snapshot(),animated=True,anim_frames=limit)
+            spec=board_anim.decode(payload)
+            background=list(struct.unpack('<76800H',rgb565_frame(image)[8:]))
+            # Two Mario loops, with the cloud, coins and dinosaur on their own clocks.
+            capture=200
+            out=self.run_engine(payload,capture*64,image=image,capture_ms=capture)
+            for step in range(64):
+                elapsed=((step+1)*capture-1)//40*40
+                self.assertEqual((out/f'screen_{step}.bin').read_bytes(),
+                                 struct.pack('<76800H',*self.expected(step,background,spec,elapsed_ms=elapsed)),
+                                 f'platform frame {step}, limit {limit}')
+            self.assertEqual((out/'screen_0.bin').read_bytes(),(out/'screen_32.bin').read_bytes())
+
+    def test_local_arcade_backdrop_and_distinct_guards_leave_no_trails(self):
+        from token_tv.board_arcade_local import EFFECTS
+        backdrop = Image.new('RGB', (320, 240), '#5a8cb2')
+        effects = []
+        for _, _, width, height in EFFECTS:
+            frames = []
+            for frame in range(4):
+                layer = Image.new('RGBA', (width, height), (0, 0, 0, 0))
+                if frame:
+                    layer.putpixel((frame + 3, 3), (250, 210, 100, 255))
+                frames.append(layer)
+            effects.append(frames)
+        with patch('time.time', return_value=NOW), \
+                patch('token_tv.board_arcade.local_stage.load', return_value=(backdrop, effects)):
+            image, payload = render_arcade(snapshot(), animated=True)
+        spec = board_anim.decode(payload)
+        background = list(struct.unpack('<76800H', rgb565_frame(image)[8:]))
+        capture = 200
+        out = self.run_engine(payload, capture * 48, image=image, capture_ms=capture)
+        for step in range(48):
+            elapsed = ((step + 1) * capture - 1) // 40 * 40
+            self.assertEqual((out / f'screen_{step}.bin').read_bytes(),
+                             struct.pack('<76800H', *self.expected(step, background, spec, elapsed_ms=elapsed)),
+                             f'local arcade frame {step}')
+
+    def test_eight_pose_local_guards_leave_no_trails_or_damage_to_the_hud(self):
+        from token_tv.board_arcade_local import EFFECTS
+        background_art = Image.new('RGB', (320, 240), '#5a8cb2')
+        effects = [[Image.new('RGBA', (w, h), (0, 0, 0, 0)) for _ in range(4)]
+                   for _, _, w, h in EFFECTS]
+        with patch('time.time', return_value=NOW), \
+                patch('token_tv.board_arcade.local_stage.load', return_value=(background_art, effects)):
+            image, payload = render_arcade(snapshot(), animated=True, anim_frames=8)
+        spec = board_anim.decode(payload)
+        self.assertEqual([len(sprite['frames']) for sprite in spec['sprites'][:2]], [8, 8])
+        background = list(struct.unpack('<76800H', rgb565_frame(image)[8:]))
+        capture = 120
+        out = self.run_engine(payload, capture * 48, image=image, capture_ms=capture)
+        for step in range(48):
+            elapsed = ((step + 1) * capture - 1) // 40 * 40
+            self.assertEqual((out / f'screen_{step}.bin').read_bytes(),
+                             struct.pack('<76800H', *self.expected(step, background, spec, elapsed_ms=elapsed)),
+                             f'eight-pose arcade frame {step}')
+
     def test_smooth_city_air_traffic_preserves_background_and_quota_pixels(self):
         from token_tv.board_neon_bridge import render_neon_bridge as render_neon_smooth
         for missing in (False, True):
@@ -143,12 +231,18 @@ class AnimationEngineTests(unittest.TestCase):
                     struct.pack('<76800H',*self.expected(step,background,spec,elapsed_ms=step*140)))
 
     def test_every_pose_is_exactly_the_background_plus_that_pose_and_nothing_is_left_behind(self):
-        capture = self.spec['sprites'][0]['step_ms']
-        out = self.run_engine(self.payload(True), capture*12, capture_ms=capture)
-        for step in range(12):
+        capture = 150
+        cycle = math.lcm(*(len(s['script'])*s['step_ms'] for s in self.spec['sprites']))
+        steps = cycle * 2 // capture
+        out = self.run_engine(self.payload(True), capture*steps, capture_ms=capture)
+        for step in range(steps):
             got = struct.unpack('<76800H', (out / ('screen_%d.bin' % step)).read_bytes())
+            # The harness records the last 20ms sample in each interval, and
+            # the firmware updates at most every 40ms. Actors have separate
+            # clocks, so one shared step index cannot describe their poses.
+            elapsed = ((step+1)*capture-1)//40*40
             self.assertEqual(struct.pack('<76800H', *got),
-                             struct.pack('<76800H', *self.expected(step)), 'step %d' % step)
+                             struct.pack('<76800H', *self.expected(step,elapsed_ms=elapsed)), 'step %d' % step)
 
     def test_knockouts_and_recovery_never_leave_fighters_or_badges_behind(self):
         from test_board_versus import versus_sample, NOW as SAMPLE_NOW
@@ -157,14 +251,17 @@ class AnimationEngineTests(unittest.TestCase):
                 image,payload=render_arcade(versus_sample(left,right),animated=True)
                 spec=board_anim.decode(payload)
                 background=list(struct.unpack('<76800H',rgb565_frame(image)[8:]))
-                # Include the moving train scenery for every KO and recovery state.
+                # Exercise the other resident scenery for every KO and recovery state.
                 with patch.object(self,'spec',spec):
                     clean=self.payload(True)
-                capture=spec['sprites'][0]['step_ms']
-                out=self.run_engine(clean,capture*32,image=image,capture_ms=capture)
-                for step in range(32):
+                capture=150
+                cycle=math.lcm(*(len(s['script'])*s['step_ms'] for s in spec['sprites']))
+                steps=cycle//capture
+                out=self.run_engine(clean,capture*steps,image=image,capture_ms=capture)
+                for step in range(steps):
+                    elapsed=((step+1)*capture-1)//40*40
                     self.assertEqual((out/f'screen_{step}.bin').read_bytes(),
-                                     struct.pack('<76800H',*self.expected(step,background,spec)),
+                                     struct.pack('<76800H',*self.expected(step,background,spec,elapsed_ms=elapsed)),
                                      f'KO state {left}/{right}, step {step}')
 
     def test_train_runs_cleanly_over_many_cycles_without_leaving_any_pixels_behind(self):
@@ -182,17 +279,18 @@ class AnimationEngineTests(unittest.TestCase):
         out = self.run_engine(self.payload(False), 45000)
         stars = {((y+dy)*320+x+dx) for x,y,*_ in self.spec['stars']
                  for dx in (0,1) for dy in (0,1)}
-        # Includes the previous-frame restoration box, tail and head. This
-        # corridor is above VS and between both providers' readings.
-        corridor = {y*320+x for y in range(36,92) for x in range(50,156)}
+        # Includes the previous-frame restoration box, tail and head. The
+        # path crosses open sky between the portraits and session meters.
+        corridor = {y*320+x for y in range(38,100) for x in range(105,214)}
+        protected = {y*320+x for y in range(0,36) for x in range(320)}
+        protected.update(y*320+x for y in range(36,70) for x in range(4,112))
+        protected.update(y*320+x for y in range(36,80) for x in range(194,316))
         moving=[]
         for step in range(180):
             got=struct.unpack('<76800H',(out/f'screen_{step}.bin').read_bytes())
             expected=self.expected(step, elapsed_ms=((step+1)*250-1)//20*20)
             changes={i for i,(a,b) in enumerate(zip(got,expected)) if a!=b}-stars
             self.assertFalse(changes-corridor, f'Outside sky at frame {step}')
-            protected={y*320+x for y in range(54,82) for x in range(6,82)}
-            protected.update(y*320+x for y in range(30,42) for x in range(62,119))
             self.assertFalse(changes & protected, f'Meteor crossed quota/reserves at {step}')
             moving.append(bool(changes))
         starts=[i for i,active in enumerate(moving) if active and (i==0 or not moving[i-1])]
@@ -216,10 +314,10 @@ class AnimationEngineTests(unittest.TestCase):
                     got = struct.unpack('<76800H', (out / f'screen_{step}.bin').read_bytes())
                     self.assertEqual(list(got), self.expected(step, background, spec, elapsed_ms=step*capture), f'road step {step}')
 
-    def test_the_city_animation_repeats_cleanly_on_firmware_seven(self):
-        for data in (snapshot(), {'accounts': {}}):
-            with self.subTest(known=bool(data['accounts'])), patch('time.time', return_value=NOW):
-                image, payload = render_countdown(data, animated=True)
+    def test_the_city_animation_repeats_cleanly_with_four_and_eight_frame_cars(self):
+        for data, frame_limit in ((snapshot(), 4), ({'accounts': {}}, 4), (snapshot(), 8), ({'accounts': {}}, 8)):
+            with self.subTest(known=bool(data['accounts']), frame_limit=frame_limit), patch('time.time', return_value=NOW):
+                image, payload = render_countdown(data, animated=True, anim_frames=frame_limit)
                 spec = board_anim.decode(payload)
                 background = list(struct.unpack('<76800H', rgb565_frame(image)[8:]))
                 capture = spec['sprites'][0]['step_ms']

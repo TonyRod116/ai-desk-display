@@ -13,9 +13,18 @@ BOXES = {
     'code-forge': (69, 163, 151, 190),
     'surf': (7, 23, 135, 52),
     'dials': (24, 168, 93, 202),
-    'arcade': (8, 56, 128, 84),
-    'cockpit': (48, 85, 117, 125),
+    'arcade': (26, 0, 117, 16),
+    'cockpit': (8, 16, 87, 33),
     'countdown': (14, 196, 94, 219),
+    'code-workshop': (14, 61, 145, 89),
+    'code-editor': (188, 70, 308, 97),
+    'neon-pixel': (192, 49, 305, 81),
+    'neon-smooth': (201, 31, 293, 61),
+    'neon-towers': (38, 205, 109, 231),
+    'prism': (16, 62, 153, 96),
+    'versus-train': (8, 54, 113, 80),
+    'paradise-photo': (198, 54, 310, 91),
+    'cockpit-classic': (28, 96, 132, 130),
 }
 
 
@@ -30,10 +39,22 @@ def apply_credit_badges(images, names, snapshot):
         background, ink = {
             'game-boy': ('#a4bd52', '#263c25'),
             'paradise': ('#e3e9d1', '#4e3404'),
+            'paradise-photo': ('#e3e9d1', '#4e3404'),
+            'cockpit': ('#146aba', '#fff2bd'),
         }.get(name, ('#101827', '#ffe2a0'))
         draw = ImageDraw.Draw(image)
         draw.rounded_rectangle((x0, y0, x1, y1), radius=2, fill=background)
         height, width = y1 - y0, x1 - x0
+        if name in ('arcade', 'cockpit'):
+            # Fit a truthful balance into the player-one score position.
+            label_font = face('press-start-2p.ttf', 6)
+            draw.text((x0 + 3, y0 + 4), 'CRED', font=label_font, fill=ink)
+            for size in range(15 if name == 'arcade' else 13, 4, -1):
+                number_font = face('oxanium.woff2', size)
+                if draw.textlength(balance, font=number_font) <= width - 32:
+                    break
+            draw.text((x1 - 3, y0 + 1), balance, font=number_font, fill=ink, anchor='ra')
+            continue
         label_size = 5 if height < 20 else 7
         label_font = face('oxanium.woff2', label_size)
         draw.text((x0 + 3, y0 + 1), 'CREDITS', font=label_font, fill=ink)

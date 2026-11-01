@@ -428,7 +428,7 @@ def pixel_scene(cv, provider, top, width=SIZE):
             px(x, 33 - round(2 * abs(math.sin(x / 7))), '#120c33', 1, 6)
 
 
-def render_retro(snapshot, screen=(SIZE, SIZE)):
+def render_retro(snapshot, screen=(SIZE, SIZE), show_credits=False):
     from token_tv.personal_faces import banked_hearts, hearts, session_pace, session_pace_line
     dx = screen[0] - SIZE
     wide = dx > 0
@@ -473,8 +473,18 @@ def render_retro(snapshot, screen=(SIZE, SIZE)):
         remaining = None if used is None else 100 - used
         label_y, value_y = card(y, row['provider'], a)
         cv.text((57, y + 9), account_label(row), title(8), cream, stroke_width=1, stroke_fill=outline_ink)
-        cv.text((57, y + 22), number_text(remaining) + ('%' if remaining is not None else ''), title(16), cream,
-                stroke_width=2, stroke_fill=outline_ink)
+        from token_tv.credits import exhausted_credits, format_balance
+        credit = exhausted_credits(row) if show_credits else None
+        if credit is None:
+            cv.text((57, y + 22), number_text(remaining) + ('%' if remaining is not None else ''), title(16), cream,
+                    stroke_width=2, stroke_fill=outline_ink)
+        else:
+            number = format_balance(credit)
+            size = 12
+            while size > 6 and title(size).getlength(number) > 148:
+                size -= 1
+            cv.text((57, y + 19), 'CREDITS', title(6), cream, stroke_width=1, stroke_fill=outline_ink)
+            cv.text((57, y + 28), number, title(size), cream, stroke_width=1, stroke_fill=outline_ink)
         cv.text((57, y + 41), period + (' OLD' if old else ''), title(8), '#ff9a9a' if old else '#b9d2ff', stroke_width=1, stroke_fill=outline_ink)
         cv.text((159 + dx, label_y), 'RESET IN', title(7), '#a9bdf0')
         cv.text((159 + dx, value_y), reset.upper(), face('vt323.woff2', 20), cream)

@@ -77,7 +77,7 @@ class ClockTests(unittest.TestCase):
         for name in THEIRS + ['../app.json', '/image/tokentv.jpg', '']:
             with self.subTest(name=name), self.assertRaises(ValueError):
                 device.delete_own(name)
-        self.assertEqual(FakeClock.deleted, [])                       # nothing of the reference was even requested
+        self.assertEqual(FakeClock.deleted, [])                       # nothing of Tony's was even requested
         device.delete_own('Orbit.jpg')
         self.assertEqual(FakeClock.deleted, ['/image/Orbit.jpg'])
 
@@ -117,7 +117,7 @@ class ClockTests(unittest.TestCase):
             with patch('sys.stdout', new_callable=StringIO) as out:
                 self.assertEqual(main(main_args + ['--clean']), 0)
             self.assertEqual(sorted(FakeClock.deleted), sorted('/image/' + n for n in OURS))
-            self.assertEqual(sorted(FakeClock.files), sorted(THEIRS))  # everything of the reference is still there
+            self.assertEqual(sorted(FakeClock.files), sorted(THEIRS))  # everything of Tony's is still there
             self.assertIn('Left untouched: 3', out.getvalue())
             joined = ' '.join(FakeClock.settings)
             self.assertIn('theme=1', joined)                          # its original theme is selected again
