@@ -31,8 +31,10 @@ GIF and prepared files stay on your computer; if the prepared set is missing or
 invalid, the bundled beach remains available.
 
 For the supported beach GIF, a compatible board with firmware 40 or later can also use
-more of the original motion. Once the regular background and water are in place,
-prepare an optional 48-position shoreline loop locally:
+more of the original motion. The smoother tool requires a **384 × 480 GIF with at
+least 25 frames** and is fitted to the same beach composition; other artwork may
+need adjustments. Once the regular background and water are in place, prepare
+an optional 48-position shoreline loop locally:
 
 ```bash
 python -m tools.prepare_paradise_smooth ./my-beach.gif
