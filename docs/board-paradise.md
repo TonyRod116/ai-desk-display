@@ -32,5 +32,10 @@ Firmware 30 adds intermediate water positions and reduces per-frame color
 calculations. The waves and boat keep their original pace, and animation runs on
 the board rather than streaming video from the computer. The actual frame rate
 depends on the hardware and may temporarily drop while a screen is being updated.
+Firmware 32 can cache part of the unchanged photograph when memory allows,
+leaving an 80 KiB heap reserve at allocation time. If memory is temporarily
+tight, it retries later; if the cache cannot be loaded, the board reads the same
+pixels from storage instead. Neither path changes the photo's resolution or the
+length of the animation loops.
 
 See the [screen gallery](../README.md#eight-screens-zero-boredom) and [hardware guide](hardware.md).

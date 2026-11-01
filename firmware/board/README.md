@@ -66,6 +66,19 @@ each frame. The water and boat keep their existing loop durations and speed;
 the actual frame rate depends on the display and any ongoing page transfer.
 If memory is tight, the renderer falls back to the original color calculations.
 
+Firmware 32 reduces storage reads by caching as much of the unchanged beach
+background as fits while reserving 80 KiB of heap at allocation time. The
+board retries later if there is temporarily not enough memory, and the
+full-resolution file remains the fallback if the cache cannot be loaded. The
+`wave_cache_rows` and `wave_read_us`/`wave_compose_us`/`wave_push_us`/
+`wave_boat_us`/`wave_loop_us`/`wave_indicator_us` fields report the cached
+height and timing breakdown, in microseconds, to help diagnose performance on
+actual hardware.
+`wave_cache_status` reports 0 for untried, 1 for insufficient memory budget,
+2 for allocation failure, 3 for seek failure, 4 for read failure, and 5 for
+success; `wave_cache_free` and `wave_cache_largest` capture heap conditions at
+the last attempt.
+
 During a page transfer, ocean redraws are limited to one every 200 ms, and
 holding the touchscreen pauses them so the physical controls remain usable.
 Navigation and rotation indicators are redrawn after each ocean frame. The

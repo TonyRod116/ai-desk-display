@@ -1,5 +1,6 @@
 """Stabilised private beach playback and compatibility with the native board."""
 
+import re
 import shutil
 import struct
 import subprocess
@@ -213,6 +214,70 @@ class BeachFilmTests(unittest.TestCase):
 
 @unittest.skipUnless(shutil.which('g++'), 'needs native compiler')
 class NativeBeachFilmTests(unittest.TestCase):
+    def test_water_cache_retries_after_temporary_memory_pressure(self):
+        import anim_harness
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            exe = anim_harness.build(root)
+            with patch('time.time', return_value=NOW), patch('token_tv.board_beach.load', return_value=fictional_film_with_boat()):
+                image, payload = render_paradise(sample(), waves=3)
+            page = root / 'page.tvf'
+            page.write_bytes(rgb565_frame(image) + b'WAVE' + struct.pack('<I', len(payload)) + payload)
+            folders = {}
+            for mode in ('recover_cache', 'no_cache', 'broken_cache'):
+                folder = root / mode
+                folder.mkdir()
+                result = subprocess.run([str(exe), str(page), str(folder), '6000', '250', 'precise', '100', mode],
+                                        capture_output=True, text=True)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                if mode == 'recover_cache':
+                    self.assertIn('beachCacheRows=0 ', result.stdout)
+                    self.assertIn('beachFinalCacheRows=64 cacheStatus=5 cacheAttemptAt=5000', result.stdout)
+                elif mode == 'broken_cache':
+                    self.assertIn('beachFinalCacheRows=0 cacheStatus=4 cacheAttemptAt=0', result.stdout)
+                folders[mode] = folder
+            for tick in (4, 19, 20, 21, 24):
+                expected = (folders['no_cache'] / f'screen_{tick}.bin').read_bytes()
+                self.assertEqual((folders['recover_cache'] / f'screen_{tick}.bin').read_bytes(), expected)
+                self.assertEqual((folders['broken_cache'] / f'screen_{tick}.bin').read_bytes(), expected)
+
+    def test_cached_water_reads_less_without_changing_pixels_and_falls_back_safely(self):
+        import anim_harness
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            exe = anim_harness.build(root)
+            with patch('time.time', return_value=NOW), patch('token_tv.board_beach.load', return_value=fictional_film_with_boat()):
+                image, payload = render_paradise(sample(), waves=3)
+            page = root / 'page.tvf'
+            page.write_bytes(rgb565_frame(image) + b'WAVE' + struct.pack('<I', len(payload)) + payload)
+            results = {}
+            for mode in ('full_cache', 'partial_cache', 'no_cache', 'fragmented_cache', 'broken_cache'):
+                folder = root / mode
+                folder.mkdir()
+                result = subprocess.run([str(exe), str(page), str(folder), '200', '25', 'precise', '100', mode],
+                                        capture_output=True, text=True)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                metrics = re.search(r'beachCacheRows=(\d+) renderReadBytes=(\d+)', result.stdout)
+                self.assertIsNotNone(metrics, result.stdout)
+                results[mode] = (tuple(map(int, metrics.groups())), folder)
+            (full_rows, full_bytes), full = results['full_cache']
+            (partial_rows, partial_bytes), partial = results['partial_cache']
+            (no_rows, no_bytes), none = results['no_cache']
+            (fragmented_rows, fragmented_bytes), fragmented = results['fragmented_cache']
+            (broken_rows, broken_bytes), broken = results['broken_cache']
+            self.assertEqual((full_rows, partial_rows, no_rows), (108, 64, 0))
+            self.assertEqual((fragmented_rows, broken_rows), (16, 0))
+            self.assertEqual(full_bytes, 0)
+            self.assertLess(partial_bytes, fragmented_bytes)
+            self.assertLess(fragmented_bytes, no_bytes)
+            self.assertEqual(broken_bytes, no_bytes)
+            for tick in range(1, 9):
+                expected = (none / f'screen_{tick}.bin').read_bytes()
+                self.assertEqual((partial / f'screen_{tick}.bin').read_bytes(), expected)
+                self.assertEqual((full / f'screen_{tick}.bin').read_bytes(), expected)
+                self.assertEqual((fragmented / f'screen_{tick}.bin').read_bytes(), expected)
+                self.assertEqual((broken / f'screen_{tick}.bin').read_bytes(), expected)
+
     def test_native_water_adds_in_between_frames_without_changing_the_loop_speed(self):
         import anim_harness
         with tempfile.TemporaryDirectory() as temp:

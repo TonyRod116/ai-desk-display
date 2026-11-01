@@ -31,17 +31,27 @@ static unsigned long g_now = 0;
 static unsigned long millis() { return g_now; }
 static unsigned long micros() { return std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now().time_since_epoch()).count(); }
 static long random(long n) { return n <= 0 ? 0 : rand() % n; }
+struct HeapMock {
+  uint32_t freeBytes = 256000, maxBytes = 256000;
+  uint32_t getFreeHeap() const { return freeBytes; }
+  uint32_t getMaxAllocHeap() const { return maxBytes; }
+} ESP;
 static bool swapRedBlue = false, swapBytes = false;
 static int page = 4;
 static uint16_t fixColor(uint16_t p) { return p; }
 static String pagePath(int n) { return "/p" + std::to_string(n) + ".raw"; }
 static std::map<String, std::vector<uint8_t>> g_files;
+static size_t g_fileBytesRead = 0;
+static bool g_failCacheRead = false;
 struct File {
   std::vector<uint8_t> *data = nullptr; size_t pos = 0;
   explicit operator bool() const { return data != nullptr; }
   size_t size() const { return data->size(); }
   bool seek(uint32_t p) { if (p > data->size()) return false; pos = p; return true; }
-  size_t read(uint8_t *dst, size_t n) { size_t k = std::min(n, data->size() - pos); memcpy(dst, data->data() + pos, k); pos += k; return k; }
+  size_t read(uint8_t *dst, size_t n) {
+    if (g_failCacheRead && pos == 8u+132u*320u*2u) { g_failCacheRead = false; return 0; }
+    size_t k = std::min(n, data->size() - pos); memcpy(dst, data->data() + pos, k); pos += k; g_fileBytesRead += k; return k;
+  }
   void close() {}
 };
 struct FS { File open(const String &path, const char *) { File f; auto it = g_files.find(path); if (it != g_files.end()) f.data = &it->second; return f; } } LittleFS;
@@ -78,12 +88,19 @@ int main(int argc, char **argv) {
   bool precise = argc > 5 && strcmp(argv[5], "precise") == 0;
   if (capture < (precise ? 10u : 40u)) return 4;
   if (precise && argc > 6 && !animationClock.setSpeed(0, atoi(argv[6]))) return 5;
+  if (precise && argc > 7 && strcmp(argv[7], "partial_cache") == 0) ESP.freeBytes = 128000;
+  if (precise && argc > 7 && strcmp(argv[7], "no_cache") == 0) ESP.freeBytes = 80000;
+  if (precise && argc > 7 && strcmp(argv[7], "recover_cache") == 0) ESP.freeBytes = 80000;
+  if (precise && argc > 7 && strcmp(argv[7], "fragmented_cache") == 0) ESP.maxBytes = 16000;
+  if (precise && argc > 7 && strcmp(argv[7], "broken_cache") == 0) g_failCacheRead = true;
   srand(7);
   memcpy(g_screen, bytes.data() + 8, 320 * 240 * 2);      // what drawFrame pushes first: the background
   File file = LittleFS.open(pagePath(page), "r");
   bool ok = readAnim(file, 320, 240);
   printf("readAnim=%d sprites=%d stars=%d meteor=%d region=%zu\n", ok, spriteCount, animStarCount, meteor.present, regionPixels);
   printf("wave=%d waveTexture=%u\n", (int)ocean.active, ocean.active ? ocean.offsets[WAVE_ROWS-1]+320-ocean.starts[WAVE_ROWS-1] : 0u);
+  const int beachCacheRows = ocean.cachedRows;
+  g_fileBytesRead = 0;
   if (precise && argc > 7 && strcmp(argv[7], "no_lut") == 0 && ocean.clampLut) {
     free(ocean.clampLut); ocean.clampLut = nullptr; // simulate constrained memory
   }
@@ -98,6 +115,7 @@ int main(int argc, char **argv) {
   const unsigned long increment = precise ? 5 : 20;
   for (unsigned long t = increment; t <= total; t += increment) {
     g_now = t;
+    if (precise && argc > 7 && strcmp(argv[7], "recover_cache") == 0 && t >= 1000) ESP.freeBytes = 128000;
     animTick(t);
     // SCRO tests need the frame at the actual timestamp, not the last frame
     // before the next capture boundary: there may now be intermediate poses.
@@ -110,6 +128,8 @@ int main(int argc, char **argv) {
   }
   dump(out, total);
   printf("pushes=%d meteorActive=%d\n", g_pushes, (int)meteor.active);
+  printf("beachCacheRows=%d renderReadBytes=%zu\n", beachCacheRows, g_fileBytesRead);
+  printf("beachFinalCacheRows=%u cacheStatus=%u cacheAttemptAt=%lu\n", ocean.cachedRows, waveCacheStatus, waveCacheAttemptAt);
   freeAnim();
   return 0;
 }
