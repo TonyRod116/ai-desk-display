@@ -31,8 +31,8 @@ def prepare_smooth(source, destination, *, mask_path=None, replace=False):
     with Image.open(source) as video:
         if video.size != (384, 480) or video.n_frames < 25:
             raise ValueError('Expected a 384 x 480 beach GIF with at least 25 frames')
-        middle = video.n_frames // 2
-        wanted = {round(i * middle / 24) for i in range(25)}
+        last = video.n_frames - 1
+        wanted = {round(i * last / 24) for i in range(25)}
         frames = {}
         for i in range(video.n_frames):
             video.seek(i)
@@ -74,7 +74,7 @@ def prepare_smooth(source, destination, *, mask_path=None, replace=False):
     neutral = Image.new('RGB', mask.size, (128, 128, 128))
     film = Image.new('RGB', (board_beach.WIDTH, board_beach.HEIGHT * board_beach.SMOOTH_FRAMES))
     for phase in range(board_beach.SMOOTH_FRAMES):
-        index = round(min(phase, board_beach.SMOOTH_FRAMES - phase) * middle / 24)
+        index = round(min(phase, board_beach.SMOOTH_FRAMES - phase) * last / 24)
         difference = ImageChops.subtract(crops[index], crops[0], scale=1, offset=128)
         film.paste(Image.composite(difference, neutral, mask), (0, phase * board_beach.HEIGHT))
 

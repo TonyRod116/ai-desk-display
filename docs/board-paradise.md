@@ -39,10 +39,11 @@ python -m tools.prepare_paradise_smooth ./my-beach.gif
 ```
 
 This creates `water48.png` alongside the other private files without replacing
-them. The shoreline advances and returns over the same 3.2-second cycle; identical
-return frames share storage. The rest of the photograph, including the boat,
-stays still. For a different shoreline, `--mask` accepts a local 320 × 108
-grayscale mask; `--output` selects another directory. The new film is optional:
+them. The shoreline samples the entire source GIF before returning over the same
+3.2-second cycle; identical return frames share storage. The rest of the
+photograph, including the boat, stays still. For a different shoreline,
+`--mask` accepts a local 320 × 108 grayscale mask; `--output` selects another
+directory. The new film is optional:
 older boards, an absent or oversized film, and an animated `boat.png` continue
 to use the existing eight-frame animation. Back up `water48.png` before using
 `--replace`.

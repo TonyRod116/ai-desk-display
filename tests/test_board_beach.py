@@ -210,9 +210,14 @@ class BeachFilmTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
             pictures = []
-            for phase in range(26):
+            for phase in range(32):
                 frame = Image.new('RGB', (384, 480), (65, 145, 160))
-                ImageDraw.Draw(frame).rectangle((60 + phase * 3, 370, 95 + phase * 3, 450), fill=(240, 240, 230))
+                # Keep frames distinct but postpone the breaking wave until
+                # after the source midpoint, where it used to get cut off.
+                frame.putpixel((0, 0), (phase * 7, 0, 0))
+                ImageDraw.Draw(frame).rectangle((110 + phase, 345, 125 + phase, 365), fill=(225, 220, 210))
+                if phase > 16:
+                    ImageDraw.Draw(frame).rectangle((175, 380, 215, 440), fill=(240, 240, 230))
                 pictures.append(frame)
             source = root / 'source.gif'
             pictures[0].save(source, save_all=True, append_images=pictures[1:], duration=70, loop=0, optimize=False)
@@ -226,9 +231,13 @@ class BeachFilmTests(unittest.TestCase):
             with Image.open(target) as film:
                 self.assertEqual((film.mode, film.size), ('P', (160, 54 * 48)))
                 values = film.tobytes()
+                colours = film.convert('RGB')
+                start = colours.getpixel((80, 35))
+                end = colours.getpixel((80, 24 * 54 + 35))
             stride = 160 * 54
             self.assertEqual(values[stride:2 * stride], values[47 * stride:48 * stride])
-            self.assertNotEqual(values[:stride], values[24 * stride:25 * stride])
+            self.assertGreater(sum(abs(a - b) for a, b in zip(start, end)), 30,
+                               'the wave reaches the end of the source before returning')
             with self.assertRaises(FileExistsError):
                 prepare_smooth(source, out)
 
