@@ -43,9 +43,9 @@ def render_gameboy_board(data, screen=(320, 240), grid=None):
     shadow=Image.new('RGB',lcd.size,paper);shadow.paste(lcd,(1,1));lcd=Image.blend(shadow,lcd,.88)
     lcd=lcd_grid(lcd,ink,strength=.09,axes='vertical')
     im.paste(lcd,(24,38));d=ImageDraw.Draw(im)
-    d.text((18,220),'Nintendo',font=face('oxanium.woff2',10),fill='#333e6a')
-    d.text((71,218),'GAME BOY',font=face('orbitron.ttf',12),fill='#333e6a')
-    d.text((169,222),'TM',font=face('oxanium.woff2',5),fill='#333e6a')
+    # Invented words on the bezel: the project's own name and a model name of its own (no third-party brand or trademark).
+    d.text((14,220),'Desk Display',font=face('oxanium.woff2',10),fill='#333e6a')
+    d.text((84,218),'TOKEN PAL',font=face('orbitron.ttf',12),fill='#333e6a')
     # Small moulded speaker slots and burgundy controls remain in the casing.
     for x in range(260,303,7):
         d.line((x,222,x-5,232),fill='#a19f99',width=3)

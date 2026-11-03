@@ -65,10 +65,10 @@ class PlatformTests(unittest.TestCase):
             for other in boxes[i+1:]:
                 self.assertFalse(overlaps(box,other),(box,other))
             self.assertFalse(overlaps(box,BOXES['cockpit']))
-        mario=sprites[0]
-        self.assertGreater(len(set(mario['script'])),20)
+        runner=sprites[0]
+        self.assertGreater(len(set(runner['script'])),20)
         # The motion wraps continuously: no actor silently teleports to start.
-        for previous,current in zip(mario['script'],mario['script'][1:]+mario['script'][:1]):
+        for previous,current in zip(runner['script'],runner['script'][1:]+runner['script'][:1]):
             self.assertLessEqual(abs(current[1]-previous[1]),3)
             self.assertLessEqual(abs(current[2]-previous[2]),5)
 

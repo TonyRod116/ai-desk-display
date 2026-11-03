@@ -514,7 +514,7 @@ static void drawScroll(unsigned long frameStep) {
     leap=leapAt(zoomPhase);
     if (quarter) {
       // Do not enter the block during the positions immediately before it
-      // rises: at the next logical step Mario touches it and it moves up.
+      // rises: at the next logical step the rider touches it and it moves up.
       if (zoomPhase != 103) leap=(leap*(4-quarter)+leapAt((zoomPhase+1)%192)*quarter)/4;
     }
   } else {

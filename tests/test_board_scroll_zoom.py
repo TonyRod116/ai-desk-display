@@ -77,7 +77,7 @@ class ZoomedPlatformTests(unittest.TestCase):
         contacts = []
         for tick in range(384):
             camera = tick * board_scroll.ZOOM_CAMERA_SPEED % (board_scroll.W * 3)
-            # The first three image rows above Mario's cap are transparent.
+            # The first three image rows above the rider's cap are transparent.
             actor_top = board_scroll.actor_y(spec, tick) + 3
             target = 157 if tick < 192 else 413
             for block in (157, 171, 185, 413, 427, 441):
