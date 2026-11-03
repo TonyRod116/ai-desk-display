@@ -58,7 +58,7 @@ The eight slots are yours to rearrange. The local **Desk display** page lets you
 
 The **Usage dashboard** can also display any available scene on your computer, above its detailed usage cards. Its choice belongs to that browser and **doesn't change the physical display**. The dashboard also retains its classic appearances. Both pages offer **English and Spanish**, with English as the default.
 
-![The screen library in the local usage dashboard, showing fictional readings](docs/images/screen-library.png?v=8461e5b0ec)
+![The screen library in the local usage dashboard, showing fictional readings](docs/images/screen-library.png?v=ce771ccb7b)
 
 Two additional photo scenes, **Violet Horizon** and **Neon District**, become available when you supply the matching local images. The platform, fight and beach scenes also support optional local artwork, as shown above. No game ROMs, source sprite files or private photo collections are shipped. See the guides for the [control room](docs/board-control.md), [platform](docs/board-platform.md), [fight](docs/board-versus.md) and [beach](docs/board-paradise.md).
 
