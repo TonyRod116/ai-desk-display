@@ -11,9 +11,18 @@ import time
 from pathlib import Path
 from urllib.parse import urlparse
 
+from token_tv.reader_status import STATUS_FILES, reader_state
 from token_tv.usage import timestamp, window
 
-OFFICIAL_MAX_AGE_SECONDS = 180
+# Tony, 2026-11-03 ("hazmelos todos" on showing the number up to 8 minutes with the discreet dot): a reading up to
+# OFFICIAL_FRESH_SECONDS old is normal; up to OFFICIAL_MAX_AGE_SECONDS it stays and the row says `reading_aged` (the dot at
+# the end of the reset row is its only sign); older is unknown. Both providers. The board's own SIN DATOS limit is unchanged.
+OFFICIAL_FRESH_SECONDS = 180
+OFFICIAL_MAX_AGE_SECONDS = 480
+# Claude readings that follow the official client's window rules. 'claude_official_statusline' is the client's own status-line
+# numbers, taken by the reader when they are recent and complete; 'claude_browser' is the browser extension's backup.
+CLAUDE_OFFICIAL = ('claude_official_cli', 'claude_official_statusline', 'claude_browser')
+OFFICIAL_ORIGINS = ('codex_official_cli',) + CLAUDE_OFFICIAL
 
 
 def live_claude_windows(windows, now):
@@ -30,15 +39,17 @@ def reset_lapsed(windows, now, claude=False):
 
 
 def expire_official_quota(row, now=None):
-    """Old official quota is unknown, even when the poller stops progressing."""
+    """Old official quota is unknown, even when the poller stops progressing. Between the fresh tier and the limit the
+    number stays and the row is marked `reading_aged`."""
     source = row.get('quota_origin')
-    if source not in ('codex_official_cli', 'claude_official_cli'):
+    if source not in OFFICIAL_ORIGINS:
         return
+    claude = source in CLAUDE_OFFICIAL
     now = time.time() if now is None else now
     age = now - row.get('fetched_at', 0)
-    if source == 'claude_official_cli':
+    if claude:
         row['windows'] = live_claude_windows(row['windows'], now)
-    expired = reset_lapsed(row['windows'], now, source == 'claude_official_cli')
+    expired = reset_lapsed(row['windows'], now, claude)
     if age > OFFICIAL_MAX_AGE_SECONDS or age < -60 or expired:
         row.pop('credits_balance', None)
         row['windows'] = []
@@ -64,6 +75,10 @@ def expire_official_quota(row, now=None):
     elif row['status'] != 'ok':
         row['windows'] = []
         row['status'] = 'quota_unavailable'
+    if row['windows'] and row['status'] == 'ok' and age > OFFICIAL_FRESH_SECONDS:
+        row['reading_aged'] = True
+    else:
+        row.pop('reading_aged', None)
 
 
 class LocalPolicy:
@@ -72,7 +87,9 @@ class LocalPolicy:
         self.clock = None
         self.port = 80
         self.endpoints = []  # (private address, port) of the clock and, optionally, the touch board
-        for text in (device_url, board_url):
+        self.board = None  # the touch board's own entry: it can move (DHCP) and the monitor then follows it
+        self.scan = None  # (network, port) while the monitor looks for a board that moved; None the rest of the time
+        for kind, text in (('clock', device_url), ('board', board_url)):
             if not text:
                 continue
             url = urlparse(text)
@@ -81,8 +98,29 @@ class LocalPolicy:
             if url.scheme != 'http' or not address.is_private or address.is_unspecified:
                 raise ValueError('Local mode requires a private clock IP address')
             self.endpoints.append((address, port))
+            if kind == 'board':
+                self.board = (address, port)
             if self.clock is None:
                 self.clock, self.port = address, port
+
+    def set_board_url(self, text):
+        """The monitor found the board at a new address: allow that one and forget the old one."""
+        url = urlparse(text)
+        address = ipaddress.ip_address(url.hostname)
+        if url.scheme != 'http' or not address.is_private or address.is_unspecified:
+            raise ValueError('Local mode requires a private board IP address')
+        entry = (address, url.port or 80)
+        # A new list, swapped in whole: the audit hook reads it from other threads while this runs.
+        self.endpoints = [known for known in self.endpoints if known != self.board] + [entry]
+        self.board = entry
+
+    def scanning(self, address, port=80):
+        """While open, allow connections to every host of `address`'s own /24 on `port` (and nothing else): the monitor
+        looking for a board whose address moved. A context manager; the permission ends when it closes."""
+        network = ipaddress.ip_network(f'{address}/24', strict=False)
+        if network.version != 4 or not network.is_private:
+            raise ValueError('Only a private IPv4 network can be searched')
+        return _ScanWindow(self, network, port)
 
     def allowed_host(self, host, port=None):
         if host == 'localhost':
@@ -91,6 +129,9 @@ class LocalPolicy:
             address = ipaddress.ip_address(host)
         except (ValueError, TypeError):
             return False
+        scan = self.scan
+        if scan is not None and address in scan[0] and (port is None or port == scan[1]):
+            return True
         return address.is_loopback or any(
             address == known and (port is None or port == known_port) for known, known_port in self.endpoints)
 
@@ -109,6 +150,19 @@ class LocalPolicy:
         if event in ('socket.connect', 'socket.sendto', 'socket.sendmsg') and isinstance(args[1], tuple):
             if not self.allowed_host(args[1][0], args[1][1]):
                 raise PermissionError('External connection blocked in local quota mode')
+
+
+class _ScanWindow:
+    def __init__(self, policy, network, port):
+        self.policy, self.window = policy, (network, port)
+
+    def __enter__(self):
+        self.policy.scan = self.window
+        return self
+
+    def __exit__(self, *exc):
+        self.policy.scan = None
+        return False
 
 
 def atomic_json(path, data):
@@ -267,7 +321,7 @@ def local_row(account, record, now=None):
            'identity_verified': False, 'source': 'local'}
     if not isinstance(record, dict):
         return row
-    if record.get('source') in ('claude_official_cli', 'codex_official_cli'):
+    if record.get('source') in OFFICIAL_ORIGINS:
         row['quota_origin'] = record['source']
     if row.get('quota_origin') == 'codex_official_cli':
         allowed = record.get('ordinary_usage_allowed')
@@ -279,9 +333,10 @@ def local_row(account, record, now=None):
     if fetched is None or fetched > now + 60:
         return row
     values = clean_windows(record.get('windows'))
-    if record.get('source') == 'claude_official_cli':
+    claude = record.get('source') in CLAUDE_OFFICIAL
+    if claude:
         values = live_claude_windows(values, now)
-    expired = reset_lapsed(values, now, record.get('source') == 'claude_official_cli')
+    expired = reset_lapsed(values, now, claude)
     row['windows'] = [] if expired else values
     row['fetched_at'] = row['last_success_at'] = fetched
     if row['windows']:
@@ -299,15 +354,22 @@ def local_row(account, record, now=None):
 def fetch_local(account, cache_dir, official_claude=False, official_codex=False):
     provider = account['provider']
     if (provider == 'codex' and official_codex) or (provider == 'claude' and official_claude):
-        source = provider + '_official_cli'
+        sources = CLAUDE_OFFICIAL if provider == 'claude' else ('codex_official_cli',)
         record = read_record(Path(cache_dir) / (provider + '-official.json'))
         if (not record or record.get('origin') != origin_id(account['source_home'], account.get('email'))
-                or record.get('source') != source):
+                or record.get('source') not in sources):
             record = None
         row = local_row(account, record)
-        row['quota_origin'] = source
+        row.setdefault('quota_origin', sources[0])
         row['identity_verified'] = bool(record and account.get('email')
                                         and record.get('identity_verified') is True and row['status'] == 'ok')
+        # Why a reading may be missing (the reader's fixed words); absent when the reader published nothing recent.
+        reader = reader_state(read_record(Path(cache_dir) / STATUS_FILES[provider]))
+        if reader:
+            row['reader'] = reader
+        if provider == 'claude':  # the browser extension's reading stands in only when this one is missing, stale or older
+            from token_tv.claude_backup import with_backup
+            row = with_backup(row, account, cache_dir)
         return row
     if account.get('email'):
         # Session/status-line files do not prove which login produced them.

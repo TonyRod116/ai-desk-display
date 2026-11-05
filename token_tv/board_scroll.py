@@ -231,7 +231,8 @@ def coin_age(spec, tick):
     if spec['version'] not in (2, 3, 4):
         return None
     age=tick%192-104
-    return age if 0 <= age < 16 else None
+    limit = 10 if spec['version'] in (3, 4) else 16
+    return age if 0 <= age < limit else None
 
 
 def _zoom_block_effect(out, spec, tick, camera):
@@ -268,18 +269,38 @@ def _zoom_block_effect(out, spec, tick, camera):
             for x in range(max(0,left),min(320,left+size)):
                 sx=((camera+x)//ZOOM_SCALE)%W
                 out[y*320+x]=spec['palette'][spec['pixels'][sy*W+sx]]
-    coin_top=block_top-5-min(age*4,48 if original else 36)
     if original:
+        # The fixed HUD leaves less vertical room than the game, so the arc
+        # keeps its original timing and shape at one LCD pixel per source pixel.
+        frame = age * 4  # four 15 ms positions per 60 ms logical step
+        travel = min(frame, 26)
+        lift = (96 * travel - 3 * travel * (travel - 1)) // 32
+        coin_top = block_top - 48 - lift
+        if frame >= 27:
+            sparkle_age = frame - 27
+            radius = 4 if sparkle_age < 4 else 3 if sparkle_age < 8 else 1
+            center_y = coin_top + 24 - sparkle_age // 4
+            for dy in range(-radius, radius + 1):
+                y = center_y + dy
+                if not (0 if spec['version'] == 4 else TOP) <= y < 240:
+                    continue
+                for dx in range(-radius, radius + 1):
+                    x = left + 24 + dx
+                    if 0 <= x < 320 and (dx == 0 or dy == 0):
+                        out[y * 320 + x] = 0xffff if dx == 0 and dy == 0 else 0xff0b
+            return
+        width = (24, 18, 9, 18)[(frame // 4) % 4]
         for row in range(48):
             y=coin_top+row
             if y < (0 if spec['version'] == 4 else TOP) or y >= block_top-(3 if bump else 0):
                 continue
-            for column in range(24):
-                x=left+12+column
-                color=spec['coin'][(row//3)*8+column//3]
+            for column in range(width):
+                x=left+24-width//2+column
+                color=spec['coin'][(row//3)*8+column*8//width]
                 if 0 <= x < 320 and color != board_anim.KEY:
                     out[y*320+x]=color
         return
+    coin_top=block_top-5-min(age*4,36)
     for row in range(18):
         y=coin_top+row
         if y < TOP or y >= block_top-(3 if bump else 0):

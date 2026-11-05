@@ -3,12 +3,11 @@
 The stage uses native resolution. Four non-overlapping pixel-art sprites animate
 locally; no per-frame network traffic or firmware change is needed.
 """
-from math import sin, pi
-
 from PIL import Image, ImageColor, ImageDraw
 
+from token_tv import board_arcade_fighters as fighters
+
 INK = '#121427'
-FIGHTER_Y = 101
 
 
 def poly(draw, points, fill, outline=INK):
@@ -650,560 +649,91 @@ def draw_stage(im):
     d.line((0,206,319,206),fill='#f3c998')
     d.line((0,208,319,208),fill='#7294a1')
     d.line((0,211,319,211),fill='#111827')
+    paint_lantern(im)
 
 
-def _codex_rear_guard(d):
-    """The rounded helper's small, wrapped rear fist."""
-    poly(d,[(24,50),(19,48),(14,49),(12,53),(13,59),(18,62),
-            (24,61),(27,57)],'#283a76')
-    poly(d,[(22,51),(18,50),(15,51),(14,54),(15,58),(19,60),
-            (23,59),(25,56)],'#738de5')
-    d.line([(16,52),(19,51),(22,52)],fill='#d4e2ff')
-    d.line((16,56,23,56),fill='#4057a0')
-    d.line((17,58,21,59),fill='#b2c9ff')
-    d.rectangle((20,59,25,61),fill='#ecf1ff',outline='#6d83c6')
-    d.point((22,60),fill='#ffffff')
-    d.line((15,54,23,54),fill='#b7d5ff')
-    d.line((17,57,22,58),fill='#d2e6ff')
+# ---- the lantern, the cloud strip and the fighters ---------------------------------------------------------------
+LANTERN = (2, 142)
+CLOUD = (128, 112, 60, 12)           # x, y, width, height in screen pixels: the gap above the middle box, below the meteor
 
 
-def _claude_rear_guard(d):
-    """Clawd's free tentacle curls differently from the wrapped lead hand."""
-    poly(d,[(73,48),(78,45),(83,46),(86,50),(85,54),(81,57),
-            (77,56),(76,53),(79,52),(82,53),(83,51),(81,49),(77,51)],
-         '#b85543','#5d333a')
-    d.line([(75,48),(79,46),(83,48),(84,51)],fill='#ffd1a3')
-    d.point((80,55),fill='#ffe4ba')
-    d.point((82,48),fill='#ffefd0')
-    d.point((83,53),fill='#e9916b')
+def _lantern_frames():
+    frames = []
+    for colour in ('#f2b26d', '#ffd59a', '#db8b5a'):
+        im = Image.new('RGBA', (5, 8), (0, 0, 0, 0))
+        d = ImageDraw.Draw(im)
+        d.line((2, 0, 2, 1), fill='#d2b394')
+        d.rectangle((1, 2, 3, 6), fill='#912f37', outline='#341d2d')
+        d.line((2, 3, 2, 5), fill=colour)
+        d.point((2, 7), fill='#e6b479')
+        frames.append(im)
+    return frames
 
 
-def _codex_fighter(shadow=True, animated_hands=False):
-    """Round terminal-cloud boxer: squat boots, padded arms and a lit face."""
-    im=Image.new('RGBA',(95,94),(0,0,0,0));d=ImageDraw.Draw(im)
-    if shadow:
-        d.ellipse((6,86,81,91),fill='#68483d')
-    # Short boots deliberately keep the body round, rather than a human gi.
-    poly(d,[(22,73),(37,75),(37,81),(31,87),(27,89),(10,89),(9,86),(15,81)],'#25335f')
-    poly(d,[(23,75),(34,77),(34,81),(29,85),(25,87),(12,87),(13,85),(19,80)],'#768cde')
-    poly(d,[(17,83),(25,81),(31,82),(27,85),(13,87)],'#aab9f4',outline='#aab9f4')
-    d.line((12,88,28,88),fill='#182344');d.line((14,85,24,85),fill='#e3e9ff')
-    d.line((23,78,28,79),fill='#dce6ff')
-    poly(d,[(47,75),(59,73),(64,79),(72,83),(76,85),(75,89),(53,89),(47,85)],'#25335f')
-    poly(d,[(49,77),(58,75),(63,80),(69,83),(73,85),(73,87),(54,87),(49,84)],'#758cda')
-    poly(d,[(53,83),(61,82),(69,84),(72,86),(55,86)],'#a3b8ed',outline='#a3b8ed')
-    d.line((52,88,74,88),fill='#182344');d.line((55,85,68,85),fill='#e3e9ff')
-    d.line((54,78,59,78),fill='#dce6ff')
-    # Boot cuffs, reinforced soles and offset glints make the low, planted
-    # stance read like a fighting sprite rather than a pair of simple wedges.
-    d.line((20,80,31,81),fill='#e6eaff')
-    d.line((53,80,62,79),fill='#e6eaff')
-    d.line((15,86,21,86),fill='#ffffff')
-    d.line((61,86,70,86),fill='#c6d4ff')
-    d.point((24,87),fill='#607ac7');d.point((57,87),fill='#607ac7')
-    # The portrait keeps these fixed arms; the full-body animation draws its
-    # own articulated arms so an old cuff cannot stick out behind a glove.
-    if not animated_hands:
-        poly(d,[(21,42),(14,40),(9,43),(8,51),(12,57),(20,57),(26,52)],'#39417f')
-        poly(d,[(18,43),(13,42),(10,45),(10,50),(14,54),(21,53),(24,49)],'#8b9ded')
-        d.line([(11,46),(13,43),(18,44)],fill='#d4dcff')
-        poly(d,[(9,48),(16,48),(18,52),(17,58),(12,60),(7,57),(6,52)],'#273567')
-        poly(d,[(9,49),(15,49),(16,52),(15,56),(12,58),(8,56),(7,52)],'#566cc8')
-        d.line((9,50,14,50),fill='#a9d5ff');d.line((8,53,15,53),fill='#354989')
-        poly(d,[(54,45),(61,42),(65,36),(70,37),(70,45),(66,51),(59,54),(53,51)],'#313b78')
-        poly(d,[(57,46),(62,43),(65,38),(68,38),(68,44),(64,49),(59,51),(55,49)],'#9aaaf1')
-        d.line([(59,45),(63,42),(65,39)],fill='#dce4ff')
-    # Multi-lobed round robot/cloud silhouette with a dark arcade outline.
-    poly(d,[(20,40),(19,35),(22,29),(27,27),(29,21),(36,19),(41,21),
-            (47,19),(54,21),(57,26),(62,28),(65,34),(65,41),(68,46),
-            (68,58),(65,68),(60,76),(52,80),(31,80),(23,76),(18,69),
-            (15,58),(15,49),(17,44)],'#27346f')
-    poly(d,[(21,40),(21,35),(24,30),(29,29),(31,23),(36,21),(41,23),
-            (47,21),(53,23),(55,28),(61,30),(63,35),(63,42),(66,47),
-            (66,57),(63,67),(59,73),(51,77),(32,77),(24,73),(20,67),
-            (17,57),(17,49)],'#8697f4')
-    poly(d,[(22,39),(23,34),(26,31),(31,30),(32,25),(36,23),(41,25),
-            (47,23),(52,25),(54,30),(59,31),(61,35),(61,38),(54,36),
-            (47,36),(38,34),(29,37)],'#d1d8ff',outline='#c5ceff')
-    poly(d,[(20,54),(22,65),(27,72),(34,75),(52,75),(60,70),(63,62),
-            (61,69),(57,73),(49,78),(31,78),(23,74),(19,67)],'#475caf',outline='#475caf')
-    for x,y in ((22,40),(25,37),(28,35),(33,27),(38,24),(48,24),(55,29),(60,35)):
-        d.point((x,y),fill='#edf0ff')
-    # The terminal IS the face: bold prompt and expressive highlight.
-    poly(d,[(25,42),(29,38),(57,38),(62,42),(62,58),(58,62),
-            (29,62),(25,58)],'#343d79')
-    poly(d,[(27,43),(30,40),(56,40),(60,43),(60,57),(57,60),
-            (30,60),(27,57)],'#111b39',outline='#a1aeff')
-    d.line((31,42,55,42),fill='#425584')
-    if not animated_hands:
-        d.line([(32,46),(38,49),(32,52)],fill='#d3ffff',width=2)
-        d.rectangle((42,53,51,54),fill='#bbfaff')
-    d.point((57,45),fill='#b9f9ff');d.line((55,56,57,56),fill='#456e96')
-    # Metal bezel, tiny fasteners and a muted scan reflection keep the prompt
-    # legible while giving the terminal face a more crafted mechanical finish.
-    d.line((31,39,55,39),fill='#eef3ff')
-    d.line((29,61,56,61),fill='#5266ad')
-    d.point((29,43),fill='#edf2ff');d.point((58,43),fill='#edf2ff')
-    d.point((29,57),fill='#758ee2');d.point((58,57),fill='#758ee2')
-    d.line((46,45,54,45),fill='#253c63')
-    d.line((48,48,55,48),fill='#253c63')
-    # A larger bevel and small bright screw heads remain visible on a
-    # low-contrast LCD without obscuring the terminal prompt.
-    d.line([(27,43),(27,56),(30,59)],fill='#bed4ff')
-    d.line([(59,43),(59,56),(56,59)],fill='#536cb7')
-    d.point((30,41),fill='#ffffff');d.point((56,41),fill='#ffffff')
-    # Raised rear gauntlet is drawn in front of the shell: a recognisable
-    # planted fighting guard rather than arms hiding behind the silhouette.
-    if not animated_hands:
-        _codex_rear_guard(d)
-    if not animated_hands:
-        # Angular armour and cuff bands on the fixed portrait's forearm.
-        poly(d,[(62,43),(65,40),(69,40),(71,44),(71,48),(68,52),
-                (64,53),(62,50)],'#344b91','#263670')
-        poly(d,[(64,43),(66,41),(68,42),(69,45),(69,48),(67,50),
-                (64,51)],'#99aef1','#657ed0')
-        d.line((65,43,68,43),fill='#eaf0ff')
-        d.line((64,48,69,48),fill='#dae5ff')
-        d.line((64,50,67,50),fill='#6c86d5')
-        d.point((67,46),fill='#ffffff')
-        d.line((65,45,68,45),fill='#c7ddff')
-        d.point((65,50),fill='#f7faff')
-    # Pixel clusters on the curved shell give it the shaded volume and
-    # sharply lit edges of a hand-painted fighting-game sprite.
-    for x,y in ((22,42),(20,45),(19,50),(20,64),(22,68),(25,72),
-                (58,34),(62,40),(64,48),(63,58),(59,69),(53,74)):
-        d.point((x,y),fill='#d4d9ff')
-    d.line([(23,38),(25,34),(28,33)],fill='#f2efff')
-    d.line([(57,70),(54,73),(50,74)],fill='#394b9b')
-    # Chunky light and shade patches make the robot shell round even if fine
-    # neighbouring purple shades collapse into one on the display.
-    d.line([(24,36),(26,33),(29,32)],fill='#f4f7ff',width=2)
-    d.line([(20,62),(22,68),(26,72)],fill='#c3d6ff')
-    d.line([(61,59),(60,64),(58,68)],fill='#2b4289',width=2)
-    d.point((61,55),fill='#e7f3ff')
-    # Tiny belt, shoulder pad and lightning: custom Codex helper cues.
-    poly(d,[(20,65),(26,67),(34,69),(52,69),(62,65),(61,71),
-            (52,74),(33,74),(25,72),(21,70)],'#e4edfc')
-    d.line([(23,67),(33,70),(52,70),(59,68)],fill='#ffffff')
-    d.line((34,72,50,72),fill='#9eaed8')
-    d.rectangle((39,69,44,74),fill='#263767',outline='#e0ebfa')
-    d.point((41,71),fill='#f8d988')
-    d.line((27,69,30,70),fill='#8fa6d4')
-    d.line((54,70,58,69),fill='#a5b7df')
-    # A short asymmetrical belt tail breaks up the circular body.
-    poly(d,[(43,74),(47,74),(50,81),(46,83),(42,77)],'#dae7fa','#5167ac')
-    d.line([(44,75),(46,80),(48,81)],fill='#ffffff')
-    if not animated_hands:
-        poly(d,[(43,17),(37,28),(42,28),(39,36),(52,25),(47,25),(49,17)],'#f7be4f','#583e64')
-        d.line([(44,19),(40,26),(44,26)],fill='#fff2a7')
-        d.point((48,23),fill='#fff2a7')
-    # Crisp status lights, armour seams and metallic rivets give the round
-    # helper its own machine-like personality even at actual panel size.
-    d.line((29,35,34,35),fill='#b9faff')
-    d.point((30,34),fill='#ffffff')
-    d.point((34,36),fill='#5168b4')
-    for x,y in ((23,45),(22,55),(25,65),(57,37),(62,54),(57,67)):
-        d.point((x,y),fill='#f6f5ff')
-        d.point((x+1,y+1),fill='#5975cb')
-    if not animated_hands:
-        d.line((15,53,20,53),fill='#eaf5ff')
-        d.line((14,55,19,55),fill='#8eb3ed')
-        d.line((64,46,69,46),fill='#d2e8ff')
-    d.point((39,73),fill='#fff1ad')
-    return im
+def paint_lantern(image):
+    """The lantern's first light is part of the page (only boards that keep four poses move it)."""
+    pose = _lantern_frames()[0]
+    pose = pose.resize((pose.width * 2, pose.height * 2), Image.Resampling.NEAREST)
+    image.paste(pose, LANTERN, pose)
 
 
-def _claude_fighter(shadow=True, animated_hands=False):
-    """Square orange Clawd/octopus with headband and curling tentacles."""
-    im=Image.new('RGBA',(95,94),(0,0,0,0));d=ImageDraw.Draw(im)
-    if shadow:
-        d.ellipse((13,86,87,91),fill='#68483d')
-    # Four differently curled tentacles replace the humanoid legs. Their lit
-    # suckers make the silhouette readable against the wooden platform.
-    for points in (
-        [(41,65),(36,72),(33,80),(27,84),(23,81),(21,85),(24,89),(30,89),(38,84),(46,73)],
-        [(49,68),(45,77),(45,84),(41,87),(37,84),(35,87),(38,90),(45,90),(51,85),(53,74)],
-        [(58,68),(60,77),(65,85),(71,89),(77,87),(77,83),(73,85),(69,82),(66,72)],
-        [(65,63),(72,69),(77,77),(81,81),(85,78),(88,80),(88,85),(83,88),(77,85),(70,78),(61,72)],
-    ):
-        poly(d,points,'#b24a3c','#482939')
-    d.line([(40,69),(36,76),(33,82),(28,85)],fill='#ffd0a0',width=2)
-    d.line([(49,73),(47,80),(46,85),(42,88)],fill='#ffbd91',width=2)
-    d.line([(61,72),(63,78),(67,84),(71,87)],fill='#ffc197',width=2)
-    d.line([(70,69),(75,75),(79,82),(83,84)],fill='#ffca99',width=2)
-    for x,y in ((32,83),(27,86),(45,85),(41,88),(67,84),(72,87),(79,83),(84,84)):
-        d.point((x,y),fill='#ffe1ad')
-    # Dark undersides and curved glints give each tentacle weight. A few
-    # paired suckers are larger than single pixels so they survive at 1:1.
-    d.line([(27,87),(31,87),(37,83)],fill='#803e3d')
-    d.line([(38,89),(44,89),(49,85)],fill='#803e3d')
-    d.line([(65,83),(70,88),(75,88)],fill='#803e3d')
-    d.line([(76,82),(81,86),(85,85)],fill='#803e3d')
-    for x,y in ((34,80),(45,83),(66,82),(79,81)):
-        d.point((x-1,y),fill='#ffd2a1')
-        d.point((x,y),fill='#fff0c9')
-        d.point((x+1,y+1),fill='#bd6b50')
-    # Distinct pale suction cups and darker inner folds keep the four
-    # differently curved limbs readable against the brighter wooden floor.
-    for x,y in ((30,84),(40,87),(70,85),(83,83)):
-        d.line((x-1,y,x+1,y),fill='#ffe4b8')
-        d.point((x,y+1),fill='#8f403a')
-    # Fixed portrait arms; the animated character adds both tentacles later.
-    if not animated_hands:
-        poly(d,[(65,42),(74,40),(81,43),(82,50),(79,55),(72,55),
-                (70,52),(74,50),(77,51),(78,48),(75,46),(68,48)],'#bd5b42','#5d333a')
-        d.line([(69,43),(75,42),(80,45),(80,49)],fill='#ffd1a3',width=2)
-        d.point((76,53),fill='#ffe2b6')
-        poly(d,[(40,42),(34,39),(31,34),(27,34),(27,41),(30,46),
-                (35,49),(40,50),(43,47)],'#bd5b42','#5d333a')
-        d.line([(39,43),(34,40),(31,36),(29,36)],fill='#ffd0a2',width=2)
-    # Boxy, orange Clawd silhouette, with side lobes and a rounded lower edge.
-    poly(d,[(38,29),(42,25),(70,25),(75,29),(75,34),(80,34),(82,38),
-            (82,48),(78,51),(76,60),(72,65),(71,70),(65,73),(44,73),
-            (37,69),(35,63),(34,51),(31,48),(31,38),(35,35)],'#5d3038')
-    poly(d,[(39,30),(43,27),(69,27),(73,30),(73,36),(78,36),(80,39),
-            (80,46),(76,49),(74,59),(70,64),(69,68),(64,71),(45,71),
-            (39,67),(37,61),(36,49),(33,46),(33,39),(37,36)],'#e98d61')
-    poly(d,[(39,31),(43,28),(68,28),(72,31),(72,36),(77,37),(78,40),
-            (77,42),(72,41),(70,39),(43,39),(37,42),(35,40),(37,36)],'#ffc39a',outline='#ffc39a')
-    poly(d,[(37,54),(39,63),(43,68),(48,70),(65,70),(71,65),(73,59),
-            (70,64),(66,65),(63,67),(47,67),(42,64)],'#b65945',outline='#b65945')
-    d.line((41,32,68,32),fill='#ffd4ac')
-    d.line((40,34,52,34),fill='#ffe4ba')
-    # Warm rim light and small stepped shadows sculpt the soft, square body
-    # while leaving the iconic eyes and the orange silhouette unmistakable.
-    d.line([(37,42),(36,46),(38,50)],fill='#ffc79c')
-    d.line([(38,53),(39,59),(42,64)],fill='#a95647')
-    d.line([(72,43),(74,46),(73,50)],fill='#ffd0a7')
-    d.line([(73,53),(72,59),(69,63)],fill='#a54f45')
-    d.line((43,36,52,36),fill='#ffc69a')
-    d.line((61,37,69,37),fill='#e99a76')
-    # Strong angled brows and tiny clenched teeth give this Clawd its own
-    # fighting expression while keeping the familiar two dark mascot eyes.
-    poly(d,[(40,40),(49,42),(50,45),(42,44)],'#773b3b','#5b3038')
-    poly(d,[(59,42),(68,40),(69,43),(60,45)],'#773b3b','#5b3038')
-    d.rectangle((43,45,48,54),fill='#211c2a')
-    d.rectangle((61,45,66,54),fill='#211c2a')
-    d.rectangle((44,46,45,48),fill='#fff2d9')
-    d.rectangle((62,46,63,48),fill='#fff2d9')
-    d.line((44,54,47,54),fill='#693c3c')
-    d.line((62,54,65,54),fill='#693c3c')
-    d.rectangle((50,58,60,62),fill='#733e3c',outline='#502e34')
-    d.line((52,59,58,59),fill='#fff7e4')
-    d.point((54,60),fill='#db9d7c');d.point((57,60),fill='#db9d7c')
-    for x,y in ((39,48),(41,51),(69,47),(71,50),(45,61),(64,60)):
-        d.point((x,y),fill='#ffcca4')
-    # Wind-swept headband belongs to the octopus, not a human fighter.
-    poly(d,[(37,25),(43,23),(70,23),(75,25),(73,30),(39,30)],'#eee5d2','#805b54')
-    d.line((41,24,70,24),fill='#fff8e9')
-    d.rectangle((55,24,59,27),fill='#d25347')
-    d.point((57,25),fill='#ffe8c5')
-    poly(d,[(72,25),(79,24),(87,20),(89,22),(84,27),(75,30)],'#fff0d9','#805b54')
-    poly(d,[(75,28),(84,28),(90,26),(91,29),(85,32),(75,32)],'#e5d1bf','#805b54')
-    d.line((80,25,86,22),fill='#ffffff')
-    d.line((42,28,51,28),fill='#cfb7a7')
-    d.line((63,28,72,28),fill='#cfb7a7')
-    d.point((57,26),fill='#a8423c')
-    d.line((79,30,86,29),fill='#fff8e7')
-    d.line((42,25,52,25),fill='#ffffff')
-    d.line((64,26,70,26),fill='#fdf7e6')
-    if not animated_hands:
-        # The wrapped portrait guard and its differently curled rear tentacle.
-        poly(d,[(38,43),(34,40),(31,36),(28,37),(28,43),(31,48),
-                (35,51),(39,50),(41,47)],'#a34d3f','#5d333a')
-        poly(d,[(37,43),(34,41),(31,38),(30,39),(30,43),(33,47),
-                (36,49),(39,48)],'#eea17a','#a34d3f')
-        d.line([(37,44),(34,42),(32,39)],fill='#ffd6ad')
-        d.line((29,39,32,39),fill='#fff0d6')
-        d.line((29,41,32,41),fill='#ebd3bf')
-        d.line((31,43,34,43),fill='#ffe9d0')
-        d.line((33,45,36,45),fill='#e7bd9f')
-        d.point((35,47),fill='#fff1d6')
-        _claude_rear_guard(d)
-    # Dark red martial-arts sash, kept below the face. Its knot and two
-    # trailing folds distinguish this character from Codex's white belt.
-    poly(d,[(41,64),(49,66),(61,66),(69,64),(68,69),(62,71),
-            (48,71),(42,69)],'#8e3040','#4c2937')
-    d.line([(43,65),(50,67),(61,67),(67,65)],fill='#ffd0a0')
-    d.rectangle((55,65,59,70),fill='#d86b50',outline='#5a3036')
-    d.point((57,66),fill='#ffe3b6')
-    poly(d,[(59,69),(62,69),(65,77),(62,78),(58,72)],'#a94e42','#63353a')
-    d.line([(60,71),(62,76)],fill='#f4a67f')
-    # Extra lit suckers along the four planted tentacles remain legible at
-    # native resolution against the dark outlines and the wooden stage.
-    for x,y in ((37,77),(35,80),(30,84),(47,79),(45,83),
-                (64,79),(67,83),(74,85),(76,78),(80,82)):
-        d.point((x,y),fill='#ffe4b7')
-        d.point((x+1,y),fill='#d78261')
-    # Warm speckles, curled skin folds and tiny sucker highlights contrast
-    # with Codex's angular bolts and make the octopus feel organic.
-    for x,y in ((39,51),(41,55),(43,63),(68,54),(71,57),(66,63)):
-        d.point((x,y),fill='#ffddb3')
-        d.point((x+1,y+1),fill='#cc7358')
-    d.line([(72,60),(70,63),(67,65)],fill='#ffca9f')
-    d.line([(38,57),(40,62),(43,65)],fill='#934b43')
-    d.line((56,68,59,68),fill='#f5ad86')
-    d.point((34,81),fill='#fff0c8')
-    d.point((69,85),fill='#fff0c8')
-    return im
-
-
-def fighter(provider, shadow=True, animated_hands=False):
-    """Original nonhuman silhouettes, also used by the scoreboard portraits."""
-    if provider == 'codex':
-        return _codex_fighter(shadow,animated_hands)
-    if provider == 'claude':
-        return _claude_fighter(shadow,animated_hands)
-    raise ValueError('unknown fighter')
-
-
-def fallen(provider):
-    """Two distinct grounded poses, with the provider still recognizable."""
-    im=Image.new('RGBA',(85,28),(0,0,0,0));d=ImageDraw.Draw(im)
-    d.ellipse((2,22,82,26),fill='#68483d')
-    if provider == 'codex':
-        # A flattened rounded helper, screen down and little boots sideways.
-        poly(d,[(7,18),(12,13),(18,12),(23,8),(33,7),(40,9),(47,8),
-                (54,11),(60,11),(66,15),(67,21),(63,24),(12,24),(8,22)],'#354078')
-        poly(d,[(10,18),(14,14),(20,14),(25,10),(33,9),(40,11),(47,10),
-                (53,13),(59,13),(64,16),(65,20),(61,22),(13,22)],'#91a5fa')
-        d.line([(15,15),(22,14),(26,11),(34,10)],fill='#e2e0ff')
-        d.rectangle((24,15,49,22),fill='#131b38',outline='#d2e4ff')
-        for x in (29,40):
-            d.line((x,17,x+3,20),fill='#a5f5ff');d.line((x+3,17,x,20),fill='#a5f5ff')
-        poly(d,[(38,4),(34,10),(38,10),(36,15),(44,9),(41,9),(42,4)],'#ffd66f','#583e64')
-        d.rectangle((5,19,12,23),fill='#4c67bd',outline='#202d5c')
-        d.rectangle((60,20,71,23),fill='#728bd1',outline='#202d5c')
-        d.line((61,20,68,20),fill='#d7e3ff')
-        d.line((15,22,22,22),fill='#edf0ff')
-        d.line((51,21,58,21),fill='#edf0ff')
-        d.point((56,20),fill='#f8d988')
-    elif provider == 'claude':
-        # The octopus slumps with tentacles curling out on either side.
-        for pts in ([(23,18),(16,19),(10,23),(5,21),(3,24),(8,26),(14,25),(24,23)],
-                    [(28,21),(24,24),(23,26),(28,26),(33,23)],
-                    [(53,21),(60,24),(65,25),(68,22),(72,23),(70,26),(64,27),(55,24)],
-                    [(58,17),(68,17),(73,20),(78,19),(79,22),(73,23),(67,21),(60,21)]):
-            poly(d,pts,'#c65d48','#4f2e38')
-        poly(d,[(22,14),(27,10),(54,10),(60,14),(60,21),(55,24),
-                (29,24),(22,21)],'#e98d61','#5d3038')
-        d.line((29,12,53,12),fill='#ffe0b1')
-        d.rectangle((27,9,56,12),fill='#f6ead9',outline='#805b54')
-        d.rectangle((41,9,45,11),fill='#d25347')
-        for x in (31,47):
-            d.line((x,16,x+4,20),fill='#302432');d.line((x+4,16,x,20),fill='#302432')
-        d.line((33,22,52,22),fill='#873c40')
-        d.point((43,22),fill='#ffe3b6')
-        for x,y in ((9,23),(13,24),(25,25),(29,24),(62,24),(65,25),(73,21)):
-            d.point((x,y),fill='#ffe1ad')
-    else:
-        raise ValueError('unknown fighter')
-    return im
-
-
-def _guard(provider, shift=0):
-    """One of the original chunky, differently shaped boxing gloves."""
-    im=Image.new('RGBA',(9,9),(0,0,0,0));d=ImageDraw.Draw(im)
-    if provider == 'codex':
-        d.polygon([(2,2+shift),(5,2+shift),(7,3+shift),(7,6+shift),
-                   (5,7+shift),(2,6+shift),(1,5+shift),(1,3+shift)],fill='#273567')
-        d.rectangle((2,3+shift,6,5+shift),fill='#4969c9')
-        d.rectangle((3,3+shift,5,4+shift),fill='#9ac6ff')
-        d.line((2,3+shift,5,3+shift),fill='#f0f8ff')
-        d.line((2,6+shift,5,6+shift),fill='#f7faff')
-        d.point((2,5+shift),fill='#344f9d')
-        d.point((6,4+shift),fill='#d9edff')
-    else:
-        d.polygon([(2,3+shift),(3,2+shift),(6,2+shift),(7,3+shift),
-                   (7,5+shift),(6,7+shift),(3,7+shift),(1,6+shift)],fill='#6b4650')
-        d.rectangle((2,3+shift,6,5+shift),fill='#fff0d5')
-        d.line((3,3+shift,6,3+shift),fill='#fff9ea')
-        d.line((2,5+shift,6,5+shift),fill='#e8cbb5')
-        d.line((3,6+shift,6,6+shift),fill='#bc755d')
-        d.point((2,5+shift),fill='#d67c59')
-        d.point((5,4+shift),fill='#fffaf0')
-    return im.resize((18,18),Image.Resampling.NEAREST)
-
-
-def _guarded_fighter(provider, dx=0, dy=0, bend=0, guard_dx=0, guard_dy=0,
-                     rear_dx=0, rear_dy=0):
-    """Move head and body together while the legs flex towards anchored soles."""
-    base=fighter(provider, shadow=False, animated_hands=True)
-    posed=Image.new('RGBA',base.size,(0,0,0,0))
-    # One articulated body includes the face: it must never float in place
-    # while the shell, headband and arms move around it.
-    posed.alpha_composite(base.crop((0,0,95,72)),(dx,dy))
-    # Compress or extend the lower body from the moving hips to the ground.
-    # A gentle sideways bend shifts the knees / tentacles, not the shadow.
-    leg=base.crop((0,72,95,91)).resize((95,19-dy),Image.Resampling.NEAREST)
-    for y in range(leg.height):
-        t=y/(leg.height-1)
-        shift=round(dx*(1-t)+bend*sin(pi*t))
-        posed.alpha_composite(leg.crop((0,y,95,y+1)),(shift,72+dy+y))
-    # Both hands move relative to the torso. Draw the short forearms between
-    # each moving hand and its shoulder so the guard never detaches.
-    lead_x=(64 if provider == 'codex' else 15)+dx+guard_dx
-    # Keep the leading fist beside the face, not above the fighter's head.
-    # It follows the torso with a smaller independent rise and fall, so the
-    # idle pose reads as a guard rather than an arm held straight in the air.
-    lead_y=32+dy+guard_dy
-    d=ImageDraw.Draw(posed)
-    if provider == 'codex':
-        lead_anchor=(64+dx,46+dy)
-        rear_anchor=(25+dx,55+dy)
-        rear_tip=(19+dx+rear_dx,55+dy+rear_dy)
-        outline,arm,light='#273567','#8299e9','#dce8ff'
-        rear_draw=_codex_rear_guard
-    else:
-        lead_anchor=(36+dx,46+dy)
-        rear_anchor=(73+dx,50+dy)
-        rear_tip=(80+dx+rear_dx,51+dy+rear_dy)
-        outline,arm,light='#5d333a','#d77c59','#ffd5a8'
-        rear_draw=_claude_rear_guard
-    for start,end in ((lead_anchor,(lead_x+9,lead_y+11)),(rear_anchor,rear_tip)):
-        d.line((start,end),fill=outline,width=8)
-        d.line((start,end),fill=arm,width=5)
-        d.line(((start[0],start[1]-1),(end[0],end[1]-1)),fill=light,width=1)
-    rear=Image.new('RGBA',base.size,(0,0,0,0))
-    rear_draw(ImageDraw.Draw(rear))
-    posed.alpha_composite(rear,(dx+rear_dx,dy+rear_dy))
-    posed.alpha_composite(_guard(provider),(lead_x,lead_y))
-    return posed
+def _cloud_frames():
+    """A repeating strip of cloud that drifts one way: 16 sprite pixels repeat, four frames of 4 pixels close the loop."""
+    width, height = CLOUD[2] // 2, CLOUD[3] // 2
+    clouds = []
+    for phase in range(4):
+        im = Image.new('RGBA', (width, height), (0, 0, 0, 0))
+        d = ImageDraw.Draw(im)
+        for origin in range(-32, width + 32, 16):
+            x = origin - phase * 4
+            d.line((x + 1, 1, x + 6, 1), fill='#9fb6bd')
+            d.line((x + 3, 2, x + 12, 2), fill='#c2c4bd')
+            d.line((x + 7, 3, x + 14, 3), fill='#839faa')
+        for px in range(width):
+            edge = min(px, width - 1 - px)
+            for py in range(height):
+                if not im.getpixel((px, py))[3]:
+                    continue
+                if edge == 0:
+                    im.putpixel((px, py), (0, 0, 0, 0))
+                elif edge < 3:
+                    im.putpixel((px, py), ImageColor.getrgb('#5c7b8c') + (255,))
+                elif edge < 6:
+                    im.putpixel((px, py), ImageColor.getrgb('#6b8996') + (255,))
+                elif edge < 9:
+                    im.putpixel((px, py), ImageColor.getrgb('#839faa') + (255,))
+        clouds.append(im)
+    return clouds
 
 
 def draw_fighters(image, codex_down, claude_down, font):
-    """Draw the characters separately, with actual zero as the only KO."""
-    for provider, x, down in (('codex',22,codex_down),('claude',203,claude_down)):
-        if down:
-            pose = fallen(provider)
-            image.paste(pose, (x+5,FIGHTER_Y+67), pose)
-            d=ImageDraw.Draw(image);d.fontmode='1'
-            badge_x=x+(95-23)//2
-            d.rectangle((badge_x,FIGHTER_Y+44,badge_x+22,FIGHTER_Y+55),fill='#121427',outline='#f64b59')
-            d.text((badge_x+3,FIGHTER_Y+46),'KO',font=font,fill='#ffb4ac')
-        else:
-            # Stationary ground shadows live on the clean background. The
-            # complete standing character is drawn by its animated sprite.
-            left,right=(6,81) if provider == 'codex' else (13,87)
-            ImageDraw.Draw(image).ellipse((x+left,FIGHTER_Y+86,x+right,FIGHTER_Y+91),fill='#68483d')
+    """A knocked-out fighter lies on the floor inside its own box, under a KO badge. Standing fighters are resident
+    sprites (see animated_details), so nothing of them is drawn into the page."""
+    for provider, box, down in (('codex', fighters.CODEX_BOX, codex_down), ('claude', fighters.CLAUDE_BOX, claude_down)):
+        if not down:
+            continue
+        pose = fighters.fallen(provider)
+        pose = pose.resize((pose.width * fighters.K, pose.height * fighters.K), Image.Resampling.NEAREST)
+        centre = (box[0] + box[2]) * fighters.K // 2
+        top = box[3] * fighters.K - pose.height
+        image.paste(pose, (centre - pose.width // 2, top), pose)
+        d = ImageDraw.Draw(image)
+        d.fontmode = '1'
+        width = round(font.getlength('KO')) + 8                      # a badge in proportion to the bigger fighters
+        badge_x, badge_y = centre - width // 2, top - 19
+        d.rectangle((badge_x, badge_y, badge_x + width - 1, badge_y + 13), fill='#121427', outline='#f64b59')
+        d.text((badge_x + 4, badge_y + 3), 'KO', font=font, fill='#ffb4ac')
 
 
-def _stance_sprite(provider, down, step_ms, max_frames=4):
-    """Whole-body pixel sprites animate over the clean stage without ghosts.
-
-    Firmware restores the complete rectangle from the static page between
-    frames. All boxes are disjoint from the cloud, lantern and HUD, including
-    transparent pixels, so no sprite can erase another one's artwork.
-    """
-    x, left = (22, 26) if provider == 'codex' else (203, 216)
-    if down:
-        # No actor overlay is needed for a KO. Keep the sprite slot but avoid
-        # repeatedly restoring a large rectangle over the stationary fallen pose.
-        return {'x':left,'y':112,'frames':[Image.new('RGBA',(1,1),(0,0,0,0))],
-                'script':[(0,0,0)],'step_ms':step_ms}
-    top, right, bottom = 112, left + 82, 196
-    width,height=right-left,bottom-top
-    # Compact arcade idle cycles: the torsos breathe vertically while feet
-    # stay planted, instead of the whole sprite sliding diagonally. Codex
-    # rises on flexed boots; Claude settles into its tentacles. Their hands,
-    # bends and rhythms follow different paths for two distinct personalities.
-    if max_frames >= 8:
-        # The compact robot rises on flexed legs with its two gloves offset;
-        # the octopus settles lower and counters with its tentacles. These
-        # are independently authored beats, not translated copies of a pose.
-        moves=((0,0,0,0,0,0,0), (0,-2,0,-2,0,0,-2),
-               (0,-2,2,-2,-2,2,-2), (0,-4,4,0,-2,2,0),
-               (0,-4,2,2,0,0,2), (0,-2,-2,2,2,-2,2),
-               (0,0,-2,0,2,-2,0), (0,0,0,0,0,0,2)) if provider == 'codex' else (
-               (0,0,0,0,0,0,0), (0,2,2,2,0,-2,0),
-               (0,2,4,2,-2,-2,-2), (0,4,2,0,-2,0,-2),
-               (0,4,-2,-2,0,2,-2), (0,2,-4,-2,2,2,0),
-               (0,0,-2,0,2,0,2), (0,0,0,0,0,-2,2))
-    else:
-        moves=((0,0,0,0,0,0,0),(0,-2,2,-2,0,0,-2),
-               (0,-4,4,-2,2,2,0),(0,-2,-2,2,2,-2,2)) if provider == 'codex' else (
-               (0,0,0,0,0,0,0),(0,2,2,2,0,-2,0),
-               (0,4,-2,0,-2,-2,-2),(0,2,-2,-2,0,2,-2))
-    frames=[]
-    for move in moves:
-        full=Image.new('RGBA',(width,height),(0,0,0,0))
-        full.alpha_composite(_guarded_fighter(provider,*move),(x-left,FIGHTER_Y-top))
-        frame=full.resize((width//2,height//2),Image.Resampling.NEAREST)
-        if provider == 'codex':
-            # Draw the bolt and terminal prompt once, directly at sprite
-            # resolution. Downsampling their old 1px details could leave
-            # broken fragments or duplicate the prompt in certain poses.
-            dx,dy=move[:2]
-            fx,fy=(x+32+dx-left)//2,(FIGHTER_Y+46+dy-top)//2
-            bx,by=(x+37+dx-left)//2,(FIGHTER_Y+17+dy-top)//2
-            d=ImageDraw.Draw(frame)
-            # A deliberate pixel grid keeps the lightning readable at every
-            # pose; one dark edge makes it distinct from the pale cloud.
-            bolt=('...YYY..', '..YYY...', '.YYY....', 'YYYYYYY.',
-                  '..YYYY..', '.YYY....', '.YY.....', 'YY......')
-            pixels={(bx+px,by+py) for py,row in enumerate(bolt)
-                    for px,cell in enumerate(row) if cell == 'Y'}
-            for px,py in pixels:
-                for ox,oy in ((-1,0),(1,0),(0,-1),(0,1)):
-                    if (px+ox,py+oy) not in pixels:
-                        d.point((px+ox,py+oy),fill='#583e64')
-            for px,py in pixels:
-                d.point((px,py),fill='#f7be4f')
-            d.line((bx+3,by+1,bx+4,by+1),fill='#fff2a7')
-            d.line([(fx,fy),(fx+3,fy+2),(fx,fy+4)],fill='#d3ffff')
-            d.line((fx+5,fy+5,fx+9,fy+5),fill='#bbfaff')
-        frames.append(frame)
-    cycle = tuple(range(8)) if max_frames >= 8 else (
-        (0,1,2,1,0,3,3,0) if provider == 'codex' else (0,3,3,0,1,2,1,0))
-    return {'x':left,'y':top,'frames':frames,
-            'script':[(i,0,0) for i in cycle],
-            'step_ms':step_ms}
-
-
-def animated_details(codex_down, claude_down, step_ms, max_frames=4):
-    """Two breathing guards, a lantern and looping clouds, all disjoint."""
-    sprites=[]
-    for provider, down in (('codex',codex_down),('claude',claude_down)):
-        # Different breathing rhythms read as different characters and cut
-        # the number of full-box screen restores on the little ESP32.
-        pace = (180 if provider == 'codex' else 220) if max_frames >= 8 else (
-            step_ms if provider == 'codex' else step_ms * 4 // 3)
-        sprites.append(_stance_sprite(provider,down,pace,max_frames))
-    frames=[]
-    for colour in ('#f2b26d','#ffd59a','#db8b5a'):
-        im=Image.new('RGBA',(5,8),(0,0,0,0));d=ImageDraw.Draw(im)
-        d.line((2,0,2,1),fill='#d2b394')
-        d.rectangle((1,2,3,6),fill='#912f37',outline='#341d2d')
-        d.line((2,3,2,5),fill=colour)
-        d.point((2,7),fill='#e6b479')
-        frames.append(im)
-    sprites.append({'x':2,'y':142,'frames':frames,
-                    'script':[(0,0,0),(1,0,0),(0,0,0),(2,0,0)],'step_ms':step_ms})
-    # A 32-physical-pixel repeating cloud pattern advances in one direction.
-    clouds=[]
-    for phase in range(4):
-        im=Image.new('RGBA',(50,6),(0,0,0,0));d=ImageDraw.Draw(im)
-        for origin in range(-32,82,16):
-            x=origin-phase*4
-            d.line((x+1,1,x+6,1),fill='#9fb6bd')
-            d.line((x+3,2,x+12,2),fill='#c2c4bd')
-            d.line((x+7,3,x+14,3),fill='#839faa')
-        for px in range(im.width):
-            edge=min(px,im.width-1-px)
-            for py in range(im.height):
-                if not im.getpixel((px,py))[3]:
-                    continue
-                if edge == 0:
-                    im.putpixel((px,py),(0,0,0,0))
-                elif edge < 3:
-                    im.putpixel((px,py),ImageColor.getrgb('#5c7b8c')+(255,))
-                elif edge < 6:
-                    im.putpixel((px,py),ImageColor.getrgb('#6b8996')+(255,))
-                elif edge < 9:
-                    im.putpixel((px,py),ImageColor.getrgb('#839faa')+(255,))
-        clouds.append(im)
-    sprites.append({'x':110,'y':130,'frames':clouds,
-                    'script':[(i,0,0) for i in (0,0,1,1,2,2,3,3)],'step_ms':step_ms})
+def animated_details(codex_down, claude_down, step_ms=fighters.STEP_MS, max_frames=4):
+    """The resident sprites of the stage: both fighters (a duel when eight frames are available and both stand), the
+    middle box of that duel, and the drifting cloud. A four-pose board keeps the lantern as a sprite instead."""
+    sprites = fighters.actor_sprites(codex_down, claude_down, max_frames)
+    if max_frames < 8:
+        sprites.append({'x': LANTERN[0], 'y': LANTERN[1], 'frames': _lantern_frames(),
+                        'script': [(0, 0, 0), (1, 0, 0), (0, 0, 0), (2, 0, 0)], 'step_ms': 2 * fighters.STEP_MS})
+    sprites.append({'x': CLOUD[0], 'y': CLOUD[1], 'frames': _cloud_frames(),
+                    'script': [(i, 0, 0) for i in (0, 0, 1, 1, 2, 2, 3, 3)], 'step_ms': 2 * fighters.STEP_MS})
     return sprites
 
 
@@ -1211,7 +741,7 @@ def paint_first_frame(image, sprites):
     """Fallback for boards without animation matches the first native frame."""
     for sprite in sprites:
         frame, dx, dy = sprite['script'][0]
-        pose = sprite['frames'][frame].resize((sprite['frames'][frame].width*2,
-                                               sprite['frames'][frame].height*2),
+        pose = sprite['frames'][frame].resize((sprite['frames'][frame].width * 2,
+                                               sprite['frames'][frame].height * 2),
                                               Image.Resampling.NEAREST)
-        image.paste(pose,(sprite['x']+dx,sprite['y']+dy),pose)
+        image.paste(pose, (sprite['x'] + dx, sprite['y'] + dy), pose)

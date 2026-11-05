@@ -1,4 +1,4 @@
-"""Prepare a private, locally paired Arc extension; disclose no credentials."""
+"""Prepare a private, locally paired browser extension (Chrome); disclose no credentials."""
 import argparse
 import base64
 import hashlib
@@ -10,6 +10,34 @@ from pathlib import Path
 
 from token_tv.local_usage import atomic_json, read_record
 from token_tv.sources import load_config
+
+
+CODE = ('manifest.json', 'background.js', 'reader.mjs')
+
+
+def sync_code(destination):
+    """Update the extension's code in an installed copy, touching nothing else (Tony, 2026-11-03: new code must not need a new
+    pairing). `pairing.js` is only checked to exist, never read or rewritten, and the bridge file stays as it is, so the secret is
+    the same one. Returns the names of the files that changed."""
+    destination = Path(destination)
+    source = Path(__file__).resolve().parents[1] / 'integrations/claude-bank'
+    if destination.resolve() == source.resolve() or not (destination/'pairing.js').is_file():
+        raise ValueError('Only a prepared extension folder can be updated; use --config and --pin to prepare a new one')
+    changed = []
+    for name in CODE:
+        wanted = (source/name).read_bytes()
+        if (destination/name).is_file() and (destination/name).read_bytes() == wanted:
+            continue
+        with tempfile.NamedTemporaryFile(dir=destination, delete=False) as handle:
+            handle.write(wanted)
+            temporary = Path(handle.name)
+        try:
+            os.chmod(temporary, 0o600)
+            temporary.replace(destination/name)
+        finally:
+            temporary.unlink(missing_ok=True)
+        changed.append(name)
+    return changed
 
 
 def prepare(config_path, pin_path, destination):
@@ -60,9 +88,23 @@ def prepare(config_path, pin_path, destination):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--config', required=True)
-    parser.add_argument('--pin', required=True)
+    parser.add_argument('--config')
+    parser.add_argument('--pin')
     parser.add_argument('--destination', required=True)
+    parser.add_argument('--sync-code', action='store_true',
+                        help='only copy the extension code over an installed copy; no config, pin or pairing is read or changed')
     args = parser.parse_args()
-    prepare(args.config, args.pin, args.destination)
-    print('Private local reader prepared. Account data and pairing secret remain local.')
+    if args.sync_code:
+        if args.config or args.pin:
+            parser.error('--sync-code needs only --destination')
+        try:
+            changed = sync_code(args.destination)
+        except (OSError, ValueError) as error:
+            raise SystemExit(f'Not updated: {error}')
+        print((f'Extension code updated ({", ".join(changed)}).' if changed else 'Extension code was already current.')
+              + ' The pairing was not touched. Reload the extension in the browser to run it.')
+    else:
+        if not (args.config and args.pin):
+            parser.error('--config and --pin are required (or --sync-code to update only the code)')
+        prepare(args.config, args.pin, args.destination)
+        print('Private local reader prepared. Account data and pairing secret remain local.')

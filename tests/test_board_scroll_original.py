@@ -42,7 +42,7 @@ class OriginalScrollTests(unittest.TestCase):
                 board_scroll.encode.cache_clear()
                 spec = board_scroll.decode(board_scroll.encode(3))
                 colour = spec['coin'][0]
-                for tick in (114, 306):
+                for tick in (104, 296):
                     canvas = [0] * (320 * 240)
                     camera = tick * board_scroll.ZOOM_CAMERA_SPEED % (board_scroll.W * 3)
                     board_scroll._zoom_block_effect(canvas, spec, tick, camera)
@@ -50,6 +50,43 @@ class OriginalScrollTests(unittest.TestCase):
                     left = block * 3 - camera
                     actual = [x for x in range(320) if canvas[65 * 320 + x] == colour]
                     self.assertEqual(actual, list(range(left + 12, left + 36)))
+
+    def test_coin_spins_rises_and_falls_before_a_brief_sparkle(self):
+        """The block reward is a quick spin and arc, not a coin frozen in the air."""
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            sample_assets(root)
+            with patch.object(board_scroll, 'ORIGINAL_ASSETS', root):
+                board_scroll.encode.cache_clear()
+                spec = board_scroll.decode(board_scroll.encode(3))
+                colour = spec['coin'][0]
+                shapes = []
+                for tick in range(104, 111):
+                    canvas = [0] * (320 * 240)
+                    camera = tick * board_scroll.ZOOM_CAMERA_SPEED % (board_scroll.W * 3)
+                    board_scroll._zoom_block_effect(canvas, spec, tick, camera)
+                    pixels = [(x, y) for y in range(board_scroll.TOP, 96) for x in range(320)
+                              if canvas[y * 320 + x] == colour]
+                    self.assertTrue(pixels, tick)
+                    shapes.append((max(x for x, _ in pixels) - min(x for x, _ in pixels) + 1,
+                                   max(y for _, y in pixels)))
+                widths = [width for width, _ in shapes]
+                bottoms = [bottom for _, bottom in shapes]
+                self.assertGreater(widths[0], widths[1])
+                self.assertGreater(widths[1], widths[2])
+                self.assertGreater(widths[3], widths[2])
+                self.assertGreater(bottoms[0], bottoms[2])
+                self.assertGreater(bottoms[2], bottoms[4])
+                self.assertGreater(bottoms[6], bottoms[4])
+
+                canvas = [0] * (320 * 240)
+                camera = 111 * board_scroll.ZOOM_CAMERA_SPEED % (board_scroll.W * 3)
+                board_scroll._zoom_block_effect(canvas, spec, 111, camera)
+                self.assertNotIn(colour, canvas)
+                self.assertIn(0xffff, canvas)  # brief glint where the coin was collected
+                canvas = [0] * (320 * 240)
+                board_scroll._zoom_block_effect(canvas, spec, 114, 114 * board_scroll.ZOOM_CAMERA_SPEED)
+                self.assertNotIn(0xffff, canvas)
 
     def test_old_board_and_missing_art_keep_working(self):
         board = BoardDisplay('http://192.168.1.50', '0123456789abcdef')

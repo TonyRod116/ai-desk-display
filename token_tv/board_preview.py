@@ -77,12 +77,19 @@ def _sequence(frame):
         animation = board_anim.decode(payload)
         periods = [len(s['script']) * s['step_ms'] for s in animation['sprites']]
         period = math.lcm(*periods) if periods else 4000
+        if len(animation['sprites']) > 4 and period == 32000 and not animation['stars'] and not animation['meteor']:
+            # The extended city has 16 s ship journeys and independent 32 s
+            # windows. Keep the complete loop at a modest preview cadence.
+            return _anim_frames(base, animation, 128, 250), 250
         # Preserve slower, deterministic scenes when their full cycle fits in
         # a bounded thumbnail; otherwise a preview would jump back mid-cycle.
         if 8000 < period <= 32000 and not animation['stars'] and not animation['meteor']:
             step = math.gcd(*(s['step_ms'] for s in animation['sprites']))
-            if step >= 80 and period // step <= 64:
-                return _anim_frames(base, animation, period // step, step), step
+            if step >= 80:
+                beats = period // step
+                stride = max(1, (beats + 63) // 64)
+                if beats % stride == 0:
+                    return _anim_frames(base, animation, beats // stride, step * stride), step * stride
         # Very long combined cycles would be too expensive for a thumbnail.
         if not 0 < period <= 8000:
             period = max(3200, min(6400, max(periods)))

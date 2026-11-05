@@ -57,6 +57,13 @@
     'Change auto-rotate mode':'Cambiar la rotación automática', 'Open connection screen':'Abrir la pantalla de conexión',
     'Connection always requires a physical hold of at least 5 seconds.':'La conexión siempre requiere mantener pulsada la pantalla al menos 5 segundos.',
     'Save touch settings':'Guardar controles táctiles', 'Running locally on this computer':'Funciona localmente en este ordenador',
+    'See details':'Ver detalles', 'What each hold does':'Qué hace cada pulsación larga',
+    'Night mode':'Modo noche', "Dim the display at night, following this computer's clock.":'Atenúa la pantalla de noche, según el reloj de este ordenador.',
+    'On':'Activado', 'Off':'Desactivado', 'From':'Desde', 'To':'Hasta', 'Brightness':'Brillo',
+    'Off. The display keeps the same brightness all day.':'Desactivado. La pantalla mantiene el mismo brillo todo el día.',
+    'Waiting for the display to follow.':'Esperando a que la pantalla lo siga.',
+    'After 10 minutes without this computer the display also dims by itself; a touch wakes it for a minute.':'Si pasan 10 minutos sin este ordenador, la pantalla también se atenúa sola; un toque la despierta durante un minuto.',
+    'Saving…':'Guardando…', 'Night mode saved on this computer.':'Modo noche guardado en este ordenador.',
     'CURRENT':'ACTUAL', 'EARLIER VERSION':'VERSIÓN ANTERIOR', 'SCREEN':'PANTALLA',
     'CHECKING':'COMPROBANDO', 'QUEUED':'EN COLA', 'ON DISPLAY':'EN PANTALLA',
     'Saving your choice…':'Guardando tu elección…', 'Screen saved · waiting for the display to receive it.':'Pantalla guardada · esperando a que llegue al dispositivo.',
@@ -103,6 +110,7 @@
     'No quota reported.':'No hay cuota disponible.', 'No reading available.':'Sin lectura disponible.', 'RESETS IN':'REINICIO EN',
     'Saved-reset balance unknown':'Saldo de resets guardados desconocido', 'Account':'Cuenta', 'Window':'Periodo', 'Source':'Origen',
     'Official client · local cache':'Cliente oficial · caché local', 'Local files':'Archivos locales', 'This computer':'Este ordenador',
+    'Browser backup · claude.ai':'Copia desde el navegador · claude.ai',
     'Linked snapshot':'Lectura vinculada', 'Last good':'Última válida', 'Checked':'Consultado', 'Status':'Estado',
     'OFFLINE · Previous value':'SIN CONEXIÓN · Valor anterior', 'Unknown':'Desconocido', 'Loading':'Cargando',
     'Login needed':'Necesita iniciar sesión', 'Check identity':'Comprueba la identidad', 'Quota unavailable':'Cuota no disponible',
@@ -115,6 +123,26 @@
     'Could not save. Check the values and try again.':'No se ha podido guardar. Comprueba los valores y vuelve a intentarlo.',
     '5-hour window':'Periodo de 5 horas', 'Weekly window':'Periodo semanal', 'CLI budget window':'Periodo del presupuesto CLI'
   };
+  // Readable panel (2026-11-03): ages, reader states, the five-hour line and the forecast.
+  Object.assign(es, {
+    'resets in':'reinicio en', 'Offline · previous value':'Sin conexión · valor anterior', 'At this pace,':'A este ritmo,',
+    'Quota left':'Cuota restante', 'Quota used':'Cuota usada', 'Time':'Hora',
+    'The quota reader is not updating.':'El lector de cuota no se está actualizando.',
+    'The saved-reset counter is not updating.':'El contador de resets guardados no se está actualizando.',
+    'Claude Code says the organization has disabled subscription access.':'Claude Code indica que la organización ha desactivado el acceso por suscripción.',
+    'The service is limiting usage requests; the reader is waiting before it asks again.':'El servicio está limitando las consultas de uso; el lector espera antes de volver a preguntar.',
+    'The Claude Code login was lost: run /login to restore it.':'Se ha perdido el inicio de sesión de Claude Code: ejecuta /login para restaurarlo.',
+    'The signed-in account is not the one this display expects.':'La cuenta con sesión iniciada no es la que espera esta pantalla.',
+    'A new Claude Code series needs a review before the reader can use it.':'Una nueva serie de Claude Code necesita una revisión antes de que el lector pueda usarla.',
+    'The reader stopped because the client reported model activity.':'El lector se ha detenido porque el cliente indicó actividad del modelo.',
+    'The client opened but did not confirm a new reading.':'El cliente se abrió pero no confirmó una lectura nueva.',
+    'The reader has not obtained a reading.':'El lector no ha obtenido ninguna lectura.',
+    'Each card shows':'Cada tarjeta muestra',
+    "and the time until the weekly reset. Claude's current 5-hour window, which is what stops work first, sits right under it. When Codex's weekly allowance is exhausted, its card shows extra credits if the official reading provides them; the empty bar still represents weekly quota. Official readings disappear when a refresh fails, when they are more than eight minutes old, or when their reset time passes. Between three and eight minutes the number stays, marked with a small dot. Unknown readings appear as —.":
+      'y el tiempo hasta el reinicio semanal. La ventana actual de 5 horas de Claude, que es la que detiene el trabajo primero, aparece justo debajo. Cuando se agota la cuota semanal de Codex, su tarjeta muestra los créditos extra si la lectura oficial los proporciona; la barra vacía sigue representando la cuota semanal. Las lecturas oficiales desaparecen si falla una actualización, tienen más de ocho minutos o pasa su hora de reinicio. Entre tres y ocho minutos el número se mantiene, marcado con un pequeño punto. Los datos desconocidos aparecen como —.',
+    'Hearts count saved resets, which are separate from extra credits and are never calculated from the quota bar. When automatic checks are enabled, balances come from the official account readers. Otherwise, confirm them manually in the official Usage settings. An unknown balance appears as three faint hearts and a small dot. The chart, when there is one, is only the recent pace carried forward: it changes as your use does, and it stays blank when there is too little history or the usage is flat.':
+      'Los corazones cuentan los resets guardados, que son distintos de los créditos extra y nunca se calculan a partir de la barra. Si las consultas automáticas están activadas, los saldos vienen de los lectores oficiales de las cuentas. De lo contrario, confírmalos manualmente en los ajustes oficiales de uso. Un saldo desconocido aparece como tres corazones tenues y un punto pequeño. El gráfico, cuando lo hay, solo continúa el ritmo reciente: cambia con tu uso y queda en blanco si hay poco historial o el uso es constante.'
+  });
   const rules = [
     [/^(.+), position (\d+) of 8$/, (_, name, n) => `${name}, posición ${n} de 8`],
     [/^Selected (.+)\. Choose its new position\.$/, (_, name) => `${name} seleccionada. Elige su nueva posición.`],
@@ -122,7 +150,10 @@
     [/^Change screen (\d+): (.+)$/, (_, n, name) => `Cambiar pantalla ${n}: ${name}`],
     [/^Change screen (\d+)$/, (_, n) => `Cambiar pantalla ${n}`],
     [/^(\d+) seconds?$/, (_, n) => `${n} ${n === '1' ? 'segundo' : 'segundos'}`],
+    [/^(\d+)\.(\d+) s$/, (_, whole, tenth) => `${whole},${tenth} s`],
+    [/^Dims to (\d+)% from (.+) to (.+)\.$/, (_, level, from, to) => `Se atenúa al ${level}% de ${from} a ${to}.`],
     [/^(\d+) saved resets( · confirmed by you)?$/, (_, n, confirmed) => `${n} resets guardados${confirmed ? ' · confirmados por ti' : ''}`],
+    [/^(\d+) saved resets · checked a few minutes ago$/, (_, n) => `${n} resets guardados · comprobados hace unos minutos`],
     [/^Saved-reset balance unknown · confirmed by you$/, () => 'Saldo de resets guardados desconocido · confirmado por ti'],
     [/^(.+) accounts$/, (_, name) => `Cuentas de ${name}`],
     [/^(.+) (WEEKLY|5-HOUR|CLI BUDGET|QUOTA) (remaining|used) quota( unavailable)?$/, (_, name, period, kind, unavailable) => `${name} · ${es[period] || period} · cuota ${kind === 'remaining' ? 'restante' : 'usada'}${unavailable ? ' no disponible' : ''}`],
@@ -134,6 +165,21 @@
     [/^Official check: (.+)$/, (_, value) => `Comprobación oficial: ${value}`],
     [/^Confirmed by you: (.+)$/, (_, value) => `Confirmado por ti: ${value}`]
   ];
+  const days = value => value.replace(/\bdays\b/, 'días').replace(/\bday\b/, 'día'); // spans may hold no-break spaces
+  const window_ = name => name === 'week' ? 'la semana' : 'la ventana de 5 horas';
+  rules.push(
+    [/^Checked just now$/, () => 'Consultado ahora mismo'],
+    [/^(Checked|Last good) (.+) ago$/, (_, what, span) => `${what === 'Checked' ? 'Consultado' : 'Última válida'} hace ${days(span)}`],
+    [/^No reading for (.+)$/, (_, span) => `Sin lectura desde hace ${days(span)}`],
+    [/^Next try in (.+)$/, (_, span) => `Próximo intento en ${days(span)}`],
+    [/^the (week|5-hour window) lasts until it resets$/, (_, name) => `${window_(name)} dura hasta que se reinicia`],
+    [/^the (week|5-hour window) runs out in less than 5 min$/, (_, name) => `${window_(name)} se agota en menos de 5 min`],
+    [/^the (week|5-hour window) runs out in about (.+)$/, (_, name, span) => `${window_(name)} se agota en aproximadamente ${days(span)}`],
+    [/^(\d+)% (left|used) · (.+)$/, (_, n, kind, when) => `${n}% ${kind === 'left' ? 'restante' : 'usado'} · ${when}`],
+    [/^(.+) (5-hour window|week): quota (left|used) so far, with the pace continued to the reset\. Use the arrow keys to read points\.$/, (_, name, what, kind) => `${name} · ${what === 'week' ? 'semana' : 'ventana de 5 horas'}: cuota ${kind === 'left' ? 'restante' : 'usada'} hasta ahora, con el ritmo prolongado hasta el reinicio. Usa las flechas para leer los puntos.`],
+    [/^(.+) (week|5-hour window), readings so far$/, (_, name, what) => `${name} · ${what === 'week' ? 'semana' : 'ventana de 5 horas'}, lecturas hasta ahora`],
+    [/^(.+?) Last update (\d{2}:\d{2})\.$/, (_, text, time) => `${translate(text)} Última actualización ${time}.`]
+  );
   let language = 'en';
   try { if (localStorage.getItem('ai-desk-display.language') === 'es') language = 'es'; } catch (_) {}
   const nodes = new WeakMap(), attributes = new WeakMap();

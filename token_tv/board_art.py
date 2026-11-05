@@ -215,10 +215,12 @@ def _rocket(scene, cx, top, filled, color, muted):
             scene.d.line(points + [points[0]], fill=muted, width=SS, joint='curve')
 
 
-def _resets(scene, cx, y, count, old, color, muted, icon):
+def _resets(scene, cx, y, count, old, color, muted, icon, faint=None):
     """The saved resets, one icon each: bright when available, an outline when not, `+` beside them for more than three. While the
     number is unknown or old the three icons stay (all outlines when unknown, the last known count when old) and ONE faint dot ends
-    the row: no `?` and no OLD (Tony, 2026-10-20). Each page picks its own icon (`board_reset_icons`; the cockpit's rocket is smooth)."""
+    the row: no `?` and no OLD (Tony, 2026-10-20). Each page picks its own icon (`board_reset_icons`; the cockpit's rocket is smooth).
+    `faint` is the tone of the icons that are not available (default `muted`): the city card passes a much quieter one, because
+    its hollow houses were nearly as prominent as the filled ones (Tony, 2026-11-03)."""
     pitch = 9 * 1.4
     x0 = cx - 1.5 * pitch
     have = count if count is not None else 0
@@ -234,7 +236,7 @@ def _resets(scene, cx, y, count, old, color, muted, icon):
             if have > i:
                 drawn = [(xx, yy, tone[cell]) for xx, yy, cell, _ in icons.cells(icon)]
             else:
-                drawn = [(xx, yy, muted) for xx, yy in icons.hollow(icon)]
+                drawn = [(xx, yy, faint or muted) for xx, yy in icons.hollow(icon)]
             for xx, yy, fill in drawn:
                 scene.rect((left + xx * scale, y + yy * scale, left + (xx + 1) * scale, y + (yy + 1) * scale), fill=fill)
     end = x0 + 3 * pitch

@@ -203,11 +203,13 @@ class AnimationEngineTests(unittest.TestCase):
                 patch('token_tv.board_arcade.local_stage.load', return_value=(background_art, effects)):
             image, payload = render_arcade(snapshot(), animated=True, anim_frames=8)
         spec = board_anim.decode(payload)
-        self.assertEqual([len(sprite['frames']) for sprite in spec['sprites'][:2]], [8, 8])
+        # Codex, Claude and the middle box of the exchange, then the supplied backdrop's two pieces as ONE sprite.
+        self.assertEqual([len(sprite['frames']) for sprite in spec['sprites']], [6, 7, 8, 4])
+        self.assertLessEqual(len(payload), board_anim.MAX_PAYLOAD)
         background = list(struct.unpack('<76800H', rgb565_frame(image)[8:]))
         capture = 120
-        out = self.run_engine(payload, capture * 48, image=image, capture_ms=capture)
-        for step in range(48):
+        out = self.run_engine(payload, capture * 64, image=image, capture_ms=capture)         # two full loops
+        for step in range(64):
             elapsed = ((step + 1) * capture - 1) // 40 * 40
             self.assertEqual((out / f'screen_{step}.bin').read_bytes(),
                              struct.pack('<76800H', *self.expected(step, background, spec, elapsed_ms=elapsed)),
@@ -230,6 +232,32 @@ class AnimationEngineTests(unittest.TestCase):
                 self.assertEqual((out/f'screen_{step}.bin').read_bytes(),
                     struct.pack('<76800H',*self.expected(step,background,spec,elapsed_ms=step*140)))
 
+    def test_the_duel_repeats_exactly_and_neither_burst_nor_recoil_leaves_a_trace(self):
+        # Tony, 2026-11-03: a short exchange with hit-stop and a burst. Two full loops of the real engine, pixel by pixel,
+        # with every sprite restoring its whole box (the recoil moves Claude's box too).
+        with patch('time.time', return_value=NOW):
+            image, payload = render_arcade(snapshot(), animated=True, anim_frames=8)
+        spec = board_anim.decode(payload)
+        background = list(struct.unpack('<76800H', rgb565_frame(image)[8:]))
+        with patch.object(self, 'spec', spec):
+            clean = self.payload(True)            # sprites only: no twinkling star or shooting star to tell apart
+        capture = 120
+        out = self.run_engine(clean, capture * 64, image=image, capture_ms=capture)
+        for step in range(64):
+            elapsed = ((step + 1) * capture - 1) // 40 * 40
+            self.assertEqual((out / f'screen_{step}.bin').read_bytes(),
+                             struct.pack('<76800H', *self.expected(step, background, spec, elapsed_ms=elapsed)),
+                             f'duel step {step}')
+        for step in range(32):
+            self.assertEqual((out / f'screen_{step}.bin').read_bytes(), (out / f'screen_{step + 32}.bin').read_bytes(),
+                             f'the loop closes at beat {step}')
+        shown = [struct.unpack('<76800H', (out / f'screen_{step}.bin').read_bytes()) for step in range(32)]
+        self.assertGreaterEqual(len({tuple(frame) for frame in shown}), 12)      # a loop with real motion in it
+        # Outside the sprites' boxes (scoreboard, arena edges, footer) not one pixel ever differs from the page.
+        for frame in shown:
+            for y in list(range(0, 108)) + list(range(205, 240)):
+                self.assertEqual(frame[y * 320:(y + 1) * 320], tuple(background[y * 320:(y + 1) * 320]), y)
+
     def test_every_pose_is_exactly_the_background_plus_that_pose_and_nothing_is_left_behind(self):
         capture = 150
         cycle = math.lcm(*(len(s['script'])*s['step_ms'] for s in self.spec['sprites']))
@@ -246,9 +274,9 @@ class AnimationEngineTests(unittest.TestCase):
 
     def test_knockouts_and_recovery_never_leave_fighters_or_badges_behind(self):
         from test_board_versus import versus_sample, NOW as SAMPLE_NOW
-        for left,right in ((0,73),(73,0),(0,0),(None,0),(73,73)):
-            with self.subTest(left=left,right=right), patch('time.time',return_value=SAMPLE_NOW):
-                image,payload=render_arcade(versus_sample(left,right),animated=True)
+        for (left,right),frames in ((pair,frames) for pair in ((0,73),(73,0),(0,0),(None,0),(73,73)) for frames in (4,8)):
+            with self.subTest(left=left,right=right,frames=frames), patch('time.time',return_value=SAMPLE_NOW):
+                image,payload=render_arcade(versus_sample(left,right),animated=True,anim_frames=frames)
                 spec=board_anim.decode(payload)
                 background=list(struct.unpack('<76800H',rgb565_frame(image)[8:]))
                 # Exercise the other resident scenery for every KO and recovery state.
@@ -262,7 +290,7 @@ class AnimationEngineTests(unittest.TestCase):
                     elapsed=((step+1)*capture-1)//40*40
                     self.assertEqual((out/f'screen_{step}.bin').read_bytes(),
                                      struct.pack('<76800H',*self.expected(step,background,spec,elapsed_ms=elapsed)),
-                                     f'KO state {left}/{right}, step {step}')
+                                     f'KO state {left}/{right}, {frames} frames, step {step}')
 
     def test_train_runs_cleanly_over_many_cycles_without_leaving_any_pixels_behind(self):
         # Isolate long-running city composition. The independent test below
@@ -367,19 +395,59 @@ class AnimationEngineTests(unittest.TestCase):
                     self.assertEqual(list(got), self.expected(step, background, spec), f'crystal step {step}')
 
     def test_surf_repeats_without_ghosts_or_erasing_weekly_readings_and_resets(self):
-        for data in (snapshot(), {'accounts': {}}):
-            with self.subTest(known=bool(data['accounts'])), patch('time.time', return_value=NOW):
-                image, payload = render_surf(data, animated=True)
+        # Four sprites on two clocks: the surfer and the lip move every beat (150 ms), the current of the face and of the crest every
+        # second beat. Two full loops (64 beats) of the real engine, pixel by pixel, in the eight-picture and the four-picture version.
+        for data, frames in ((snapshot(), 8), ({'accounts': {}}, 8), (snapshot(), 4)):
+            with self.subTest(known=bool(data['accounts']), frames=frames), patch('time.time', return_value=NOW):
+                image, payload = render_surf(data, animated=True, anim_frames=frames)
                 spec = board_anim.decode(payload)
                 background = list(struct.unpack('<76800H', rgb565_frame(image)[8:]))
-                capture = spec['sprites'][0]['step_ms']
-                steps = max(len(sprite['script']) for sprite in spec['sprites']) * 2   # the gulls' 32 steps, twice
-                out = self.run_engine(payload, capture * steps, image=image, capture_ms=capture)
-                for step in range(steps):
+                capture = 150
+                out = self.run_engine(payload, capture * 64, image=image, capture_ms=capture)
+                for step in range(64):
                     got = struct.unpack('<76800H', (out / f'screen_{step}.bin').read_bytes())
+                    elapsed = ((step + 1) * capture - 1) // 40 * 40
                     self.assertEqual(struct.pack('<76800H', *got),
-                                     struct.pack('<76800H', *self.expected(step, background, spec)),
+                                     struct.pack('<76800H', *self.expected(step, background, spec, elapsed_ms=elapsed)),
                                      f'surf step {step}')
+                for step in range(32):                                   # the loop closes: nothing jumps at the wrap
+                    self.assertEqual((out / f'screen_{step}.bin').read_bytes(), (out / f'screen_{step + 32}.bin').read_bytes(),
+                                     f'surf: the loop closes at beat {step}')
+
+    def test_surf_gulls_fly_two_loops_without_trails_or_erasing_the_wave(self):
+        with patch('time.time', return_value=NOW):
+            image, payload = render_surf(snapshot(), animated=True, extended_anim=True)
+        spec = board_anim.decode(payload)
+        self.assertEqual(len(spec['sprites']), 6)
+        background = list(struct.unpack('<76800H', rgb565_frame(image)[8:]))
+        capture = 300
+        out = self.run_engine(payload, capture * 128, image=image, capture_ms=capture)
+        for step in range(128):
+            elapsed = ((step + 1) * capture - 1) // 40 * 40
+            expected = struct.pack('<76800H', *self.expected(step, background, spec, elapsed_ms=elapsed))
+            self.assertEqual((out / f'screen_{step}.bin').read_bytes(), expected, f'surf gull step {step}')
+        for step in range(64):
+            self.assertEqual((out / f'screen_{step}.bin').read_bytes(),
+                             (out / f'screen_{step + 64}.bin').read_bytes(), f'surf gull loop {step}')
+
+    def test_quest_sprites_leave_no_trails_or_damage_to_the_hud_over_two_loops(self):
+        from token_tv.board_zelda import render_quest
+        poses = tuple(Image.new('RGBA', (24,26), (50 + i * 20, 180, 70, 255)) for i in range(8))
+        for limit in (4,8):
+            with self.subTest(frame_limit=limit), patch('time.time', return_value=NOW), \
+                    patch('token_tv.board_zelda._walk', return_value=poses):
+                image, payload = render_quest(snapshot(), animated=True, anim_frames=limit)
+            spec = board_anim.decode(payload)
+            background = list(struct.unpack('<76800H', rgb565_frame(image)[8:]))
+            capture = 200
+            out = self.run_engine(payload, capture * 64, image=image, capture_ms=capture)
+            for step in range(64):
+                elapsed = ((step + 1) * capture - 1) // 40 * 40
+                expected = struct.pack('<76800H', *self.expected(step, background, spec, elapsed_ms=elapsed))
+                self.assertEqual((out / f'screen_{step}.bin').read_bytes(), expected, f'quest step {step}')
+            for step in range(32):
+                self.assertEqual((out / f'screen_{step}.bin').read_bytes(),
+                                 (out / f'screen_{step + 32}.bin').read_bytes(), f'quest loop {step}')
 
 
 if __name__ == '__main__':

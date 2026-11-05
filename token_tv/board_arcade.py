@@ -21,13 +21,14 @@ from PIL import Image, ImageColor, ImageDraw
 
 from token_tv.board_art import CLAUDE, CODEX, _row
 from token_tv import board_reset_icons as icons
+from token_tv import board_arcade_fighters as fighters
 from token_tv import board_arcade_stage as stage
 from token_tv import board_arcade_local as local_stage
 from token_tv.personal_faces import banked_hearts, remaining_reading, session_pace
 from token_tv.themes import face
 
 LW, LH, K = 160, 120, 2          # the logical canvas and the size of one logical pixel
-SCENE_TOP, STEP_MS = 55, 300
+SCENE_TOP, STEP_MS = 55, fighters.STEP_MS        # STEP_MS: one beat of the fighters' loop (Tony, 2026-11-03)
 INK = '#06050f'                  # outline / shadow / text edge
 CREAM, PLUM, PLUM_D = '#f6e9b8', '#2a1233', '#150a22'
 STONE = {'hi': '#f1ece0', 'mid': '#cfc6b4', 'lo': '#8a8274', 'dk': '#4a4338'}
@@ -77,26 +78,36 @@ def _portrait(canvas, x, provider):
     _px(d,x+1,19,x+14,19,'#ffffff')
     _px(d,x,20,x,34,'#ffffff')
     _px(d,x+1,20,x+14,34,'#414c80' if provider == 'codex' else '#694658')
-    # Portraits come from the actual original mascot drawings, so the
-    # scoreboard and arena cannot quietly drift to different characters.
-    region = (15,16,69,76) if provider == 'codex' else (31,20,82,71)
-    head = stage.fighter(provider).crop(region).resize((14,12), Image.Resampling.NEAREST)
-    canvas.alpha_composite(head,(x+1,21))
+    # The portraits are the same two faces as the fighters (board_arcade_fighters), on the HUD's own pixel grid.
+    canvas.alpha_composite(fighters.portrait(provider),(x+1,21))
+
+
+METER_Y, METER_PITCH, METER_PART = 4, 8, 6      # Claude's five-hour meter: two rows of five parts in the dark score strip
+METER_WIDTH = 4 * METER_PITCH + METER_PART
+
+
+def meter_left(percentage):
+    """Left edge of the five-hour meter: 8 px before Claude's percentage, whose width depends on its digits ('100%' is the
+    widest and still leaves the meter 10 px clear of WEEK)."""
+    return 293 - round(face('press-start-2p.ttf', 15).getlength(percentage)) - 8 - METER_WIDTH
 
 
 def _power_meter(draw, x0, pace):
-    """Five native-pixel segments each for session quota and time, beneath the life bar."""
+    """Five native-pixel parts each for session quota (above) and time (below), in the dark strip beside Claude's percentage.
+
+    It used to hang under the life bar, where it collided with the name and sat on the scenery (Tony, 2026-11-03: separate them
+    cleanly); in the strip nothing but its own two rows is there, so unknown still draws nothing at all."""
     if pace is None:
         return
     quota, hours = pace
     for line, value in enumerate((math.ceil(quota / 5) / 4, round(hours * 4) / 4)):
-        y = 35 + line * 4
+        y = METER_Y + line * 4
         for part in range(5):
-            left = x0 + part * 9
-            _px(draw, left, y, left + 6, y + 2, '#4a3a70')                      # unlit
+            left = x0 + part * METER_PITCH
+            _px(draw, left, y, left + METER_PART - 1, y + 2, '#4a3a70')         # unlit
             fill = max(0, min(1, value - part))
             if fill > 0:
-                _px(draw, left, y, left + max(1, round(7 * fill)) - 1, y + 2, STONE['mid'])
+                _px(draw, left, y, left + max(1, round(METER_PART * fill)) - 1, y + 2, STONE['mid'])
 
 
 def _reserves(draw, x, y, count, colour, marked=False, mark_before=False):
@@ -121,6 +132,16 @@ def _outlined_text(out, xy, text, font, fill, anchor, edge=INK, step=2):
     out.text((x, y), text, font=font, fill=fill, anchor=anchor)
 
 
+def _haloed_text(out, xy, text, font, fill, anchor, edge=INK, radius=2):
+    """Text with a dark halo `radius` px wide all round, the classic arcade lettering: it reads on any scenery without a panel."""
+    x, y = xy
+    for dx in range(-radius, radius + 1):
+        for dy in range(-radius, radius + 1):
+            if (dx or dy) and dx * dx + dy * dy <= radius * radius + 1:
+                out.text((x + dx, y + dy), text, font=font, fill=edge, anchor=anchor)
+    out.text((x, y), text, font=font, fill=fill, anchor=anchor)
+
+
 def _sky(image):
     """Sparse stars on empty sky only; native meteor stays in the clear HUD gap.
 
@@ -136,7 +157,7 @@ def _sky(image):
                (140,34,180,46),(6,80,80,96),(240,80,316,96),
                (26,112,108,196),(216,112,298,196))
     points = [[],[],[]]
-    for y in range(50,SCENE_TOP*K,4):
+    for y in range(50,104,4):                         # the fighters' boxes start at y=108
         for x in range(4,316,6):
             safe = not any(x<r and x+2>l and y<b and y+2>t for l,t,r,b in protected)
             if safe and all(image.getpixel((x+dx,y+dy)) in sky for dx in (0,1) for dy in (0,1)):
@@ -178,6 +199,8 @@ def render_arcade(snapshot, animated=False, anim_frames=4):
     c_ko, k_ko = c_value == 0 and not c_stale, k_value == 0 and not k_stale
     c_count, c_old = banked_hearts(codex)
     k_count, k_old = banked_hearts(claude)
+    c_percentage, k_percentage = (
+        '--' if value is None else '<1%' if 0 < value < 1 else f'{round(value)}%' for value in (c_value, k_value))
 
     # Long opposing health bars, with the classic centre KO plaque and
     # small player portraits. The plaque is a permanent game HUD ornament;
@@ -211,18 +234,18 @@ def render_arcade(snapshot, animated=False, anim_frames=4):
     # pixel-art fighters. The board moves them without network transfers.
     if not art:
         stage.draw_stage(image)
-    stage.draw_fighters(image, c_ko, k_ko, face('press-start-2p.ttf',6))
+    stage.draw_fighters(image, c_ko, k_ko, face('press-start-2p.ttf',8))
     out = ImageDraw.Draw(image)
     out.fontmode = '1'                                                          # hard glyph pixels
-    _power_meter(out, 178, session_pace(claude))
+    _power_meter(out, meter_left(k_percentage), session_pace(claude))
     _outlined_text(out,(4,1),'1P',f8,'#ffcb76','la',edge='#563083',step=1)
     _outlined_text(out,(316,1),'2P',f8,'#ffcb76','ra',edge='#563083',step=1)
     _outlined_text(out,(160,1),'WEEK',f8,CREAM,'ma',edge='#563083',step=1)
     _outlined_text(out,(160,17),'KO',f12,'#ff5a45','ma',edge='#330b22',step=1)
-    _outlined_text(out,((c_reserves_x+12)*K+1,38),'CODEX',f8,CODEX,'ma',edge='#25204d',step=1)
-    _outlined_text(out,((k_reserves_x+12)*K+1,38),'CLAUDE',f8,CLAUDE,'ma',edge='#25204d',step=1)
-    for xy, value, anchor in (((27,1), c_value, 'la'), ((293,1), k_value, 'ra')):
-        percentage = '--' if value is None else '<1%' if 0 < value < 1 else f'{round(value)}%'
+    # The names stand over the scenery (the thatch, the tree, the sky): a 2 px dark halo keeps them readable without a panel.
+    _haloed_text(out,((c_reserves_x+12)*K+1,38),'CODEX',f8,CODEX,'ma',edge='#1a1538')
+    _haloed_text(out,((k_reserves_x+12)*K+1,38),'CLAUDE',f8,CLAUDE,'ma',edge='#1a1538')
+    for xy, percentage, anchor in (((27,1), c_percentage, 'la'), ((293,1), k_percentage, 'ra')):
         _outlined_text(out,xy,percentage,f15,'#ffe5a0',anchor,edge='#762948',step=1)
     for xy, value, stale, opponent_down, anchor in (
             ((10,84),c_value,c_stale,k_ko,'la'), ((310,84),k_value,k_stale,c_ko,'ra')):

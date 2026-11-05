@@ -219,6 +219,7 @@ class CyberSceneTests(unittest.TestCase):
 
     def test_animation_pixels_never_cover_city_signs(self):
         for scene in city.FILES:
+            boxes = [city.card_box(scene, provider) for provider in ('codex', 'claude')]
             _, payload = city.render_city(scene, self.data, animated=True)
             for sprite in board_anim.decode(payload)['sprites']:
                 for frame_index, dx, dy in sprite['script']:
@@ -228,11 +229,47 @@ class CyberSceneTests(unittest.TestCase):
                             continue
                         x = sprite['x'] + dx + i % sprite['w'] * 2
                         y = sprite['y'] + dy + i // sprite['w'] * 2
-                        self.assertFalse(y + 1 >= city.SIGN_TOP and (x + 1 >= 251 or x <= 71), (scene, x, y))
+                        for left, top, right, bottom in boxes:       # a lit pixel is a 2x2 block
+                            self.assertFalse(x + 2 > left and x <= right and y + 2 > top and y <= bottom, (scene, x, y))
 
     def test_reset_signs_are_above_the_firmware_page_and_rotation_indicators(self):
         # Firmware draws the rotation marker and page dots in the bottom 10px.
         self.assertLessEqual(city.SIGN_TOP + city.SIGN_HEIGHT, 230)
+        for scene in city.FILES:
+            for provider in ('codex', 'claude'):
+                left, top, right, bottom = city.card_box(scene, provider)
+                self.assertLessEqual(bottom, 229, (scene, provider))
+                self.assertTrue(0 < left < right < 320 and top >= city.SIGN_TOP, (scene, provider))
+
+    def test_violet_cards_leave_the_led_rails_clear(self):
+        # The rails are the gauges of that scene: a card may never hide the lowest LEDs.
+        for provider, (rail_x, top, bottom) in city.RAILS['violet-horizon'].items():
+            left, card_top, right, card_bottom = city.card_box('violet-horizon', provider)
+            self.assertFalse(left - 3 <= rail_x <= right + 3 and card_bottom >= top and card_top <= bottom, provider)
+
+    def test_cards_carry_the_saved_resets_and_only_claudes_has_the_five_hour_lines(self):
+        def draw(**changes):
+            data = deepcopy(self.data)
+            for provider in ('codex', 'claude'):
+                data['accounts'][provider]['banked_resets'] = {'available': 1, 'confirmed_at': 1000, 'source': 'manual'}
+            data['accounts']['claude']['windows'].append({'label': '5H', 'used_percent': 40, 'resets_at': 1000 + 7200})
+            for path, value in changes.items():
+                provider, key = path.split('.')
+                data['accounts'][provider][key] = value
+            with patch('time.time', return_value=1000):
+                return {scene: city.render_city(scene, data) for scene in city.FILES}
+        base = draw()
+        more_codex = draw(**{'codex.banked_resets': {'available': 3, 'confirmed_at': 1000, 'source': 'manual'}})
+        unknown_claude = draw(**{'claude.banked_resets': {'available': None}})
+        for scene in city.FILES:
+            codex, claude = (city.card_box(scene, p) for p in ('codex', 'claude'))
+            changed = ImageChops.difference(base[scene], more_codex[scene]).getbbox()
+            self.assertIsNotNone(changed, scene)
+            self.assertTrue(codex[0] <= changed[0] and changed[2] <= codex[2] and codex[1] <= changed[1] and changed[3] <= codex[3], scene)
+            changed = ImageChops.difference(base[scene], unknown_claude[scene]).getbbox()
+            self.assertIsNotNone(changed, scene)                    # the dot after the bolts, only on Claude's card
+            self.assertTrue(claude[0] <= changed[0] and changed[2] <= claude[2] and claude[1] <= changed[1] and changed[3] <= claude[3], scene)
+            self.assertLess(city.card_height(scene, 'codex'), city.card_height(scene, 'claude'))
 
     def test_gallery_uses_current_snapshot_and_invalidates_stale_cache(self):
         control = BoardControl(None)

@@ -168,7 +168,7 @@ class FullscreenScrollTests(unittest.TestCase):
                 # Rendering a frame can take more than 30 ms on the real LCD.
                 # One-pixel timeline steps keep the motion even when a frame
                 # falls between two of the previous 30 ms positions.
-                result = subprocess.run([str(executable), str(page), tmp, '6600', '15', 'precise'],
+                result = subprocess.run([str(executable), str(page), tmp, '6800', '15', 'precise'],
                                         capture_output=True, text=True, timeout=30)
                 self.assertEqual(result.returncode, 0, result.stderr[-1200:])
                 for index in (1, 2, 3, 4):
@@ -183,6 +183,28 @@ class FullscreenScrollTests(unittest.TestCase):
                     shell_left = 651 - (10 * (index // 4) + (10 * (index % 4)) // 4)
                     if shell_left < 96 and shell_left + 32 > 40:
                         self.assertLessEqual(actor_top(index) + 64, 187, index)
+
+                # Observe the actual firmware at 15 ms intervals: the reward
+                # turns edge-on, rises, falls and resolves into a glint.
+                coin_colour = spec['coin'][0]
+                def coin_bounds(index):
+                    pixels = frame(index)
+                    found = [(x, y) for y in range(48, 96) for x in range(120)
+                             if pixels[y * 320 + x] == coin_colour]
+                    self.assertTrue(found, index)
+                    return (max(x for x, _ in found) - min(x for x, _ in found) + 1,
+                            max(y for _, y in found))
+
+                poses = [coin_bounds(416 + offset) for offset in (0, 4, 8, 12, 16, 20, 24)]
+                self.assertGreater(poses[0][0], poses[1][0])
+                self.assertGreater(poses[1][0], poses[2][0])
+                self.assertGreater(poses[3][0], poses[2][0])
+                self.assertGreater(poses[0][1], poses[2][1])
+                self.assertGreater(poses[2][1], poses[4][1])
+                self.assertGreater(poses[6][1], poses[4][1])
+                glint = frame(416 + 28)
+                self.assertTrue(any(glint[y * 320 + x] == 0xffff
+                                    for y in range(48, 65) for x in range(100)))
 
                 # The per-screen speed setting still scales elapsed time; the
                 # extra frames must not silently override it.

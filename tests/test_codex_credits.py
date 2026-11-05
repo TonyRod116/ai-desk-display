@@ -47,7 +47,9 @@ class CreditTests(unittest.TestCase):
         self.assertIsNone(exhausted_credits(r))
 
     def test_failure_or_old_reading_cannot_show_previous_balance(self):
-        r = row(); expire_official_quota(r, now=1181)
+        r = row(); expire_official_quota(r, now=1300)          # aged (Tony, 2026-11-03): still shown, with the dot
+        self.assertEqual(exhausted_credits(r), '123.5')
+        r = row(); expire_official_quota(r, now=1481)          # past 480 s: unknown
         self.assertIsNone(exhausted_credits(r))
         self.assertNotIn('credits_balance', r)
         r = row(); r['status'] = 'quota_unavailable'

@@ -7,6 +7,12 @@ const currentImage = document.getElementById('current-preview');
 const touchNote = document.getElementById('touch-note');
 const modeHold = document.getElementById('mode-hold');
 const connectHold = document.getElementById('connect-hold');
+const touchLegend = document.getElementById('touch-legend');
+const CARD_HOLD_SECONDS = 0.7;  // the display's CARD_HOLD_MS (firmware/board/src/rotation.h): a test keeps the two equal
+const nightControls = document.getElementById('night-controls');
+const nightStart = document.getElementById('night-start');
+const nightEnd = document.getElementById('night-end');
+const nightLevel = document.getElementById('night-level');
 let latest = null;
 let sending = false;
 let polling = false;
@@ -350,6 +356,57 @@ function refreshPreviews() {
   });
 }
 
+// What each hold does, from the thresholds the display itself reports: the hint and the action never disagree. A display
+// that cannot show details (older firmware) is not told it can; one that cannot report thresholds keeps its fixed 2 and 5 s.
+function renderTouchLegend(status, usable) {
+  touchLegend.hidden = !usable;
+  if (!usable) return;
+  const configurable = status.touch_controls === true;
+  const items = [];
+  if (status.card_supported === true) items.push([`${CARD_HOLD_SECONDS} s`, 'See details']);
+  items.push([`${configurable ? status.mode_hold_seconds : 2} s`, 'Change auto-rotate mode'],
+             [`${configurable ? status.connect_hold_seconds : 5} s`, 'Open connection screen']);
+  touchLegend.replaceChildren(...items.map(([time, text]) => {
+    const row = document.createElement('li'), seconds = document.createElement('b'), words = document.createElement('span');
+    seconds.textContent = time;
+    words.textContent = text;
+    row.append(seconds, words);
+    return row;
+  }));
+}
+
+// Night mode lives on this computer; the monitor tells the display. Displays that cannot dim hide the control.
+function renderNight(status, usable) {
+  const supported = Boolean(status.night && status.night_supported);
+  nightControls.hidden = !supported;
+  if (!supported) return;
+  const night = status.night;
+  nightControls.disabled = sending || !usable;
+  if (!nightControls.contains(document.activeElement) || document.activeElement.tagName === 'BUTTON') {
+    nightStart.value = night.start;
+    nightEnd.value = night.end;
+    if (![...nightLevel.options].some(option => option.value === String(night.level))) {
+      const option = document.createElement('option');
+      option.value = String(night.level);
+      option.textContent = `${night.level}%`;
+      nightLevel.append(option);
+    }
+    nightLevel.value = String(night.level);
+  }
+  [nightStart, nightEnd, nightLevel].forEach(field => { field.disabled = !night.enabled; });
+  document.querySelectorAll('[data-night]').forEach(button => button.setAttribute('aria-pressed', String((button.dataset.night === 'on') === night.enabled)));
+  // The same clock format as the time fields (the browser's own), so the sentence and the fields never disagree.
+  const clock = text => new Date(2000, 0, 1, Number(text.slice(0, 2)), Number(text.slice(3))).toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'});
+  document.getElementById('night-state').textContent = night.enabled ?
+    `Dims to ${night.level}% from ${clock(night.start)} to ${clock(night.end)}.` : 'Off. The display keeps the same brightness all day.';
+  document.getElementById('night-wait').hidden = !night.enabled || status.night_applied !== false || !usable;
+}
+
+function saveNight(enabled) {
+  if (!nightStart.value || !nightEnd.value) return;  // an unfinished time is not a schedule
+  command('night', {enabled, start: nightStart.value, end: nightEnd.value, level: Number(nightLevel.value)});
+}
+
 function showNote(message, error = false) {
   note.textContent = message;
   note.dataset.error = String(error);
@@ -409,6 +466,8 @@ function render(status, message) {
     modeHold.value = String(status.mode_hold_seconds);
     connectHold.value = String(status.connect_hold_seconds);
   }
+  renderNight(status, usable);
+  renderTouchLegend(status, usable);
   document.querySelectorAll('[data-rotation]').forEach(button => button.setAttribute('aria-pressed', String(Number(button.dataset.rotation) === status.rotation_minutes)));
   document.querySelectorAll('[data-speed]').forEach(button => button.setAttribute('aria-pressed', String(Number(button.dataset.speed) === status.speed_percent)));
   if (!sending) {
@@ -445,6 +504,8 @@ document.querySelectorAll('[data-speed]').forEach(button => button.addEventListe
   touchNote.dataset.error = 'false';
   touchNote.textContent = 'Save to apply your changes.';
 }));
+document.querySelectorAll('[data-night]').forEach(button => button.addEventListener('click', () => saveNight(button.dataset.night === 'on')));
+[nightStart, nightEnd, nightLevel].forEach(field => field.addEventListener('change', () => saveNight(true)));
 document.getElementById('touch-form').addEventListener('submit', event => {
   event.preventDefault();
   command('touch', {mode: Number(modeHold.value), connect: Number(connectHold.value)});
@@ -455,7 +516,7 @@ async function command(kind, value) {
   commandVersion++;
   sending = true;
   if (latest) render(latest);
-  showNote('Sending to your display… This may wait for a current transfer.');
+  showNote(kind === 'night' ? 'Saving…' : 'Sending to your display… This may wait for a current transfer.');
   if (kind === 'touch') touchNote.textContent = 'Sending to your display…';
   try {
     const response = await fetch(`/board/${kind}`, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({value})});
@@ -466,11 +527,11 @@ async function command(kind, value) {
       touchDirty = false;
       touchNote.dataset.error = 'false';
     }
-    render(status, 'Saved on your display.');
+    render(status, kind === 'night' ? 'Night mode saved on this computer.' : 'Saved on your display.');
   } catch (_) {
     sending = false;
     if (latest) render(latest);
-    showNote('Could not confirm the change. Check the connection and try again.', true);
+    showNote(kind === 'night' ? 'Could not save. Please try again.' : 'Could not confirm the change. Check the connection and try again.', true);
     if (kind === 'touch') {
       touchNote.dataset.error = 'true';
       touchNote.textContent = 'Could not confirm the change. Please try again.';

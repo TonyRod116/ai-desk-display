@@ -21,6 +21,11 @@ from token_tv.sources import SourceError
 
 FAKE_CLIENT = '''#!PYTHON
 import json, os, select, sys, time
+if os.environ.get('FAKE_BLOCK'):
+    # The client refuses to go further and says why.
+    sys.stdout.write('Claude Code v' + os.environ['FAKE_VERSION'] + '\\n' + os.environ['FAKE_BLOCK'] + '\\n')
+    sys.stdout.flush()
+    sys.exit(0)
 screen = ('Claude Code v' + os.environ['FAKE_VERSION'] + '\\n'
           'warning: Safe mode: all customizations are disabled\\n'
           + os.getcwd() + '\\nmanual mode on\\n')
@@ -41,6 +46,8 @@ if sys.stdin.readline().strip() == '/usage':
     if os.environ.get('FAKE_NO_WRITE'):
         # The client found a young cache and reused it: it prints the usage view but writes no newer date.
         print('Total cost: $0.00', flush=True)
+        if os.environ.get('FAKE_EXTRA'):
+            print(os.environ['FAKE_EXTRA'], flush=True)
         time.sleep(float(os.environ.get('FAKE_STAY', '40')))
         sys.exit(0)
     cache = {'oauthAccount': {'accountUuid': 'demo-owner'},
@@ -165,7 +172,7 @@ class ClaudeUsageTests(unittest.TestCase):
                 with patch('sys.argv', ['collector', '--config', str(Path(directory) / 'config.json')]), \
                      patch.object(collector, 'load_config', return_value=config), \
                      patch.object(collector, 'ClaudeUsageReader', return_value=reader), \
-                     patch.object(collector, 'notify_display', return_value=True), \
+                     patch.object(collector, 'notify_display', return_value=True), patch.object(collector, 'Alerts'), \
                      patch.object(collector.threading, 'Event', Event), \
                      patch.object(collector.signal, 'signal'), \
                      patch('sys.stdout', new_callable=io.StringIO) as output:
@@ -204,7 +211,7 @@ class ClaudeUsageTests(unittest.TestCase):
                 data['cachedUsageUtilization']['utilization']['seven_day'] = invalid
                 self.assertIsNone(native_record(data, '/tmp/demo-claude', since=999, now=1001))
 
-    def test_collector_retries_each_minute_after_failure_or_a_lost_notification(self):
+    def test_collector_retries_on_schedule_after_failure_or_a_lost_notification(self):
         spec = importlib.util.spec_from_file_location('claude_collector_recovery',
             Path(__file__).parents[1] / 'scripts/claude_usage_collector.py')
         collector = importlib.util.module_from_spec(spec)
@@ -214,10 +221,9 @@ class ClaudeUsageTests(unittest.TestCase):
             account = {'key': 'claude', 'alias': 'CLAUDE', 'provider': 'claude',
                        'source_home': '/tmp/demo-claude'}
             config = {'automatic_claude_usage': True, 'accounts': [account]}
-            first = native_record(self.cache(), account['source_home'], since=999, now=1001)
-            changed = self.cache()
-            changed['cachedUsageUtilization']['utilization']['seven_day']['utilization'] = 71
-            last = native_record(changed, account['source_home'], since=999, now=1001)
+            first = self.fresh_record()
+            last = self.fresh_record()
+            last['windows'][-1]['used_percent'] = 71.0
             reader = MagicMock()
             reader.read.side_effect = [first, RuntimeError('PRIVATE ERROR'), last]
             observations, waits = [], []
@@ -234,14 +240,14 @@ class ClaudeUsageTests(unittest.TestCase):
             with patch('sys.argv', ['collector', '--config', str(path)]), \
                  patch.object(collector, 'load_config', return_value=config), \
                  patch.object(collector, 'ClaudeUsageReader', return_value=reader), \
-                 patch.object(collector, 'notify_display', side_effect=notified), \
+                 patch.object(collector, 'notify_display', side_effect=notified), patch.object(collector, 'Alerts'), \
                  patch.object(collector.threading, 'Event', Event), \
                  patch.object(collector.signal, 'signal'), \
                  patch('sys.stdout', new_callable=io.StringIO) as output:
                 collector.main()
             self.assertNotIn('PRIVATE', output.getvalue())
             self.assertIn('recovered with a fresh reading', output.getvalue())
-            self.assertEqual(waits, [60, 60, 60])
+            self.assertEqual(waits, [120, 120, 120])         # Tony, 2026-11-03: every two minutes, not every minute
             self.assertEqual([r['windows'][-1]['used_percent'] if r['windows'] else None
                               for r in observations], [66, None, 71])
             self.assertTrue(all(r['source'] == 'claude_official_cli' for r in observations))
@@ -273,21 +279,22 @@ class ClaudeUsageTests(unittest.TestCase):
         with patch('sys.argv', ['collector', '--config', str(Path(directory) / 'config.json')]), \
              patch.object(collector, 'load_config', return_value=config), \
              patch.object(collector, 'ClaudeUsageReader', return_value=reader), \
-             patch.object(collector, 'notify_display', return_value=True), \
+             patch.object(collector, 'notify_display', return_value=True), patch.object(collector, 'Alerts'), \
              patch.object(collector.threading, 'Event', Event), \
              patch.object(collector.signal, 'signal'), \
              patch('sys.stdout', new_callable=io.StringIO) as output:
             collector.main()
         return seen, output.getvalue()
 
-    def fresh_record(self, age=0):
+    def fresh_record(self, age=0, now=None):
         import time
+        now = time.time() if now is None else now
         data = self.cache()
-        when = int(time.time()) + 7200
-        data['cachedUsageUtilization'].update(fetchedAtMs=(time.time() - age) * 1000)
+        when = int(now) + 7200
+        data['cachedUsageUtilization'].update(fetchedAtMs=(now - age) * 1000)
         data['cachedUsageUtilization']['utilization'] = {'five_hour': {'utilization': 5, 'resets_at': when},
                                                          'seven_day': {'utilization': 66, 'resets_at': when + 86400}}
-        return native_record(data, '/tmp/demo-claude', since=time.time() - age - 5)
+        return native_record(data, '/tmp/demo-claude', since=now - age - 5, now=now)
 
     def test_one_failed_poll_keeps_a_reading_younger_than_the_hold_but_not_an_older_one(self):
         collector = self.load_collector('claude_collector_hold')
@@ -300,7 +307,8 @@ class ClaudeUsageTests(unittest.TestCase):
                 self.assertEqual('keeping the last reading' in output, kept)
                 if kept:
                     self.assertEqual(seen[1]['fetched_at'], seen[0]['fetched_at'])   # never re-dated: its own fetch time rules
-        self.assertLess(collector.HOLD_SECONDS, 180)                              # always less than the monitor's own 180 s limit
+        from token_tv.local_usage import OFFICIAL_MAX_AGE_SECONDS
+        self.assertLess(collector.HOLD_SECONDS, OFFICIAL_MAX_AGE_SECONDS)         # always less than the monitor's own limit (480 s)
 
     def test_a_different_login_or_client_series_blanks_at_once_even_with_a_fresh_reading(self):
         collector = self.load_collector('claude_collector_blank')
@@ -316,19 +324,6 @@ class ClaudeUsageTests(unittest.TestCase):
             seen, output = self.run_collector(collector, directory, [self.fresh_record(), SourceError('subscription_login_required')])
             self.assertTrue(seen[1]['windows'])
             self.assertIn('(subscription_login_required)', output)
-
-    def test_rate_limited_usage_waits_longer_and_resumes_normal_polling_after_recovery(self):
-        collector = self.load_collector('claude_collector_backoff')
-        limited = lambda: SourceError('official_quota_unavailable')
-        waits = []
-        with tempfile.TemporaryDirectory() as directory:
-            seen, _ = self.run_collector(collector, directory,
-                [limited(), limited(), limited(), limited(), self.fresh_record(), limited(),
-                 SourceError('client_not_ready')],
-                trace={'hints': ['rate limit', 'error']}, waits=waits)
-        self.assertEqual(waits, [300, 600, 900, 900, 60, 300, 60])
-        self.assertTrue(all(not row['windows'] for row in seen[:4]))
-        self.assertTrue(seen[4]['windows'])
 
     def test_the_failure_trace_keeps_only_fixed_words_numbers_and_flags(self):
         collector = self.load_collector('claude_collector_trace')

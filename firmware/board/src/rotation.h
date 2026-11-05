@@ -1,13 +1,17 @@
 #pragma once
 #include <stdint.h>
 
-enum class Gesture { None, Page, Mode, Connect };
+enum class Gesture { None, Page, Card, Mode, Connect };
+// A hold of at least this long, and shorter than the rotation hold, shows the details card on release (firmware 42). The
+// rotation hold is never below one second (validTouchSeconds), so the card always has a window of its own.
+constexpr uint32_t CARD_HOLD_MS = 700;
 inline bool validTouchSeconds(int mode, int connect) {
   return mode >= 1 && mode <= 4 && connect >= 5 && connect <= 10;
 }
 inline Gesture gesture(uint32_t held, int modeSeconds=2, int connectSeconds=5) {
   return held >= uint32_t(connectSeconds)*1000 ? Gesture::Connect :
          held >= uint32_t(modeSeconds)*1000 ? Gesture::Mode :
+         held >= CARD_HOLD_MS ? Gesture::Card :
          held > 30 ? Gesture::Page : Gesture::None;
 }
 

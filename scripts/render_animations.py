@@ -104,7 +104,8 @@ def main():
     with (patch('time.time', return_value=NOW),
           patch('token_tv.board_arcade_local.load', return_value=None),
           patch('token_tv.board_beach.load', return_value=None)):
-        pages = render_board_pages(fixture(), stars=True, anim=True, waves=3, scroll=2)
+        pages = render_board_pages(fixture(), stars=True, anim=True, anim_frames=8, waves=3, scroll=2,
+                                   extended_anim=True)
     with tempfile.TemporaryDirectory(prefix='desk-display-gifs-') as tmp:
         root = Path(tmp)
         engine = anim_harness.build(root)
@@ -119,7 +120,7 @@ def main():
                 # Sample each scene on its native tick, including complete surf/UFO cycles.
                 duration = {'code-forge': 140, 'dials': 120, 'surf': 150,
                             'arcade': 160, 'cockpit': 140}.get(name, 100)
-                total = {'code-forge': 22400, 'dials': 3840, 'surf': 9600,
+                total = {'code-forge': 22400, 'dials': 3840, 'surf': 19200,
                          'arcade': 15360, 'cockpit': 8960}.get(
                              name, 6400 if kind==b'WAVE' else 8000)
                 result = subprocess.run([str(engine),str(path),str(folder),str(total),str(duration)],capture_output=True,text=True)

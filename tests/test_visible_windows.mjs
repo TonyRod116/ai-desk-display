@@ -24,6 +24,22 @@ test('claude keeps both windows while the five-hour reset is live', () => {
   assert.equal(labels(account('claude_official_cli', now() + 600)), '5H,WEEK');
 });
 
+test('a reading stays up to 480 s (aged after 180 s) and is unknown after that, for both providers', () => {
+  // Tony, 2026-11-03: the number stays with the discreet dot; the dashboard keeps showing what it showed.
+  for (const origin of ['claude_official_cli', 'claude_official_statusline', 'codex_official_cli']) {
+    for (const [age, shown] of [[30, true], [180, true], [181, true], [300, true], [470, true], [481, false], [900, false]]) {
+      const a = {...account(origin, now() + 600), fetched_at: now() - age};
+      assert.equal(labels(a) !== '', shown, `${origin} at ${age} s`);
+    }
+  }
+});
+
+test('the status-line source gets the Claude rules: a rolled-over five-hour window drops alone, the week needs its reset', () => {
+  assert.equal(labels(account('claude_official_statusline', now() + 600)), '5H,WEEK');
+  assert.equal(labels(account('claude_official_statusline', now() - 5)), 'WEEK');
+  assert.equal(labels(account('claude_official_statusline', now() + 600, now() - 1)), '');
+});
+
 test('claude drops only a rolled-over or unconfirmed five-hour window', () => {
   for (const reset of [now() - 5, null]) {
     assert.equal(labels(account('claude_official_cli', reset)), 'WEEK');
@@ -47,7 +63,7 @@ test('codex blocked with explicit exhausted week keeps only its zero', () => {
   assert.equal(labels(a), 'WEEK');
   for (const changed of [
     {...a, ordinary_usage_allowed: null}, {...a, status: 'quota_unavailable'},
-    {...a, fetched_at: now() - 181},
+    {...a, fetched_at: now() - 481},
     {...a, windows: a.windows.map(w => ({...w, used_percent: 99.9}))},
     {...a, windows: a.windows.map(w => ({...w, resets_at: null}))},
     {...a, windows: a.windows.map(w => ({...w, resets_at: now() - 1}))},
@@ -64,7 +80,7 @@ test('extra credits appear only for a fresh, verified, exhausted Codex week', ()
   assert.equal(show({...a, credits_balance:null}), '?');
   for (const changed of [
     {...a, identity_verified:false}, {...a, provider:'claude'}, {...a, quota_origin:'other'},
-    {...a, fetched_at:now() - 181}, {...a, status:'quota_unavailable'},
+    {...a, fetched_at:now() - 481}, {...a, status:'quota_unavailable'},
     {...a, windows:a.windows.map(w => ({...w, used_percent:99}))},
   ]) assert.equal(show(changed), null);
   context.offline = true;

@@ -97,14 +97,25 @@ class DrivingSceneTests(unittest.TestCase):
                     legacy_level = board_anim.decode(after[base + 8:])
                     self.assertGreater(len(current_level['sprites'][0]['frames']), 4)
                     self.assertTrue(all(len(s['frames']) <= 4 for s in legacy_level['sprites']))
+                elif name == 'surf':
+                    # Older boards receive compatible four-pose surf, not the newer eight-pose payload.
+                    base = 8 + 320 * 240 * 2
+                    self.assertEqual(before[:base], after[:base])
+                    current_surf = board_anim.decode(before[base + 8:])
+                    legacy_surf = board_anim.decode(after[base + 8:])
+                    self.assertEqual(len(current_surf['sprites']), len(legacy_surf['sprites']))
+                    self.assertTrue(any(len(s['frames']) > 4 for s in current_surf['sprites']))
+                    self.assertTrue(all(len(s['frames']) <= 4 for s in legacy_surf['sprites']))
+                    self.assertEqual([len(s['script']) for s in current_surf['sprites']],
+                                     [len(s['script']) for s in legacy_surf['sprites']])
                 elif name == 'arcade':
-                    # Newer boards get smoother, independently timed guards.
+                    # Newer boards get the whole exchange; older ones only the breathing.
                     base = 8 + 320 * 240 * 2
                     self.assertEqual(before[:base], after[:base])
                     current_fight = board_anim.decode(before[base + 8:])
                     legacy_fight = board_anim.decode(after[base + 8:])
-                    self.assertEqual([len(s['frames']) for s in current_fight['sprites'][:2]], [8, 8])
-                    self.assertEqual([len(s['frames']) for s in legacy_fight['sprites'][:2]], [4, 4])
+                    self.assertEqual([len(s['frames']) for s in current_fight['sprites'][:2]], [6, 7])
+                    self.assertTrue(all(len(s['frames']) <= 4 for s in legacy_fight['sprites']))
                 else:
                     self.assertEqual(before, after, name)
 
@@ -304,6 +315,55 @@ class DrivingSceneTests(unittest.TestCase):
                 if known.getpixel((x, y)) != unknown.getpixel((x, y)):
                     self.assertTrue(any(math.hypot(x // 2 - cx, y // 2 - cy) <= RADIUS for cx, cy in CENTRES.values()),
                                     (x, y))
+
+    def test_an_available_flag_is_obviously_brighter_than_an_empty_one(self):
+        # Tony, 2026-11-03: bright and faint chequered flags looked alike. An empty flag is now the dial's own unlit navy.
+        def flags(codex, claude):
+            data = sample()
+            data['accounts']['codex']['banked_resets']['available'] = codex
+            data['accounts']['claude']['banked_resets']['available'] = claude
+            with patch('time.time', return_value=NOW):
+                return render_dials(data)
+
+        def brightness(image, provider, index):
+            cx, cy = CENTRES[provider]
+            left, top = 2 * (cx - 13 + 9 * index), 2 * (cy + 15)
+            return max(sum(image.getpixel((x, y))) / 3 for x in range(left, left + 14) for y in range(top, top + 12))
+
+        state = flags(1, 2)                                          # Codex has one saved reset, Claude two
+        for provider, available in (('codex', 1), ('claude', 2)):
+            lit = [brightness(state, provider, i) for i in range(available)]
+            empty = [brightness(state, provider, i) for i in range(available, 3)]
+            self.assertTrue(lit and empty, provider)
+            self.assertGreater(min(lit), 2.2 * max(empty), (provider, lit, empty))        # not a darker copy: another league
+            self.assertGreater(min(lit), 150, provider)
+            self.assertLess(max(empty), 90, provider)
+            self.assertGreater(max(empty), 40, provider)                                  # but still there: a quiet slot, not nothing
+
+    def test_the_unknown_dot_sits_clear_of_the_dials_ticks(self):
+        # It used to end the row, on the last tick of the dial, and read as part of it.
+        known = sample()
+        for row in known['accounts'].values():
+            row['banked_resets']['available'] = 0
+        unknown = sample()
+        for row in unknown['accounts'].values():
+            row['banked_resets']['available'] = None
+        with patch('time.time', return_value=NOW):
+            a, b = render_dials(known), render_dials(unknown)
+        changed = {(x // 2, y // 2) for y in range(240) for x in range(320) if a.getpixel((x, y)) != b.getpixel((x, y))}
+        self.assertTrue(changed)
+        for provider, (cx, cy) in CENTRES.items():
+            dot = [(x, y) for x, y in changed if math.hypot(x - cx, y - cy) <= RADIUS]
+            self.assertTrue(1 <= len(dot) <= 2, (provider, dot))
+            for x, y in dot:
+                for i in range(board_dials.BLOCKS + 1):                       # every tick of the dial
+                    angle = math.radians(board_dials.START + board_dials.SWEEP * i / board_dials.BLOCKS)
+                    r0 = 22.6 if i % 5 == 0 else 23.2
+                    ax, ay = cx + math.cos(angle) * r0, cy + math.sin(angle) * r0
+                    bx, by = cx + math.cos(angle) * 24.2, cy + math.sin(angle) * 24.2
+                    t = max(0, min(1, ((x - ax) * (bx - ax) + (y - ay) * (by - ay)) / ((bx - ax) ** 2 + (by - ay) ** 2)))
+                    self.assertGreaterEqual(math.hypot(x - ax - t * (bx - ax), y - ay - t * (by - ay)), 6, (provider, x, y, i))
+                self.assertLessEqual(math.hypot(x - cx, y - cy), 23, (provider, x, y))
 
     def test_board_only_adds_driving_animation_to_the_requested_cockpit(self):
         with patch('time.time', return_value=NOW):

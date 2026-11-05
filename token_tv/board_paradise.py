@@ -76,18 +76,20 @@ def _motion():
     return tuple(sprites), board_anim.encode(sprites)
 
 
-def _heart(scene, x, y, filled, colour, old):
+def _heart(scene, x, y, filled, colour, old, scale=1):
     """A little scallop shell for each saved reset (was a heart): ribbed and scalloped, solid when available and an outline
-    when not. Drawn smooth at the scene's supersampling, in the 8x8 box where the hearts were."""
-    cx, cy = x + 4, y + 6.2
+    when not. Drawn smooth at the scene's supersampling, in the 8x8 box where the hearts were; `scale` draws it bigger about the
+    box's corner (the compact film panels use 1.5: Tony, 2026-11-03, "the shells are tiny")."""
+    cx, cy = x + 4 * scale, y + 6.2 * scale
     arc = []
     for index in range(41):
         u = index / 40
         theta = math.pi + math.pi * u
-        radius = 3.35 + .75 * abs(math.sin(5 * math.pi * u))
+        radius = (3.35 + .75 * abs(math.sin(5 * math.pi * u))) * scale
         arc.append((cx + radius * math.cos(theta) * 1.02, cy + radius * math.sin(theta)))
-    shell = [(cx, cy + 1.1), *arc]
-    stem = [(cx - 1.1, cy + .3), (cx + 1.1, cy + .3), (cx + .7, cy + 1.7), (cx - .7, cy + 1.7)]
+    shell = [(cx, cy + 1.1 * scale), *arc]
+    stem = [(cx - 1.1 * scale, cy + .3 * scale), (cx + 1.1 * scale, cy + .3 * scale),
+            (cx + .7 * scale, cy + 1.7 * scale), (cx - .7 * scale, cy + 1.7 * scale)]
     ink = MUTED if old else colour
     scaled = lambda points: [(round(a * SS), round(b * SS)) for a, b in points]
     fill = ink if filled else PAPER
@@ -95,7 +97,7 @@ def _heart(scene, x, y, filled, colour, old):
     scene.d.polygon(scaled(shell), fill=fill)
     if filled:                                          # ribs run from the hinge to each notch of the edge
         for index in (8, 16, 24, 32):
-            a, b = (cx, cy + .6), arc[index]
+            a, b = (cx, cy + .6 * scale), arc[index]
             scene.d.line(scaled([a, b]), fill=PAPER, width=max(1, round(SS * .55)))
     scene.d.line(scaled(shell + [shell[0]]), fill=ink, width=SS, joint='curve')
 
@@ -173,46 +175,55 @@ def _glass_background():
     return image, scene.ink.getchannel("A").resize((W, H), Image.Resampling.LANCZOS)
 
 
+FILM_PANEL = {'codex': 51, 'claude': 58}     # height of each compact panel (they start at y=4); Claude's carries its two session rows
+HUD_BOTTOM = 64                              # the photo below this row is pasted back exactly as it was supplied
+SHELL = 1.5                                  # the film panels' shells are half as big again as the old ones
+
+
 def _film_instrument(scene, row, provider, x):
-    """Two compact panels leave the sailboat and the whole shore visible."""
+    """Two compact panels leave the sailboat and the whole shore visible.
+
+    Tony (2026-11-03): the panels covered a third of the picture (72 of 240 px) and the shells were tiny. The name and the three
+    shells share the top row, the big number sits beside the weekly reset (the word above the time), then the weekly bar and,
+    on Claude's, the two thin session rows; Codex's panel stops where its content does (51 px, Claude's 58)."""
     colour, track = COLORS[provider], '#a2b6a2'
     value, _, old, reset = remaining_reading(row)
     count, old_hearts = banked_hearts(row)
-    scene.rect((x, 4, x + 152, 72), fill=(242, 247, 226, 210), radius=9)
-    scene.text((x + 7, 8), provider.upper(), 'manrope.ttf', 12, colour, anchor='lt')
+    scene.rect((x, 4, x + 152, 4 + FILM_PANEL[provider]), fill=(242, 247, 226, 210), radius=9)
+    scene.text((x + 7, 8.5), provider.upper(), 'manrope.ttf', 12, colour, anchor='lt')
     for index in range(3):
-        _heart(scene, x + 104 + 11 * index, 8, (count or 0) > index, colour, old_hearts)
+        _heart(scene, x + 104 + 14 * index, 12.75 - 5 * SHELL, (count or 0) > index, colour, old_hearts, SHELL)
     if icons.marked(count, old_hearts):
-        scene.dot((x + 140, 11.6), 1, MUTED, glow=False)
+        scene.dot((x + 148, 13), 1, MUTED, glow=False)
     if icons.mark(count, old_hearts):
-        scene.text((x + 149, 7), '+', 'manrope.ttf', 8, colour, anchor='rt')
+        scene.text((x + 149, 8.5), '+', 'manrope.ttf', 9, colour, anchor='rt')
     credits = exhausted_credits(row) if provider == 'codex' else None
     if credits is not None:
         balance = format_balance(credits)
-        scene.text((x + 7, 21), 'CREDITS', 'manrope.ttf', 8, colour, anchor='lt')
-        for size in range(22, 5, -1):
+        scene.text((x + 7, 19.5), 'CREDITS', 'manrope.ttf', 8, colour, anchor='lt')
+        for size in range(20, 5, -1):                       # the balance fills the number's place, never reaching the bar
             if scene.d.textlength(balance, font=face('manrope.ttf', size * SS)) <= 64 * SS:
                 break
-        scene.text((x + 7, 31), balance, 'manrope.ttf', size, colour, anchor='lt')
+        scene.text((x + 7, 27.5), balance, 'manrope.ttf', size, colour, anchor='lt')
     else:
-        scene.text((x + 7, 21), '--' if value is None else str(round(value)),
-                   'manrope.ttf', 30, colour, anchor='lt')
-        if value is not None:
-            scene.text((x + 63, 32), '%', 'manrope.ttf', 12, colour, anchor='lt')
+        figure = '--' if value is None else str(round(value))
+        scene.text((x + 7, 19.5), figure, 'manrope.ttf', 30, colour, anchor='lt')
+        if value is not None:                               # beside its number, not floating (Tony, 2026-11-03: "limpio")
+            scene.text((x + 9 + scene.d.textlength(figure, font=face('manrope.ttf', 30 * SS)) / SS, 33), '%',
+                       'manrope.ttf', 12, colour, anchor='lt')
     if old:
-        scene.text((x + 65, 45), 'OLD', 'manrope.ttf', 7, MUTED, anchor='lt')
-    scene.text((x + 78, 23), 'RESET', 'manrope.ttf', 9, MUTED, anchor='lt')
-    scene.text((x + 143, 34), reset.upper().replace(' ', ''),
-               'manrope.ttf', 16, INK, anchor='rt')
+        scene.text((x + 65, 22), 'OLD', 'manrope.ttf', 7, MUTED, anchor='lt')
+    scene.text((x + 145, 21.5), 'RESET', 'manrope.ttf', 9, MUTED, anchor='rt')
+    scene.text((x + 145, 30.5), reset.upper().replace(' ', ''), 'manrope.ttf', 16, INK, anchor='rt')
     lit = 0 if value is None else math.ceil(value / 5)
     for index in range(20):
         left = x + 7 + index * 6.8
-        scene.rect((left, 56, left + 5, 61), fill=colour if index < lit else track, radius=.5)
+        scene.rect((left, 46, left + 5, 51), fill=colour if index < lit else track, radius=.5)
     pace = session_pace(row) if provider == 'claude' else None
     if pace is not None:
         for line, units in enumerate((math.ceil(pace[0] / 5) / 4, round(pace[1] * 4) / 4)):
             for index in range(5):
-                left, yy = x + 10 + index * 27, 64 + line * 3
+                left, yy = x + 10 + index * 27, 54 + line * 3
                 scene.rect((left, yy, left + 22, yy + 2), fill=track, radius=.3)
                 amount = max(0, min(1, units - index))
                 if amount:
@@ -227,7 +238,7 @@ def _film_page(snapshot, art):
         _film_instrument(scene, _row(snapshot, provider), provider, x)
     image = scene.finish(blur=0)
     # Keep the boat, sea and sand as sharp as the supplied photographic still.
-    image.paste(photo.crop((0, 73, W, H)), (0, 73))
+    image.paste(photo.crop((0, HUD_BOTTOM, W, H)), (0, HUD_BOTTOM))
     return image
 
 

@@ -5,7 +5,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 
 from token_tv.sources import fetch_account
-from token_tv.local_usage import expire_official_quota
+from token_tv.local_usage import OFFICIAL_ORIGINS, expire_official_quota
 
 
 class UsageStore:
@@ -27,7 +27,7 @@ class UsageStore:
                 previous = self.rows[row["key"]]
                 if row["status"] in ("ok", "quota_unavailable"):
                     row["last_success_at"] = row["fetched_at"]
-                elif (row.get('quota_origin') not in ('codex_official_cli', 'claude_official_cli')
+                elif (row.get('quota_origin') not in OFFICIAL_ORIGINS
                       and row["status"] != "identity_mismatch" and not row.get('windows')
                       and previous.get("windows") and previous.get("last_success_at")):
                     row["error_code"] = row.get("error_code", row["status"])

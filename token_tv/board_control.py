@@ -1,7 +1,11 @@
 """Local dashboard controls for the paired display, without exposing its token."""
+from datetime import datetime
 from io import BytesIO
+from pathlib import Path
 import hashlib
 import json
+import os
+import re
 import struct
 import threading
 import time
@@ -9,6 +13,98 @@ import time
 from PIL import Image
 
 from token_tv.board import PAGES
+
+
+# Night mode (Tony, 2026-11-03): the PC decides from the schedule and tells the board only when the level changes.
+NIGHT_DEFAULT = {'enabled': True, 'start': '23:00', 'end': '07:30', 'level': 25}
+NIGHT_LEVEL_RANGE = (5, 100)  # percent; the control room offers 10 to 75. Never zero: a dark board looks dead.
+_CLOCK_TEXT = re.compile(r'(?:[01]\d|2[0-3]):[0-5]\d')
+
+
+def night_settings(value):
+    """A validated night-mode setting (exactly four keys), or ValueError. Nothing is guessed or coerced."""
+    if not isinstance(value, dict) or set(value) != {'enabled', 'start', 'end', 'level'}:
+        raise ValueError('Invalid night mode')
+    if type(value['enabled']) is not bool or type(value['level']) is not int or \
+            not NIGHT_LEVEL_RANGE[0] <= value['level'] <= NIGHT_LEVEL_RANGE[1]:
+        raise ValueError('Invalid night mode')
+    for key in ('start', 'end'):
+        if not isinstance(value[key], str) or not _CLOCK_TEXT.fullmatch(value[key]):
+            raise ValueError('Invalid night mode')
+    return {key: value[key] for key in ('enabled', 'start', 'end', 'level')}
+
+
+class NightMode:
+    """The night schedule, kept with the other board settings under the state folder (private, atomic, local)."""
+    def __init__(self, path, changed=None, clock=datetime.now):
+        self.path = Path(path)
+        self.changed = changed
+        self.clock = clock
+        self.lock = threading.Lock()
+        try:
+            if self.path.stat().st_size > 4096:
+                raise ValueError('Too large')
+            self.value = night_settings(json.loads(self.path.read_text()))
+        except (OSError, ValueError, UnicodeError):
+            self.value = dict(NIGHT_DEFAULT)  # missing or damaged: the defaults, never an error in the way of the display
+
+    def settings(self):
+        with self.lock:
+            return dict(self.value)
+
+    def update(self, value):
+        updated = night_settings(value)
+        with self.lock:
+            if updated != self.value:
+                self.path.parent.mkdir(parents=True, exist_ok=True)
+                temporary = self.path.with_suffix('.tmp')
+                try:
+                    with temporary.open('w', encoding='utf-8') as handle:
+                        os.chmod(temporary, 0o600)
+                        json.dump(updated, handle, separators=(',', ':'))
+                    temporary.replace(self.path)
+                finally:
+                    temporary.unlink(missing_ok=True)
+                self.value = updated
+                changed = True
+            else:
+                changed = False
+        if changed and self.changed is not None:
+            self.changed.set()  # the monitor applies it on its next pass, within seconds
+        return self.settings()
+
+    def level_at(self, moment=None):
+        """The level the schedule wants now (100 outside the night window or when it is off). Local civil time."""
+        value = self.settings()
+        if not value['enabled']:
+            return 100
+        moment = moment or self.clock()
+        now = moment.hour * 60 + moment.minute
+        start, end = (int(value[key][:2]) * 60 + int(value[key][3:]) for key in ('start', 'end'))
+        if start == end:
+            inside = False  # an empty window
+        elif start < end:
+            inside = start <= now < end
+        else:
+            inside = now >= start or now < end  # across midnight
+        return value['level'] if inside else 100
+
+
+def apply_night(board, night, moment=None):
+    """Tell the board the scheduled level, only when it differs from what it reports. Returns the level sent, or None.
+
+    The board keeps the level in its own memory and writes flash only when it changes, so this is called on every
+    pass and sends nothing in the usual case. Boards that do not advertise the capability are never sent anything."""
+    if night is None or not getattr(board, 'brightness', False):
+        return None
+    want = night.level_at(moment)
+    have = (board.last_info or {}).get('bright')
+    if type(have) is int and have == want:
+        return None
+    board.configure(bright=want)
+    if board.last_info is not None:
+        board.last_info['bright'] = want
+    return want
 
 
 def preview_image(frame):
@@ -41,9 +137,10 @@ def preview_image(frame):
 
 
 class BoardControl:
-    def __init__(self, board, scenes=None):
+    def __init__(self, board, scenes=None, night=None):
         self.board = board
         self.scenes = scenes
+        self.night = night
         self.preview_lock = threading.Lock()
         self.library_lock = threading.RLock()
         self.frames = ()
@@ -72,7 +169,7 @@ class BoardControl:
                     frames = render_board_pages(snapshot, anim=True, waves=3, scroll=4)
                     previews = zip(PAGE_NAMES, frames)
                 else:
-                    image, payload = render_archive(scene, snapshot, animated=True)
+                    image, payload = render_archive(scene, snapshot, animated=True, extended_anim=True)
                     previews = [(scene, rgb565_frame(image, anim=payload))]
                 for name, frame in previews:
                     self.archive_frames[name] = frame
@@ -125,7 +222,18 @@ class BoardControl:
         result = self._status(refresh)
         if self.scenes:
             result.update(self.scenes.status())
+        result.update(self.night_status())
         return result
+
+    def night_status(self):
+        """The schedule (kept here) and what the board last said about its light. Unknown stays unknown."""
+        if self.night is None:
+            return {}
+        info = (self.board.last_info if self.board is not None else None) or {}
+        supported = info.get('brightness') in (1, True)
+        wanted = self.night.level_at()
+        return {'night': self.night.settings(), 'night_supported': supported,
+                'night_applied': supported and type(info.get('bright')) is int and info['bright'] == wanted}
 
     def _status(self, refresh=True):
         if self.board is None:
@@ -156,12 +264,18 @@ class BoardControl:
                 'speed_percent': info.get('animation_speed'),
                 'per_screen_speed': info.get('per_screen_speed') is True,
                 'touch_controls': info.get('touch_controls') == 1,
+                'card_supported': info.get('card') in (1, True),
                 'mode_hold_seconds': info.get('mode_hold_seconds'),
                 'connect_hold_seconds': info.get('connect_hold_seconds'),
                 'controls': info.get('board_controls') == 1,
                 'clock_synced': info.get('clock_synced') is True}
 
     def execute(self, command, value):
+        if command == 'night':
+            if self.night is None:
+                raise ValueError('Night mode is unavailable')
+            self.night.update(value)  # kept on this computer; the monitor tells the board within a pass
+            return self.status(refresh=False)
         if command in ('scene', 'order'):
             if self.scenes is None:
                 raise ValueError('Screen library is unavailable')

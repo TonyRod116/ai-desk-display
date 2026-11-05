@@ -289,19 +289,10 @@ def start(args):
 
 
 def _save_board(path, url, token):
-    """Write board_display into the private config, validated first, atomically."""
-    from token_tv.sources import load_config
-    data = json.loads(path.read_text())
-    data['board_display'] = {'url': url, 'token': token}
-    temporary = path.with_name(path.name + '.tmp')
-    temporary.write_text(json.dumps(data, indent=2) + '\n')
-    os.chmod(temporary, 0o600)
-    try:
-        load_config(temporary)  # never replace a working config with one that does not validate
-    except (ValueError, KeyError, TypeError):
-        temporary.unlink()
-        raise
-    temporary.replace(path)
+    """Write board_display into the private config, validated first, atomically. The monitor uses the same function
+    (token_tv.board.save_board_config) when it finds a board that moved."""
+    from token_tv.board import save_board_config
+    save_board_config(path, url, token)
 
 
 def clock(args):
@@ -361,7 +352,7 @@ def clock(args):
 def board(args):
     """Find, pair and remember the touch board; set its panel options; update its firmware."""
     from urllib.error import HTTPError
-    from token_tv.board import BoardDisplay, board_settings, find_boards, new_token, subnet_hosts
+    from token_tv.board import BoardDisplay, board_settings, find_boards, health_text, new_token, subnet_hosts
     path = Path(args.config).expanduser()
     config = read_config(path)
     if config is None:
@@ -383,20 +374,9 @@ def board(args):
                 info = device.info()
                 print(f'Board answers: {info.get("model")} {info.get("fw")}, {info.get("w")}x{info.get("h")}, '
                       f'{"paired" if info.get("paired") else "NOT paired"}.')
-                if isinstance(info.get('up'), int):  # firmware 6 and later
-                    reasons = {1: 'power on', 3: 'software restart', 4: 'crash', 5: 'watchdog', 6: 'watchdog',
-                               7: 'watchdog', 9: 'brown-out (power dip)'}
-                    print(f'Up {info["up"] // 60} min; last start: {reasons.get(info.get("rst"), info.get("rst"))}; '
-                          f'since then {info.get("taps")} taps and {info.get("longs")} long presses'
-                          + (f'; wifi signal {info["rssi"]} dBm' if isinstance(info.get('rssi'), int) else '')
-                          + ('; no heartbeat from the PC yet' if info.get('silent') == -1 else
-                             f'; PC last heard {info["silent"]} s ago' if isinstance(info.get('silent'), int) else '')
-                          + (f'; link renewed {info["renews"]}x, restarted {info.get("srest")}x for silence'
-                             if info.get('renews') or info.get('srest') else '')
-                          + (f'; cycling {info["active"]} of {info.get("pages")} page slots'
-                             if isinstance(info.get('active'), int) else '')
-                          + ('' if not isinstance(info.get('page'), int) else
-                             '; showing the address screen' if info.get('info') else f'; showing page {info["page"]}') + '.')
+                health = health_text(info)  # firmware 6 and later; older firmware says nothing more
+                if health:
+                    print(health)
             if any(v is not None for v in options):
                 device.configure(rotation=args.rotation,
                                  invert=None if args.invert is None else bool(args.invert),

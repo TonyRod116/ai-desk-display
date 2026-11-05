@@ -23,13 +23,13 @@ class TransferTests(unittest.TestCase):
         cls.directory.cleanup()
 
     def test_transfers_keep_drawing_and_preserve_bytes_and_safety_gates(self):
-        for mode in ('read', 'upload', 'stall', 'disconnect', 'unauthorized', 'info', 'firmware', 'stale', 'scroll_read', 'scroll_slow', 'wave_read', 'wave_fast', 'wave_slow', 'wave_smooth'):
+        for mode in ('read', 'upload', 'stall', 'disconnect', 'unauthorized', 'info', 'firmware', 'stale', 'scroll_read', 'scroll_slow', 'wave_read', 'wave_fast', 'wave_slow', 'wave_smooth', 'card_read_paused', 'card_read_closes'):
             with self.subTest(mode=mode):
                 result = subprocess.run([str(self.exe), mode], capture_output=True, text=True)
                 self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
     def test_touch_is_serviced_during_slow_transfers(self):
-        for mode in ('touch_read', 'touch_upload', 'touch_info', 'touch_mode', 'touch_connect', 'scroll_touch', 'wave_touch'):
+        for mode in ('touch_read', 'touch_upload', 'touch_info', 'touch_mode', 'touch_connect', 'scroll_touch', 'wave_touch', 'touch_card_close'):
             with self.subTest(mode=mode):
                 result = subprocess.run([str(self.exe), mode], capture_output=True, text=True)
                 self.assertEqual(result.returncode, 0, result.stdout + result.stderr)

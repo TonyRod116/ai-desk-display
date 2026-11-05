@@ -9,7 +9,7 @@ async function poll() {
   try {
     const previous = await chrome.alarms.get(ALARM);
     if (previous?.periodInMinutes >= 1 && previous.periodInMinutes <= 15) backoff = previous.periodInMinutes;
-    await collect(PAIRING); backoff = 1;
+    await collect(PAIRING, fetch, chrome.runtime.getManifest().version); backoff = 1;
   }
   catch (error) {
     // No account data, response bodies or secret in browser logs/storage.

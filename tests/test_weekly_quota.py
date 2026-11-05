@@ -92,7 +92,8 @@ class WeeklyQuotaTests(unittest.TestCase):
         self.assertIsNone(remaining('codex'))                                        # not Claude
         self.assertIsNone(remaining('claude', lambda r: r['windows'].pop(0)))        # unknown is not 0
         self.assertIsNone(remaining('claude', lambda r: r.update(stale=True)))       # failed refresh
-        self.assertIsNone(remaining('claude', lambda r: r.update(fetched_at=600)))   # older than 180 s
+        self.assertIsNone(remaining('claude', lambda r: r.update(fetched_at=400)))   # older than 480 s
+        self.assertEqual(remaining('claude', lambda r: r.update(fetched_at=600)), 5)  # 400 s: aged, still shows everything it showed
         self.assertIsNone(remaining('claude', renewed, now=8950))
 
     def test_session_hours_is_the_time_left_clamped_to_the_five_hour_window(self):
@@ -208,15 +209,18 @@ class WeeklyQuotaTests(unittest.TestCase):
             store = UsageStore([a], fetch=lambda _: row)
             with patch('token_tv.state.time.time', return_value=1000):
                 store.refresh()
-            with patch('token_tv.state.time.time', return_value=1200):
+            with patch('token_tv.state.time.time', return_value=1480):   # 480 s: still inside the limit
+                self.assertEqual(remaining_reading(store.snapshot()['accounts'][provider])[0], 80)
+            with patch('token_tv.state.time.time', return_value=1481):
                 expired = store.snapshot()['accounts'][provider]
             self.assertEqual(expired['status'], 'quota_unavailable')
             self.assertEqual(expired['windows'], [])
             self.assertIsNone(remaining_reading(expired)[0])
+            self.assertNotIn('reading_aged', expired)
 
     def test_claude_week_survives_the_five_hour_reset_but_codex_is_unchanged(self):
         # Observation: 5H resets at 8200, WEEK at 1000 + 6d 20h. Look at it at 8201,
-        # right after the five-hour renewal, with a reading no older than 180 s.
+        # right after the five-hour renewal, with a reading well inside the freshness limit.
         for provider in ('claude', 'codex'):
             with self.subTest(provider=provider):
                 raw = observation(provider)
@@ -269,7 +273,7 @@ class WeeklyQuotaTests(unittest.TestCase):
         raw['windows'][1]['resets_at'] = 8200
         self.assertEqual(local_row(account('claude'), raw, now=8201)['windows'], [])
         raw = observation('claude')
-        self.assertEqual(local_row(account('claude'), raw, now=1000 + 181)['windows'], [])
+        self.assertEqual(local_row(account('claude'), raw, now=1000 + 481)['windows'], [])
 
     def test_claude_cached_refresh_does_not_present_old_percentages(self):
         a = account('claude')

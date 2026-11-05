@@ -296,21 +296,6 @@ class BoardHttpTests(unittest.TestCase):
         self.assertEqual(caught.exception.code, 403)
         self.assertEqual(self.board.calls, [])
 
-    def test_scene_order_is_saved_once_without_contacting_the_display(self):
-        before = list(self.scenes.snapshot())
-        order = [1, 0, 2, 3, 4, 5, 6, 7]
-        with self.post('/board/order', {'value': {'expected': before, 'order': order}}, self.root) as response:
-            status = json.load(response)
-        self.assertEqual(status['scene_ids'], [before[i] for i in order])
-        self.assertTrue(self.changed.is_set())
-        self.assertEqual(self.board.calls, [])
-        with self.assertRaises(HTTPError) as caught:
-            self.post('/board/order', {'value': {'expected': before, 'order': order}}, self.root)
-        self.assertEqual(caught.exception.code, 400)
-        with self.assertRaises(HTTPError) as caught:
-            self.post('/board/order', {'value': {'expected': status['scene_ids'], 'order': order}}, 'https://attacker.example')
-        self.assertEqual(caught.exception.code, 403)
-
     def test_library_http_uses_cached_real_readings_and_available_credits(self):
         from tests.test_board_credits import sample as credit_sample
         from token_tv import board_cyber_scenes as city

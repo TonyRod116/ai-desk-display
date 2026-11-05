@@ -35,6 +35,7 @@ static bool uploadAllowed = false, uploadOk = false, redrawPending = false;
 static size_t uploadBytes = 0, contentLength = 0;
 static std::vector<uint8_t> output;
 static bool touchHeld=false;
+static bool showingCard=false;static uint32_t cardUntil=0;static const unsigned long CARD_SHOW_MS=8000UL;
 static int modeHoldSeconds=2,connectHoldSeconds=5;
 static bool indicatorMaskValid=true;
 static struct { bool active=false; unsigned long lastStep=0; } scrolling;
@@ -42,6 +43,9 @@ static struct { bool active=false; int lastStep=0, version=3; } ocean;
 static int indicatorDraws=0, rotationDraws=0, ticksHeld=0;
 static unsigned long millis() { return now; }
 static void delay(int n) { now += n; }
+static unsigned long lastFeed = 1000, maxFeedGap = 0;   // the task watchdog: how long the loop goes without proving it is alive
+static int feeds = 0;
+static void feedWatchdog() { feeds++; maxFeedGap = std::max(maxFeedGap, now - lastFeed); lastFeed = now; }
 static void animTick(unsigned long t) {
   if (scrolling.active) { scrolling.lastStep++; if(touchHeld) ticksHeld++; }
   if (ocean.active) { ocean.lastStep++; if(touchHeld) ticksHeld++; }
@@ -50,10 +54,14 @@ static void animTick(unsigned long t) {
   if (ocean.active) { waveLastUs = slowWave ? 240000 : 15000; if (slowWave) now+=240; else if (fastWave) now+=15; }
 }
 static void freeAnim();
-static void drawPage() { freeAnim(); draws++; lastDraw=now; }
+static unsigned long drawAt=0;   // when the page was last redrawn (lastDraw also follows the animation)
+static void drawPage() { freeAnim(); draws++; lastDraw=now; drawAt=now; }
 static RotationClock rotationClock;
 static uint32_t heldSince=0,confirmationUntil=0;
 static unsigned long tapCount=0,longCount=0;
+static bool wokeByTouch=false;
+static bool backlightAsleep(uint32_t) { return false; }
+static void wakeBacklight(uint32_t) {}
 static const uint32_t TAP_DEBOUNCE_MS=300;
 static uint32_t touchStart=0,touchEnd=0,responseAt=0;
 struct Touch { bool touched() { return touchStart && now>=touchStart && now<touchEnd; } } touch;
@@ -137,8 +145,12 @@ int main(int argc,char** argv) {
   bool touchCase=mode=="touch_read" || mode=="touch_upload" || mode=="touch_info" || mode=="scroll_touch" || mode=="wave_touch";
   if(touchCase) { touchStart=1100; touchEnd=1250; }
   if(mode=="touch_info") showingInfo=true;
+  if(mode=="card_read_paused") { showingCard=true; cardUntil=now+1000000000UL; }   // a card that stays up for the whole transfer
+  if(mode=="card_read_closes") { showingCard=true; cardUntil=now+3000; }           // a card that closes by itself mid-transfer
+  if(mode=="touch_card_close") { showingCard=true; cardUntil=now+1000000000UL; touchStart=1100; touchEnd=1250; }
   if(mode=="touch_mode") { touchStart=1100; touchEnd=3250; }
   if(mode=="touch_connect") { touchStart=1100; touchEnd=6250; }
+  lastFeed=now;   // the first interval is measured from the start of the request
   if(mode=="upload" || mode=="touch_upload") {
     // Paradise holds the current page open between frames. Replacing that
     // page must release the handle before removing its old flash file.
@@ -171,10 +183,14 @@ int main(int argc,char** argv) {
         if(mode=="wave_slow") assert(maxGap<=500);
       } else if(mode=="read" || mode=="touch_read" || mode=="touch_upload" ||
          mode=="touch_info" || mode=="touch_mode" || mode=="touch_connect") assert(ticks>100 && maxGap<=40);
+      else if(mode=="card_read_closes" || mode=="touch_card_close") assert(ticks>=0);
       else assert(ticks==0);
       if(mode=="stale") assert(stale && draws==1);
     }
   }
+  if(mode=="card_read_paused") assert(showingCard && ticks==0 && draws==0);               // paused exactly as for the address screen
+  if(mode=="card_read_closes") assert(!showingCard && draws==1 && ticks>10);              // closed on time, then the animation resumed
+  if(mode=="touch_card_close") assert(!showingCard && page==5 && tapCount==1 && draws==1 && drawAt>=touchEnd && drawAt-touchEnd<=40);   // a tap closes it at once, the page stays
   if(touchCase) {
     assert(tapCount==1 && !showingInfo);
     assert(page==(mode=="touch_info" ? 5 : 6));
@@ -185,6 +201,7 @@ int main(int argc,char** argv) {
   if(mode=="scroll_read" || mode=="scroll_touch") assert(indicatorDraws>0 && ticksHeld==0);
   if(mode=="wave_read" || mode=="wave_touch" || mode=="wave_slow" || mode=="wave_fast" || mode=="wave_smooth") assert(indicatorDraws>0 && ticksHeld==0);
   assert(rotationDraws <= int((now-1000)/80)+3);
+  if(mode!="unauthorized") assert(feeds>(mode=="disconnect" ? 0 : 100) && maxFeedGap<=1500);   // a 40-second transfer never comes near the 120-second watchdog
   printf("%s OK ticks=%d gap=%lu bytes=%zu\n",mode.c_str(),ticks,maxGap,output.size());
 }
 '''
@@ -198,7 +215,8 @@ def build(directory):
     end = cpp.index('static void onPortal(', start)
     source = Path(directory) / 'transfers.cpp'
     controls=cpp[cpp.index('static void handleTouch('):cpp.index('static void serviceRotation(')]
-    source.write_text(MOCK + controls + cpp[start:end] + MAIN)
+    card_close=cpp[cpp.index('static void serviceCard('):cpp.index('// ---- end details card')]
+    source.write_text(MOCK + card_close + controls + cpp[start:end] + MAIN)
     executable = Path(directory) / 'transfers'
     subprocess.run([shutil.which('g++'), '-std=c++17', '-O1', '-g', '-I', str(Path(__file__).resolve().parents[1] / 'src'),
                     '-fsanitize=address,undefined', '-fno-omit-frame-pointer',

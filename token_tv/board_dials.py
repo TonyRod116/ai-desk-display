@@ -143,21 +143,26 @@ def _session_rings(draw, centre, pace):
         _ring(draw, centre, r_out - 2, r_out, colour_at)
 
 
+FLAG_EMPTY = '#38446e'     # a flag that is not available: the dial's own "unlit" navy, a notch lighter so the pole and the squares still read
+
+
 def _flags(draw, x, y, count, provider, marked=False):
-    """One chequered flag per saved reset (was a heart): bright when available, a faint flag when not. While the number is unknown
-    or old the flags stay (faint when unknown, the last known count when old) and one faint dot ends the row: no `?` and no OLD."""
-    bright, dim = BANDS[provider][1], BANDS[provider][0]
-    dark = _mix(bright, '#000000', abs(icons.DETAIL['flag']))
+    """One chequered flag per saved reset (was a heart): bright when available, an empty navy one when not. While the number is
+    unknown or old the flags stay (all empty when unknown, the last known count when old) and one faint dot is added: no `?` and
+    no OLD. The dot sits under the middle flag, clear of the dial's ticks: at the end of the row it fell on the last tick and
+    looked like part of it (Tony, 2026-11-03: make available and not available obvious at a glance and move the dot clear)."""
+    bright, dark = BANDS[provider][2], _mix(BANDS[provider][1], '#000000', abs(icons.DETAIL['flag']))
+    body = BANDS[provider][1]
     have = count if count is not None else 0
     for i in range(3):
         if have > i:
             for xx, yy, tone, _ in icons.cells('flag'):
-                draw.point((x + i * 9 + xx, y + yy), fill=dark if tone == 'o' else bright)
+                draw.point((x + i * 9 + xx, y + yy), fill=dark if tone == 'o' else (bright if xx == 0 else body))
         else:
             for xx, yy in icons.hollow('flag'):
-                draw.point((x + i * 9 + xx, y + yy), fill=dim)
+                draw.point((x + i * 9 + xx, y + yy), fill=FLAG_EMPTY)
     if marked:
-        draw.point((x + 27, y + 3), fill=dim)
+        draw.point((x + 12, y + 7), fill=_mix(BANDS[provider][0], '#0a1226', .35))
 
 
 def _dial(draw, provider, value, count, pace, marked=False):

@@ -10,8 +10,9 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
-from token_tv.board import BoardDisplay, publish_pages
-from token_tv.board_control import BoardControl
+from token_tv.board import BoardDisplay, BoardLocator, publish_pages, save_board_config
+from token_tv.board_card import card_payload
+from token_tv.board_control import BoardControl, NightMode, apply_night
 from token_tv.board_pages import render_board_pages
 from token_tv.board_scenes import BoardScenes
 from token_tv.device import ALBUM_FACES, FILES, PhotoDisplay
@@ -22,6 +23,8 @@ from token_tv.sources import load_config
 from token_tv.state import UsageStore
 from token_tv.reset_balances import ResetBalances, attach_balances
 from token_tv.claude_bank import ClaudeBankBridge
+from token_tv.reader_status import long_reason
+from token_tv.usage_history import UsageHistory
 
 
 def clock_enabled(config):
@@ -38,6 +41,17 @@ def write_json(path, data):
     temporary.replace(path)
 
 
+def explain_readers(snapshot):
+    """Dashboard only: give each failing quota reader its plain sentence (the words live in `reader_status`).
+
+    Works on the copy built for one request, so neither the store nor the board's snapshot ever sees `text`.
+    """
+    for row in (snapshot.get('accounts') or {}).values():
+        reader = row.get('reader')
+        if isinstance(reader, dict) and reader.get('state') == 'failing':
+            reader['text'] = long_reason(reader.get('reason'))
+
+
 class DisplayPreferences:
     def __init__(self, config_path, config):
         self.path = Path(config_path)
@@ -50,7 +64,8 @@ class DisplayPreferences:
         self.quota_changed = False
         self.reset_balances = ResetBalances(self.path.parent / 'reset-balances.json', config.get('accounts', []))
         self.claude_bank = ClaudeBankBridge(self.path.parent / 'claude-bank-bridge.json',
-                                          lambda: self.config, self.reset_balances)
+                                          lambda: self.config, self.reset_balances,
+                                          log=lambda line: print(line, flush=True))
 
     def automatic_reset_providers(self):
         return [provider for provider in ('codex', 'claude')
@@ -66,8 +81,12 @@ class DisplayPreferences:
 
     def reset_snapshot(self):
         settings = self.claude_bank.settings()
-        return self.reset_balances.snapshot(self.automatic_reset_providers(),
-                                           settings['organization_hash'] if settings else None)
+        saved = self.reset_balances.snapshot(self.automatic_reset_providers(),
+                                            settings['organization_hash'] if settings else None)
+        reader = self.claude_bank.reader_status(paired=settings is not None)
+        if reader:
+            saved['claude']['reader'] = reader  # why the browser reader has (or has not) delivered
+        return saved
 
     def request_quota_refresh(self):
         with self.lock:
@@ -104,7 +123,7 @@ class DisplayPreferences:
             self.status = ('queued' if style != self.style else 'ok' if success else 'error')
 
 
-def handler(store, preferences=None, board_control=None):
+def handler(store, preferences=None, board_control=None, history=None):
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, *args):
             return
@@ -127,7 +146,7 @@ def handler(store, preferences=None, board_control=None):
                 return
             url = urlparse(self.path)
             path = url.path
-            if path == '/board/catalog' or path.startswith(('/board/preview/', '/board/library/')):
+            if path == '/board/catalog' or path == '/history' or path.startswith(('/board/preview/', '/board/library/')):
                 # Screens can contain account readings. Do not let another site
                 # embed them or trigger their relatively expensive rendering.
                 origin = self.headers.get('Origin')
@@ -138,6 +157,11 @@ def handler(store, preferences=None, board_control=None):
                     return
             if path == '/board':
                 self.reply(200, BOARD_HTML.encode(), 'text/html; charset=utf-8')
+                return
+            if path == '/history':
+                # Web only: series and forecast for the dashboard's chart. Never part of a board snapshot.
+                body = history.payload() if history else {'schema': 1, 'now': int(time.time()), 'windows': {}}
+                self.reply(200, json.dumps(body, separators=(',', ':')).encode())
                 return
             if path == '/board/catalog':
                 # The dashboard only needs the local library, not a board poll.
@@ -201,8 +225,10 @@ def handler(store, preferences=None, board_control=None):
             elif path in ASSETS:
                 body, content_type = asset(path)
             elif path == "/snapshot":
+                explain_readers(snapshot)  # the dashboard's own data route only; the clock and board never get `text`
                 body = json.dumps(snapshot, ensure_ascii=False, separators=(",", ":")).encode()
             elif path.startswith("/snapshot/") and path[10:] in snapshot["accounts"]:
+                explain_readers(snapshot)
                 body = json.dumps(snapshot["accounts"][path[10:]], ensure_ascii=False, separators=(",", ":")).encode()
             elif path in ("/frame/0.jpg", "/frame/1.jpg"):
                 style = parse_qs(url.query).get('style', [display['style']])[0]
@@ -219,12 +245,15 @@ def handler(store, preferences=None, board_control=None):
                 expected_display = 'ok' if preferences and clock_enabled(preferences.config) else 'preview_only'
                 banks = {provider: 'ok' if display.get('saved_resets', {}).get(provider, {}).get('available') is not None else 'unknown'
                          for provider in display.get('automatic_reset_providers', [])}
+                # Tony, 2026-11-03: an unknown saved-reset bank kept this at 503 for 19 days and hid real trouble behind it. Only
+                # unavailable quota or an unconfirmed display publication is degraded; the banks are warnings.
                 degraded = (any(row['status'] != 'ok' for row in snapshot['accounts'].values())
-                            or display['status'] != expected_display or 'unknown' in banks.values())
+                            or display['status'] != expected_display)
+                warnings = [provider + '_saved_resets_unknown' for provider, bank in banks.items() if bank == 'unknown']
                 body = json.dumps({"status": "degraded" if degraded else "ok",
                                    "updated_at": snapshot["updated_at"],
                                    "providers": {row['provider']: row['status'] for row in snapshot['accounts'].values()},
-                                   "display_status": display['status'], "saved_resets": banks}).encode()
+                                   "display_status": display['status'], "saved_resets": banks, "warnings": warnings}).encode()
                 self.reply(503 if degraded else 200, body)
                 return
             else:
@@ -299,7 +328,7 @@ def handler(store, preferences=None, board_control=None):
             path = urlparse(self.path).path
             if path not in ('/display/style', '/display/resets', '/display/reset-refresh', '/display/usage-refresh',
                             '/board/page', '/board/rotation', '/board/speed', '/board/touch', '/board/scene',
-                            '/board/order'):
+                            '/board/order', '/board/night'):
                 self.send_error(404)
                 return
             if path.startswith('/board/') and board_control is None:
@@ -366,9 +395,11 @@ def main():
     if args.host not in ('127.0.0.1', 'localhost'):
         parser.error('This installation only serves the dashboard on localhost')
     config = load_config(args.config)
+    policy = None
     if config.get('local_only'):
         from token_tv.local_usage import LocalPolicy, fetch_local
-        sys.addaudithook(LocalPolicy(config.get('device_url'), (config.get('board_display') or {}).get('url')).audit)
+        policy = LocalPolicy(config.get('device_url'), (config.get('board_display') or {}).get('url'))
+        sys.addaudithook(policy.audit)
     if config.get("font"):
         os.environ["TOKEN_TV_FONT"] = config["font"]
     state_dir = Path(args.state_dir)
@@ -378,6 +409,10 @@ def main():
              if config.get("board_display") else None)
     board_sent = {}
     board_selected = {'done': False}
+    # If the board's address moves, publishing used to stop silently until `token-tv board --find`; the monitor now looks
+    # for it after ten minutes of silence, once an hour at most (see BoardLocator).
+    locator = BoardLocator(board, lambda url, token: save_board_config(Path(args.config).expanduser(), url, token),
+                           policy) if board else None
     backup_path = state_dir / "display-original.json"
     if args.restore_display:
         if not clock or not backup_path.is_file():
@@ -393,8 +428,10 @@ def main():
     else:
         store = UsageStore(config["accounts"])
     preferences = DisplayPreferences(args.config, config)
+    usage_history = UsageHistory(Path(args.config).expanduser().parent / 'state' / 'usage-history.jsonl')  # web only
     board_scenes = BoardScenes(state_dir / 'board-scenes.json', preferences.changed)
-    board_control = BoardControl(board, board_scenes)
+    night = NightMode(state_dir / 'board-night.json', preferences.changed)
+    board_control = BoardControl(board, board_scenes, night)
     interval = max(60, int(config.get("poll_seconds", 300)))
     if config.get('local_only') and (config.get('automatic_codex_resets') or config.get('automatic_claude_usage')):
         interval = 60  # Recover missed notifications and expire stopped readers without session activity.
@@ -410,6 +447,8 @@ def main():
             store.refresh()
         snapshot = store.snapshot()
         attach_balances(snapshot, preferences.reset_snapshot())
+        if not args.once:
+            usage_history.record(snapshot)  # numbers only, for the dashboard; never raises, never reaches the board
         style = preferences.snapshot()['style']
         if not args.once and device:
             receipts = []
@@ -461,23 +500,34 @@ def main():
             try:
                 scene_ids = board_scenes.snapshot()
                 board.ensure_paired()  # a reflashed board is claimed again without anyone typing
+                try:
+                    apply_night(board, night)  # the scheduled light, sent only when the board says otherwise
+                except (OSError, ValueError):
+                    pass  # never in the way of the pages; tried again on the next pass
                 pages = render_board_pages(snapshot, stars=board.stars, anim=board.anim, anim_frames=board.anim_frames,
                                            waves=getattr(board, 'waves', False), scroll=getattr(board, 'scroll', False),
-                                           scene_ids=scene_ids)
+                                           scene_ids=scene_ids, extended_anim=getattr(board, 'extended_anim', False))
                 board_control.update_frames(pages)
+                # The details card rides on the heartbeat, only to a board that says it can show one, and is read at the
+                # last moment so that its ages and countdowns are not older than the time spent rendering.
+                card = card_payload(snapshot, time.time()) if getattr(board, 'card', False) else None
                 receipts = publish_pages(board, pages, board_sent,
-                                         on_verified=lambda slot: board_scenes.confirm_slot(slot, scene_ids[slot]))
+                                         on_verified=lambda slot: board_scenes.confirm_slot(slot, scene_ids[slot]),
+                                         card=card)
                 board.set_active_pages(len(pages))  # a page that was deleted is no longer cycled
                 if not board_selected['done']:  # firmware that stays on its address screen until touched
                     board.select_initial_page()
                     board_selected['done'] = True
                 write_json(state_dir / "board-receipt.json", {"at": int(time.time()), "uploads": receipts})
+                locator.reached()
             except (OSError, ValueError) as error:
                 write_json(state_dir / "board-receipt.json", {"at": int(time.time()), "status": "error",
                            "http_status": getattr(error, "code", None),
                            "error_type": type(error).__name__,
                            "failed_page": getattr(error, "board_page", None),
                            "uploads": getattr(error, "board_receipts", [])})
+                locator.failed()
+                locator.search()  # ten minutes of silence, and at most once an hour: look on the board's own /24
         snapshot['display'] = preferences.snapshot()
         write_json(state_dir / "snapshot.json", snapshot)
         if args.output:
@@ -507,7 +557,7 @@ def main():
     thread = threading.Thread(target=poll, daemon=True)
     thread.start()
     try:
-        with ThreadingHTTPServer((args.host, args.port), handler(store, preferences, board_control)) as server:
+        with ThreadingHTTPServer((args.host, args.port), handler(store, preferences, board_control, usage_history)) as server:
             print(f"TokenTV live listening at http://{args.host}:{args.port}", flush=True)
             server.serve_forever()
     except KeyboardInterrupt:

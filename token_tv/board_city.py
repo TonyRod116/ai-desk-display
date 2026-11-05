@@ -45,6 +45,7 @@ OX, OY = 160, -22                                   # screen position of ground 
 FLOOR = 3.8                                         # height of a floor in pixels
 SMALL_FLOOR = 6.4                                   # the five-hour building has taller floors so each one reads
 LABEL = '#a9c5e1'
+HOLLOW = '#46556b'          # the houses of a saved reset that is not available: well below the filled ones (they were LABEL, as bright as stone)
 STONE_QUOTA, STONE_TIME = '#e2dccf', '#968e7e'
 SKY = (('#0b2a52', 0), ('#1d4d7c', 18), ('#4f7fa0', 36), ('#e29a6a', 52), ('#f6c58a', 70))
 FOG = (138, 150, 172)
@@ -1619,7 +1620,7 @@ def _card(scene, x, y, accent, name, value, reset, banked):
     scene.text((x + 88, y + 29), 'RESET', 'press-start-2p.ttf', 4, LABEL, anchor='lm')
     scene.text((x + 88, y + 41), reset.upper(), 'oxanium.woff2', 14, '#eaf4ff', anchor='lm')
     count, old = banked
-    _resets(scene, x + 119, y + 8, count, old, accent, LABEL, 'house')
+    _resets(scene, x + 119, y + 8, count, old, accent, LABEL, 'house', faint=HOLLOW)
 
 
 def _first_pose(image, sprites):

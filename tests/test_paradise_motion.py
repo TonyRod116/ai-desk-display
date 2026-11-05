@@ -5,28 +5,9 @@ import unittest
 from PIL import Image, ImageDraw
 
 from tools.refine_paradise_film import returning_water, swaying_boat
-from tools.refine_paradise_film import _shore
 
 
 class ParadiseMotionTests(unittest.TestCase):
-    def test_smooth_wave_moves_inland_along_shore_with_perspective(self):
-        from tools.prepare_paradise_smooth import _advance_shoreline, _shoreline_blend
-
-        difference = Image.new('RGB', (160, 54), (128, 128, 128))
-        pixels = difference.load()
-        for y in range(54):
-            shore = round(_shore(132 + 2 * y + 1) / 2)
-            for x in range(shore + 4, shore + 9):
-                pixels[x, y] = (230, 230, 230)
-        advanced = _advance_shoreline(difference, 1.0, _shoreline_blend())
-        for y in (10, 28, 48):
-            shore = round(_shore(132 + 2 * y + 1) / 2)
-            shift = round(7 + 13 * y / 53)
-            self.assertGreater(max(advanced.getpixel((shore + 6 - shift + dx, y))[0]
-                                   for dx in (-1, 0, 1)), 190)
-        self.assertEqual(_advance_shoreline(difference, 0.0, _shoreline_blend()).tobytes(),
-                         difference.tobytes())
-
     def test_shore_returns_while_the_open_sea_keeps_advancing(self):
         film = Image.new('RGB', (160, 54 * 8))
         for phase in range(8):

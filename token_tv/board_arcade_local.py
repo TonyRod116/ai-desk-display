@@ -32,15 +32,28 @@ def load():
         return None
 
 
-def animated_details(art, codex_down, claude_down, step_ms, max_frames=4):
-    """Keep both independent mascots and animate the supplied backdrop locally."""
+AMBIENT_MS = 600                    # the supplied backdrop's own pace, whatever the fighters' beat is
+AMBIENT_SCRIPT = [(i, 0, 0) for i in (0, 1, 2, 3, 2, 1)]
+
+
+def animated_details(art, codex_down, claude_down, step_ms=None, max_frames=4):
+    """Keep both independent mascots and animate the supplied backdrop locally.
+
+    The two ambient pieces are neighbours with one timing, so a board with eight frames gets them as ONE sprite: that
+    frees a slot for the middle box of the fighters' exchange without changing a single pixel of the backdrop."""
     _, effects = art
-    codex_pace = 180 if max_frames >= 8 else step_ms
-    claude_pace = 220 if max_frames >= 8 else step_ms * 4 // 3
-    sprites = [stage._stance_sprite('codex', codex_down, codex_pace, max_frames),
-               stage._stance_sprite('claude', claude_down, claude_pace, max_frames)]
-    for (x, y, _, _), frames in zip(EFFECTS, effects):
-        sprites.append({'x': x, 'y': y, 'frames': frames,
-                        'script': [(i, 0, 0) for i in (0, 1, 2, 3, 2, 1)],
-                        'step_ms': step_ms * 2})
+    sprites = stage.fighters.actor_sprites(codex_down, claude_down, max_frames)
+    if max_frames < 8:
+        for (x, y, _, _), frames in zip(EFFECTS, effects):
+            sprites.append({'x': x, 'y': y, 'frames': frames, 'script': list(AMBIENT_SCRIPT), 'step_ms': AMBIENT_MS})
+        return sprites
+    (x0, y0, w0, h0), (x1, y1, w1, h1) = EFFECTS
+    assert y0 == y1 and h0 == h1 and x0 + 2 * w0 == x1            # side by side on one row
+    merged = []
+    for first, second in zip(*effects):
+        frame = Image.new('RGBA', (w0 + w1, h0), (0, 0, 0, 0))
+        frame.paste(first, (0, 0))
+        frame.paste(second, (w0, 0))
+        merged.append(frame)
+    sprites.append({'x': x0, 'y': y0, 'frames': merged, 'script': list(AMBIENT_SCRIPT), 'step_ms': AMBIENT_MS})
     return sprites

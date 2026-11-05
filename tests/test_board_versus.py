@@ -5,9 +5,10 @@ from copy import deepcopy
 from unittest.mock import patch
 from PIL import Image, ImageColor
 
-from token_tv import board_anim, board_arcade_stage as stage
+from token_tv import board_anim, board_arcade_fighters as fighters, board_arcade_stage as stage
 from token_tv.board import MAX_PAGE_BYTES
-from token_tv.board_arcade import render_arcade, HEALTH_RED, HEALTH_AMBER, HEALTH_GREEN, STEP_MS
+from token_tv.board_arcade import (render_arcade, meter_left, METER_WIDTH, HEALTH_RED, HEALTH_AMBER, HEALTH_GREEN,
+                                   STEP_MS)
 from token_tv.board_pages import rgb565_frame
 from test_board_forge import sample, NOW, compose
 
@@ -28,11 +29,61 @@ def rendered_knockouts(data):
     return image, payload, draw.call_args.args[1:3]
 
 
+def picture(sprite, frame):
+    """{(x, y): word} of the opaque pixels of one frame of a decoded sprite, in sprite pixels."""
+    return {(i % sprite['w'], i // sprite['w']): word for i, word in enumerate(sprite['frames'][frame])
+            if word != board_anim.KEY}
+
+
+def duel(codex=73, claude=73, frames=8):
+    with patch('time.time', return_value=NOW):
+        image, payload = render_arcade(versus_sample(codex, claude), animated=True, anim_frames=frames)
+    return image, payload, board_anim.decode(payload)
+
+
+def box_of(sprite):
+    """The screen box a sprite can ever touch, offsets included: the engine restores all of it on every beat."""
+    dx = [d for _, d, _ in sprite['script']]
+    dy = [d for _, _, d in sprite['script']]
+    return (sprite['x'] + min(dx), sprite['y'] + min(dy),
+            sprite['x'] + 2 * sprite['w'] + max(dx), sprite['y'] + 2 * sprite['h'] + max(dy))
+
+
+def feature(sprite, step, colours, rows):
+    """Top-left of the pixels of `colours` in the given rows of the picture shown at `step`, in logical pixels."""
+    frame, dx, _ = sprite['script'][step]
+    points = [xy for xy, word in picture(sprite, frame).items() if word in colours and rows[0] <= xy[1] < rows[1]]
+    return (min(x for x, _ in points) + dx / 2, min(y for _, y in points)) if points else None
+
+
 class VersusTests(unittest.TestCase):
     def setUp(self):
         local = patch('token_tv.board_arcade.local_stage.load', return_value=None)
         local.start()
         self.addCleanup(local.stop)
+
+    def test_claude_left_arm_is_behind_and_right_arm_in_front_in_every_pose(self):
+        # Place distinct markers where each arm would cross the body. The body
+        # must cover the left marker, while the right one must remain visible.
+        for name, pose in fighters.CLAUDE_POSES.items():
+            with self.subTest(pose=name):
+                cx = fighters.CLAUDE_BOX[0] + 1 + 23 + pose.get('lean', 0)
+                cy = fighters.CLAUDE_BOX[1] + 17 + pose.get('rise', 0)
+                left, right = (cx - 4, cy + 3), (cx + 9, cy + 3)
+                left_marker, right_marker = (1, 2, 3), (4, 5, 6)
+                def mark_arm(grid, pts, r0, r1, **kwargs):
+                    if (r0, r1) == (3.4, 1.5):
+                        grid.put(*left, left_marker)
+                    elif (r0, r1) == (3.0, 1.4):
+                        grid.put(*right, right_marker)
+                def mark_whip(grid, root, tip_x, **kwargs):
+                    grid.put(*left, left_marker)
+                grid = fighters.Grid(fighters.LW, fighters.LH)
+                with patch.object(fighters, '_tentacle', side_effect=mark_arm), \
+                     patch.object(fighters, '_whip', side_effect=mark_whip):
+                    fighters._claude(grid, *fighters.CLAUDE_BOX[:2], **pose)
+                self.assertNotEqual(grid.get(*left), left_marker)
+                self.assertEqual(grid.get(*right), right_marker)
 
     @patch('time.time', return_value=NOW)
     def test_fighter_names_are_centered_over_their_reset_bars(self, _):
@@ -61,33 +112,32 @@ class VersusTests(unittest.TestCase):
         self.assertEqual(image.getpixel((150, 65)), background.getpixel((150, 65)))
 
     @patch('time.time', return_value=NOW)
-    def test_eight_pose_guards_keep_older_boards_and_first_frame_compatible(self, _):
+    def test_four_pose_boards_keep_the_first_pose_and_get_a_breathing_loop(self, _):
         from token_tv.board_pages import render_board_pages
         data = versus_sample()
         old = render_board_pages(data, anim=True, anim_frames=4)[5]
         new = render_board_pages(data, anim=True, anim_frames=8)[5]
         offset = 153608
-        self.assertEqual(old[:offset], new[:offset])
+        self.assertEqual(old[:offset], new[:offset])           # the same stored page, so the same first pose
         self.assertEqual(new[offset:offset+4], b'ANIM')
+        self.assertLessEqual(len(old) - offset - 8, 40000)     # what a board without eight frames can hold
+        self.assertLessEqual(len(new) - offset - 8, board_anim.MAX_PAYLOAD)
         old_spec = board_anim.decode(old[offset+8:])
         spec = board_anim.decode(new[offset+8:])
-        for provider, previous, current in zip(('codex', 'claude'), old_spec['sprites'][:2], spec['sprites'][:2]):
-            self.assertEqual(len(previous['frames']), 4)
-            self.assertEqual(len(current['frames']), 8)
-            self.assertEqual(previous['frames'][0], current['frames'][0])
-            self.assertEqual(len({tuple(frame) for frame in current['frames']}), 8)
-            self.assertTrue(100 <= current['step_ms'] <= 250)
-            self.assertTrue(all(dx == dy == 0 for _,dx,dy in current['script']))
-            self.assertEqual(current['script'][0][0], 0)
-            self.assertTrue(all(186 <= current['y'] + 2 * frame.getbbox()[3] - 1 <= 195
-                                for frame in stage._stance_sprite(provider, False, current['step_ms'], 8)['frames']))
-            # Closing the cycle changes fewer pixels than the biggest normal
-            # transition, so neither fighter snaps back to the opening pose.
-            frames = current['frames']
-            changes = [sum(a != b for a,b in zip(first, second))
-                       for first,second in zip(frames, frames[1:] + frames[:1])]
-            self.assertLessEqual(changes[-1], max(changes[:-1]))
-        self.assertNotEqual(spec['sprites'][0]['step_ms'], spec['sprites'][1]['step_ms'])
+        self.assertEqual([len(s['frames']) for s in old_spec['sprites'][:2]], [2, 2])
+        self.assertTrue(all(len(s['frames']) <= 4 for s in old_spec['sprites']))
+        self.assertEqual([len(s['frames']) for s in spec['sprites'][:3]], [6, 7, 8])
+        for previous, current in zip(old_spec['sprites'][:2], spec['sprites'][:2]):
+            self.assertEqual(previous['frames'][0], current['frames'][0])      # the same picture at the start
+            self.assertEqual((previous['x'], previous['y']), (current['x'], current['y']))
+            self.assertEqual(previous['script'][0], current['script'][0])
+            self.assertEqual(len(previous['script']), 8)
+        self.assertEqual(old_spec['sprites'][2]['w'], 5)       # a four-pose board still moves the lantern
+        # Whatever the board can hold, the animated first pose is exactly what a board without ANIM shows.
+        stored = Image.frombytes('RGB', (320, 240), new[8:offset], 'raw', 'BGR;16')
+        for frames_spec in (old_spec, spec):
+            self.assertEqual(struct.pack('<76800H', *compose(stored, frames_spec, 0)),
+                             rgb565_frame(render_arcade(data))[8:])
         self.assertLessEqual(len(new), MAX_PAGE_BYTES)
         # A confirmed zero remains an unmoving KO even on the newer board.
         fallen = render_board_pages(versus_sample(0,73), anim=True, anim_frames=8)[5]
@@ -107,14 +157,58 @@ class VersusTests(unittest.TestCase):
         missing['accounts']['claude']['windows']=[w for w in missing['accounts']['claude']['windows']
                                                   if w['label']!='5H']
         a,b,c,d=(render_arcade(data) for data in (full,spent,later,missing))
-        quota=(178,35,221,38)
-        time=(178,39,221,42)
+        left = meter_left('73%')                                        # two thin rows in the dark strip beside Claude's percentage
+        quota=(left,4,left+METER_WIDTH,7)
+        time=(left,8,left+METER_WIDTH,11)
         self.assertNotEqual(a.crop(quota).tobytes(),b.crop(quota).tobytes())
         self.assertEqual(a.crop(time).tobytes(),b.crop(time).tobytes())
         self.assertEqual(a.crop(quota).tobytes(),c.crop(quota).tobytes())
         self.assertNotEqual(a.crop(time).tobytes(),c.crop(time).tobytes())
         self.assertNotEqual(a.crop(quota).tobytes(),d.crop(quota).tobytes())
         self.assertNotEqual(a.crop(time).tobytes(),d.crop(time).tobytes())
+
+    @patch('time.time', return_value=NOW)
+    def test_session_meter_stays_clear_of_the_week_label_the_percentage_and_the_name(self, _):
+        # Tony, 2026-11-03: the two rows collided with the word CLAUDE. They now live in the dark score strip, 8 px before
+        # Claude's percentage (whatever its width: '100%' is the widest) and clear of WEEK, the name and every other reading.
+        from token_tv.themes import face
+        week_right = 160 + 16 + 1                                       # WEEK is centred on 160 and 32 px wide, plus its edge
+        for claude, text in ((.5, '<1%'), (7, '7%'), (73, '73%'), (100, '100%')):
+            data = versus_sample(claude=claude)
+            left = meter_left(text)
+            percentage_left = 293 - round(face('press-start-2p.ttf', 15).getlength(text))
+            self.assertEqual(percentage_left - 8, left + METER_WIDTH, text)
+            self.assertGreaterEqual(left - week_right, 8, text)
+            plain = render_arcade(data)
+            lit = [(x, y) for y in range(0, 16) for x in range(left, left + METER_WIDTH)
+                   if plain.getpixel((x, y)) in (ImageColor.getrgb('#cfc6b4'), ImageColor.getrgb('#4a3a70'))]
+            self.assertTrue(lit, text)
+            self.assertTrue(all(4 <= y <= 10 for _, y in lit), text)
+            # nothing else is drawn in the meter's strip: removing the session leaves only the dark strip behind
+            data['accounts']['claude']['windows'] = [w for w in data['accounts']['claude']['windows'] if w['label'] != '5H']
+            without = render_arcade(data)
+            changed = {(x, y) for y in range(240) for x in range(320) if plain.getpixel((x, y)) != without.getpixel((x, y))}
+            self.assertTrue(changed and all(left <= x < left + METER_WIDTH and 4 <= y <= 10 for x, y in changed), text)
+
+    @patch('time.time', return_value=NOW)
+    def test_names_keep_a_dark_halo_so_they_read_over_any_scenery_without_a_panel(self, _):
+        from token_tv.board_art import CODEX, CLAUDE
+        from token_tv.board_arcade_local import EFFECTS
+        halo = ImageColor.getrgb('#1a1538')
+        for backdrop in ('#ffffff', '#c8d8f0', '#7a5a2a', '#101010'):
+            background = Image.new('RGB', (320, 240), backdrop)
+            effects = [[Image.new('RGBA', (w, h), (0, 0, 0, 0)) for _ in range(4)] for _, _, w, h in EFFECTS]
+            with patch('token_tv.board_arcade.local_stage.load', return_value=(background, effects)):
+                image = render_arcade(versus_sample())
+            for name, colour, left, right in (('Codex', CODEX, 42, 105), ('Claude', CLAUDE, 214, 274)):
+                letter = ImageColor.getrgb(colour)
+                letters = {(x, y) for y in range(36, 52) for x in range(left, right) if image.getpixel((x, y)) == letter}
+                self.assertGreater(len(letters), 40, name)
+                for x, y in letters:
+                    for dx in (-2, -1, 0, 1, 2):
+                        for dy in (-2, -1, 0, 1, 2):
+                            if dx * dx + dy * dy <= 5 and (x + dx, y + dy) not in letters:
+                                self.assertEqual(image.getpixel((x + dx, y + dy)), halo, (name, backdrop, x + dx, y + dy))
 
     @patch('time.time', return_value=NOW)
     def test_health_colors_at_exact_boundaries_for_both_providers(self, _):
@@ -164,149 +258,136 @@ class VersusTests(unittest.TestCase):
             self.assertEqual(down,(False,False))
 
     @patch('time.time', return_value=NOW)
-    def test_whole_body_stances_and_background_animate_without_overlap(self, _):
-        bg,payload=render_arcade(versus_sample(),animated=True)
-        spec=board_anim.decode(payload)
-        self.assertEqual(len(spec['sprites']),4)
-        self.assertLessEqual(len(payload),40000)
-        self.assertEqual(spec['meteor']['period_ms'],14000)
-        self.assertGreaterEqual(len(spec['stars']),10)
-        self.assertTrue(all(y<110 for x,y,*_ in spec['stars']))
-        boxes=[]
-        self.assertEqual([s['step_ms'] for s in spec['sprites']], [300,400,STEP_MS,STEP_MS])
-        for s in spec['sprites']:
-            self.assertTrue(all(dx == dy == 0 for _,dx,dy in s['script']))
-            self.assertGreaterEqual(len({tuple(frame) for frame in s['frames']}),3)
-            boxes.append((s['x'],s['y'],s['x']+s['w']*2,s['y']+s['h']*2))
-        for i,a in enumerate(boxes):
-            self.assertTrue(0 <= a[0] < a[2] <= 320 and 80 <= a[1] < a[3] <= 196)
+    def test_duel_sprites_never_overlap_each_other_the_scoreboard_or_the_meteor(self, _):
+        bg, payload, spec = duel()
+        self.assertEqual(len(spec['sprites']), 4)
+        self.assertLessEqual(len(payload), board_anim.MAX_PAYLOAD)
+        self.assertEqual(spec['meteor']['period_ms'], 14000)
+        self.assertGreaterEqual(len(spec['stars']), 10)
+        self.assertTrue(all(y < 106 for x, y, *_ in spec['stars']))
+        boxes = [box_of(s) for s in spec['sprites']]
+        for i, a in enumerate(boxes):
+            # below the scoreboard and the shooting star's corridor (x 105-214, y 38-99), above the footer
+            self.assertTrue(0 <= a[0] < a[2] <= 320 and 108 <= a[1] < a[3] <= 205, a)
             for b in boxes[i+1:]:
-                self.assertFalse(a[0]<b[2] and b[0]<a[2] and a[1]<b[3] and b[1]<a[3])
-        frames=[compose(bg,spec,k) for k in range(8)]
-        self.assertNotEqual(frames[0],frames[1])
-        self.assertNotEqual(frames[0],frames[4])
-        # Heads and bodies move together and the legs or tentacles flex too;
-        # freezing the face was visibly separating it from the body.
-        for left,right in ((26,108),(216,298)):
-            changed=sum(frames[0][y*320+x] != frames[1][y*320+x]
-                        for y in range(112,196) for x in range(left,right))
-            self.assertGreater(changed,300,(left,changed))
-        for left,top,right,bottom in ((46,136,86,166),(242,138,276,166)):
-            changed=sum(frames[0][y*320+x] != frames[1][y*320+x]
-                        for y in range(top,bottom) for x in range(left,right))
-            self.assertGreater(changed,50,(left,changed))
-        for left,right in ((26,108),(216,298)):
-            changed=sum(frames[0][y*320+x] != frames[1][y*320+x]
-                        for y in range(176,196) for x in range(left,right))
-            self.assertGreater(changed,15,(left,changed))
-        for first,second in zip(frames,frames[1:]+frames[:1]):
-            self.assertTrue(all(a==b for i,(a,b) in enumerate(zip(first,second)) if i//320>=196))
-        # At no point may twinkling stars overwrite a fighter sprite box.
-        self.assertTrue(all(not any(a[0] <= x < a[2] and a[1] <= y < a[3] for a in boxes[:2])
-                            for x,y,*_ in spec['stars']))
-        with patch('time.time',return_value=NOW+1):
-            self.assertEqual(render_arcade(versus_sample(),animated=True)[1],payload)
+                self.assertFalse(a[0] < b[2] and b[0] < a[2] and a[1] < b[3] and b[1] < a[3], (a, b))
+        # the three actors share one beat, so an exchange stays in step; the cloud keeps its own, slower one
+        self.assertEqual({s['step_ms'] for s in spec['sprites'][:3]}, {STEP_MS})
+        self.assertEqual({len(s['script']) for s in spec['sprites'][:3]}, {32})
+        self.assertEqual(spec['sprites'][3]['step_ms'], 2 * STEP_MS)
+        frames = [compose(bg, spec, k) for k in range(32)]
+        self.assertGreaterEqual(len({tuple(f) for f in frames}), 10)
+        # Motion is decoration: nothing above the fighters or below the arena ever changes (no life-bar flicker).
+        for first, second in zip(frames, frames[1:] + frames[:1]):
+            self.assertTrue(all(a == b for i, (a, b) in enumerate(zip(first, second)) if i // 320 < 108 or i // 320 >= 206))
+        # At no point may twinkling stars overwrite a sprite box.
+        self.assertTrue(all(not any(a[0] <= x < a[2] and a[1] <= y < a[3] for a in boxes) for x, y, *_ in spec['stars']))
+        with patch('time.time', return_value=NOW + 1):
+            self.assertEqual(render_arcade(versus_sample(), animated=True, anim_frames=8)[1], payload)
 
     def test_both_fighters_and_knockouts_land_in_the_middle_of_the_wooden_deck(self):
-        # The wood runs from y=176 to y=205. Check the soles/shadows, not just
-        # the tops of the sprites: moving them down is a visible layout change.
-        for provider in ('codex','claude'):
+        # The wood runs from y=176 to y=205. Check the soles and the shadows of every picture, not just the tops of
+        # the sprites: moving them down is a visible layout change.
+        programs, _, _ = fighters._programs()
+        for provider, box in (('codex', fighters.CODEX_BOX), ('claude', fighters.CLAUDE_BOX)):
             with self.subTest(provider=provider):
-                normal_bottom=stage.FIGHTER_Y + stage.fighter(provider).getbbox()[3]-1
-                fallen_bottom=stage.FIGHTER_Y + 67 + stage.fallen(provider).getbbox()[3]-1
-                self.assertTrue(186 <= normal_bottom <= 195)
-                self.assertTrue(186 <= fallen_bottom <= 198)
-                sprite=stage._stance_sprite(provider,False,STEP_MS)
-                for frame in sprite['frames']:
-                    bottom=sprite['y'] + frame.getbbox()[3]*2-1
-                    self.assertTrue(186 <= bottom <= 195, (provider,bottom))
+                for frame in programs[provider][0]:
+                    self.assertTrue(196 <= box[1] * 2 + frame.getbbox()[3] * 2 - 1 <= 205)
+                lying = fighters.fallen(provider)
+                self.assertTrue(196 <= box[3] * 2 - (lying.height - lying.getbbox()[3]) * 2 - 1 <= 205)
 
     @patch('time.time', return_value=NOW)
-    def test_fighters_have_distinct_idle_poses_and_independently_moving_lead_hands(self, _):
-        bg,payload=render_arcade(versus_sample(),animated=True)
-        spec=board_anim.decode(payload)
-        frames=[compose(bg,spec,k) for k in range(8)]
-        for index,(left,right,hand_left,hand_right) in enumerate(((26,108,86,108),(216,298,216,240))):
-            sprite=spec['sprites'][index]
-            self.assertEqual(len({tuple(f) for f in sprite['frames']}),4)
-            bodies=[tuple(frame[y*320+x] for y in range(112,180) for x in range(left,right)) for frame in frames]
-            hands=[tuple(frame[y*320+x] for y in range(122,154) for x in range(hand_left,hand_right)) for frame in frames]
-            self.assertEqual(len(set(bodies)),4)
-            self.assertGreaterEqual(len(set(hands)),3)
+    def test_fighters_breathe_with_their_own_rhythm_and_stay_planted(self, _):
+        bg, payload, spec = duel()
+        codex, claude = spec['sprites'][:2]
+        rhythms = [[s['script'][i][0] for i in range(8)] for s in (codex, claude)]       # the opening breaths
+        self.assertNotEqual(*rhythms)
+        for sprite, rhythm in zip((codex, claude), rhythms):
+            first, second = (picture(sprite, k) for k in sorted(set(rhythm))[:2])
+            self.assertNotEqual(first, second)
+            # soles and shadow do not move when the body breathes: the last four rows agree
+            feet = lambda p: {xy: c for xy, c in p.items() if xy[1] >= sprite['h'] - 4}
+            self.assertEqual(feet(first), feet(second))
 
-    def test_each_hand_can_move_separately_from_the_face_and_feet(self):
-        for provider,lead,rear,face in (
-                ('codex',(55,15,90,51),(5,44,31,68),(30,41,56,59)),
-                ('claude',(8,15,38,51),(70,40,94,65),(42,42,68,58))):
-            with self.subTest(provider=provider):
-                still=stage._guarded_fighter(provider)
-                lead_moved=stage._guarded_fighter(provider,guard_dx=2,guard_dy=-4)
-                rear_moved=stage._guarded_fighter(provider,rear_dx=-2,rear_dy=4)
-                for box,moved in ((lead,lead_moved),(rear,rear_moved)):
-                    before,after=still.crop(box).tobytes(),moved.crop(box).tobytes()
-                    changed=sum(before[i:i+4] != after[i:i+4] for i in range(0,len(before),4))
-                    self.assertGreater(changed,100,(provider,box,changed))
-                for pose in (lead_moved,rear_moved):
-                    self.assertEqual(still.crop(face).tobytes(),pose.crop(face).tobytes())
-                    self.assertEqual(still.crop((0,75,95,94)).tobytes(),
-                                     pose.crop((0,75,95,94)).tobytes())
+    @patch('time.time', return_value=NOW)
+    def test_hands_and_burst_appear_in_the_middle_only_during_a_short_exchange(self, _):
+        bg, payload, spec = duel()
+        middle = spec['sprites'][2]
+        shown = [bool(picture(middle, k)) for k, _, _ in middle['script']]
+        self.assertFalse(any(shown[:8]) or any(shown[20:]))      # breathing before and after
+        self.assertTrue(8 <= sum(shown) <= 12)                   # occasional: well under half of the 3.8 s loop
+        for step in (i for i, (_, _, burst, _) in enumerate(fighters._duel()) if burst == 1):
+            white = [xy for xy, word in picture(middle, middle['script'][step][0]).items() if word == 0xFFFF]
+            self.assertGreaterEqual(len(white), 6)               # the generic burst has a white core
+            self.assertTrue(all(8 <= x <= 22 and 5 <= y <= 17 for x, y in white))   # in the heart of the box
 
-    def test_codex_face_and_lightning_stay_intact_in_every_guard_pose(self):
-        # Sprite scaling must not leave a fragment of the old bolt or prompt
-        # behind, clip either detail, or let them drift apart from the head.
-        sprite=stage._stance_sprite('codex',False,STEP_MS)
-        colours=((211,255,255),(187,250,255),(247,190,79),(255,242,167))
-        expected={}
-        origins=[]
-        for frame in sprite['frames']:
-            pose_origins=[]
-            for colour in colours:
-                points={(x,y) for y in range(frame.height) for x in range(frame.width)
-                        if frame.getpixel((x,y))[:3] == colour
-                        and frame.getpixel((x,y))[3]}
-                self.assertTrue(points,colour)
-                left,top=min(x for x,_ in points),min(y for _,y in points)
-                right,bottom=max(x for x,_ in points),max(y for _,y in points)
-                self.assertTrue(0 < left <= right < frame.width-1)
-                self.assertTrue(0 <= top <= bottom < frame.height-1)
-                shape={(x-left,y-top) for x,y in points}
-                if colour in expected:
-                    self.assertEqual(shape,expected[colour],colour)
-                else:
-                    expected[colour]=shape
-                pose_origins.append((left,top))
-            origins.append(pose_origins)
-        first=origins[0]
-        for pose in origins[1:]:
-            for index in range(1,len(colours)):
-                self.assertEqual((pose[index][0]-pose[0][0],pose[index][1]-pose[0][1]),
-                                 (first[index][0]-first[0][0],first[index][1]-first[0][1]))
+    @patch('time.time', return_value=NOW)
+    def test_contact_holds_both_bodies_for_two_beats_while_the_burst_grows(self, _):
+        bg, payload, spec = duel()
+        codex, claude, middle = spec['sprites'][:3]
+        steps = fighters._duel()
+        for flash in (i for i, step in enumerate(steps) if step[2] == 0):
+            self.assertEqual(steps[flash + 1][2], 1)
+            for body in (codex, claude):
+                self.assertEqual(body['script'][flash], body['script'][flash + 1])      # hit-stop: nobody moves
+            small, big = (picture(middle, middle['script'][flash + k][0]) for k in (0, 1))
+            self.assertGreater(len(big), len(small))
 
-    def test_fighting_guard_flexes_vertically_without_a_diagonal_slide(self):
-        # Track features fixed to the heads through every complete sprite pose.
-        # The planted fighters breathe at different heights, but do not drift
-        # sideways as a rigid shape on each rise and fall.
-        poses={}
-        for provider,colour,y_limit in (
-                ('codex',(211,255,255),30),('claude',(210,83,71),15)):
-            sprite=stage._stance_sprite(provider,False,STEP_MS)
-            positions=[]
-            for frame in sprite['frames']:
-                points=[(x,y) for y in range(y_limit) for x in range(frame.width)
-                        if frame.getpixel((x,y))[:3] == colour and frame.getpixel((x,y))[3]]
-                self.assertTrue(points,provider)
-                positions.append((min(x for x,_ in points),min(y for _,y in points)))
-            self.assertEqual(len({x for x,_ in positions}),1,provider)
-            self.assertGreaterEqual(len({y for _,y in positions}),3,provider)
-            poses[provider]=[y-positions[0][1] for _,y in positions]
-        self.assertLess(min(poses['codex']),0)
-        self.assertGreater(max(poses['claude']),0)
+    def test_every_pose_stays_inside_its_own_sprite_box(self):
+        boxes = (fighters.CODEX_BOX, fighters.CLAUDE_BOX, fighters.MIDDLE_BOX)
+        for step, (codex, claude, burst, _) in enumerate(fighters._duel()):
+            scene = fighters._scene(codex, claude, burst)
+            stray = [(x, y) for y in range(scene.h) for x in range(scene.w) if scene.p[y][x] is not None
+                     and not any(b[0] <= x < b[2] and b[1] <= y < b[3] for b in boxes)]
+            self.assertEqual(stray, [], (step, codex, claude, burst))
+            if burst is None and codex in ('C0', 'C1') and claude in ('K0', 'K2'):
+                self.assertIsNone(scene.image(fighters.MIDDLE_BOX).getbbox(), step)      # breathing leaves the middle empty
+
+    @patch('time.time', return_value=NOW)
+    def test_codex_face_and_lightning_stay_intact_in_every_pose(self, _):
+        # The prompt and the bolt are drawn once per pose at sprite resolution: no pose may lose, clip or distort them.
+        bg, payload, spec = duel()
+        codex = spec['sprites'][0]
+        prompt, bolt = board_anim.rgb565(fighters.PROMPT), {board_anim.rgb565(c) for c in fighters.BOLT[2:]}
+        shapes = []
+        for k in range(len(codex['frames'])):
+            pixels = picture(codex, k)
+            self.assertGreaterEqual(sum(word == prompt for word in pixels.values()), 8, k)
+            points = {xy for xy, word in pixels.items() if word in bolt and xy[1] < 14}      # not the belt's buckle
+            left, top = min(x for x, _ in points), min(y for _, y in points)
+            self.assertTrue(0 < left and 0 <= top and max(x for x, _ in points) < codex['w'] - 1, k)
+            shapes.append({(x - left, y - top) for x, y in points})
+        self.assertTrue(all(shape == shapes[0] for shape in shapes))
+
+    @patch('time.time', return_value=NOW)
+    def test_breathing_flexes_vertically_and_the_loop_never_jumps(self, _):
+        # Track features fixed to each head: Codex's bolt and Claude's starburst. While the fighters breathe they rise and
+        # settle without drifting sideways; during the exchange they never move farther than a lunge; the wrap is a
+        # breath like any other.
+        bg, payload, spec = duel()
+        codex, claude = spec['sprites'][:2]
+        steps = fighters._duel()
+        tracks = {
+            'codex': [feature(codex, k, {board_anim.rgb565(c) for c in fighters.BOLT[2:]}, (0, 14)) for k in range(32)],
+            'claude': [feature(claude, k, {board_anim.rgb565(fighters.CREAM)}, (0, 18)) for k in range(32)]}
+        breathing = [k for k in range(32) if not (8 <= k < 8 + len(fighters.EXCHANGE))]
+        for name, track in tracks.items():
+            self.assertEqual(len({track[k][0] for k in breathing}), 1, name)         # no sideways drift
+            self.assertGreaterEqual(len({track[k][1] for k in breathing}), 2, name)  # but it does breathe
+            for k in range(32):
+                (x0, y0), (x1, y1) = track[k], track[(k + 1) % 32]
+                self.assertLessEqual(abs(x1 - x0), 7, (name, k))
+                self.assertLessEqual(abs(y1 - y0), 3, (name, k))
+                if k in breathing and (k + 1) % 32 in breathing:
+                    self.assertLessEqual(abs(y1 - y0) + abs(x1 - x0), 2, (name, k))    # every breath is a small move
+        for step in (steps[0], steps[-1]):                                                # it ends where it begins
+            self.assertTrue(step[0] in ('C0', 'C1') and step[1] in ('K0', 'K2'))
 
     @patch('time.time', return_value=NOW)
     def test_clouds_keep_drifting_in_one_direction_across_the_loop(self, _):
-        _,payload=render_arcade(versus_sample(),animated=True)
+        _, payload = render_arcade(versus_sample(),animated=True,anim_frames=8)
         cloud=board_anim.decode(payload)['sprites'][3]
-        self.assertEqual(cloud['x'],110)
+        self.assertEqual((cloud['x'],cloud['y']),(128,112))
         self.assertEqual(len(cloud['frames']),4)
         width,height=cloud['w'],cloud['h']
         for a,b in zip(cloud['frames'],cloud['frames'][1:]+cloud['frames'][:1]):
@@ -328,22 +409,35 @@ class VersusTests(unittest.TestCase):
             self.assertGreater(fine,100,(left,top,fine))
 
     def test_mascots_keep_distinct_nonhuman_silhouettes_including_ko(self):
-        codex = stage.fighter('codex').getchannel('A')
-        claude = stage.fighter('claude').getchannel('A')
+        programs, _, _ = fighters._programs()
+        codex, claude = (programs[name][0][0].getchannel('A') for name in ('codex', 'claude'))
 
         def sections(alpha, y):
             row = [alpha.getpixel((x, y)) > 0 for x in range(alpha.width)]
             return sum(v and (x == 0 or not row[x-1]) for x, v in enumerate(row))
 
-        # Above the shadows Codex is compact, while Claude has several
-        # separated tentacles, not another mirrored human fighter.
-        self.assertLessEqual(sections(codex, 80), 2)
-        self.assertGreaterEqual(sections(claude, 80), 4)
+        # Above the shadows Codex stands on two sturdy legs, while Claude has several separated tentacles, not
+        # another mirrored human fighter.
+        self.assertTrue(all(sections(codex, y) <= 2 for y in range(35, 43)))
+        self.assertTrue(all(sections(claude, y) >= 3 for y in range(35, 41)))
         self.assertNotEqual(codex.tobytes(), claude.tobytes())
-        codex_ko = stage.fallen('codex')
-        claude_ko = stage.fallen('claude')
+        codex_ko = fighters.fallen('codex')
+        claude_ko = fighters.fallen('claude')
         self.assertEqual(codex_ko.size, claude_ko.size)
         self.assertNotEqual(codex_ko.tobytes(), claude_ko.tobytes())
+
+    @patch('time.time', return_value=NOW)
+    def test_a_survivor_only_breathes_and_never_attacks_a_knockout(self, _):
+        for left, right in ((0, 73), (73, 0)):
+            with self.subTest(left=left, right=right):
+                bg, payload, spec = duel(left, right)
+                codex, claude, middle = spec['sprites'][:3]
+                alive, down = (claude, codex) if left == 0 else (codex, claude)
+                self.assertEqual((down['w'], down['h']), (1, 1))
+                self.assertEqual((middle['w'], middle['h']), (1, 1))     # no hands, whip or burst without an opponent
+                self.assertEqual(len(alive['frames']), 2)
+                self.assertEqual(len(alive['script']), 8)
+                self.assertTrue(all(dx == dy == 0 for _, dx, dy in alive['script']))
 
     @patch('time.time', return_value=NOW)
     def test_saved_reserves_do_not_derive_from_quota_or_cause_ko(self, _):
@@ -380,6 +474,25 @@ class VersusTests(unittest.TestCase):
         # The '+' is left of the dot; it must not cover the indicator or bars.
         self.assertTrue(any(image.getpixel((x, y)) == ImageColor.getrgb('#b9a8e0')
                             for y in range(52, 65) for x in range(190, 208)))
+
+
+class CodexFaceTests(unittest.TestCase):
+    def test_nothing_ever_crosses_the_terminal_that_is_codexs_face(self):
+        # Tony, 2026-11-03: "el de codex tiene el brazo derecho en medio de la cara".
+        from token_tv import board_arcade_fighters as fighters
+        ox, oy = fighters.CODEX_BOX[:2]
+        for name, pose in fighters.CODEX_POSES.items():
+            with self.subTest(pose=name):
+                x = int(ox + 21.5 + pose.get('lean', 0) - 11.5 + pose.get('shear', 0.0) * 0.3)
+                y = int(oy + 21.5 + pose.get('rise', 0) + pose.get('sag', 0) - 9)
+                alone = fighters.Grid(fighters.LW, fighters.LH)
+                fighters._screen(alone, x, y, pose.get('face', 'idle'))
+                box = (x, y, x + fighters.SCREEN_W, y + fighters.SCREEN_H)
+                drawn, screen = fighters._pose('codex', name).image(box).convert('RGBA'), alone.image(box).convert('RGBA')
+                for py in range(3, screen.height):            # the lightning's foot rests on the top of the bezel, by design
+                    for px in range(screen.width):
+                        if screen.getpixel((px, py))[3]:      # its two cut corners show the shell, as they always did
+                            self.assertEqual(drawn.getpixel((px, py)), screen.getpixel((px, py)), (px, py))
 
 
 if __name__ == '__main__': unittest.main()

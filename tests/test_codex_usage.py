@@ -3,6 +3,7 @@ import io
 import json
 import tempfile
 import threading
+import time
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
@@ -120,10 +121,19 @@ class CodexUsageTests(unittest.TestCase):
         self.assertEqual(row['windows'], [])
 
     def test_old_official_quota_disappears_instead_of_looking_like_46_percent(self):
-        row = local_row(account('/example'), record('/example', used=54), now=1200)
+        row = local_row(account('/example'), record('/example', used=54), now=1500)    # 500 s: past the 480 s limit
         self.assertEqual(row['status'], 'quota_unavailable')
         self.assertIsNone(remaining_reading(row)[0])
         self.assertEqual(row['error_code'], 'quota_refresh_overdue')
+
+    def test_an_aged_official_quota_stays_with_the_dot_between_180_and_480_seconds(self):
+        # Tony, 2026-11-03: the number stays up to 480 s; `reading_aged` is the only sign (the dot on the reset row).
+        for age, aged in ((100, False), (180, False), (181, True), (300, True), (480, True)):
+            row = local_row(account('/example'), record('/example', used=54), now=1000 + age)
+            self.assertEqual(remaining_reading(row)[0], 46, age)
+            self.assertEqual(row['status'], 'ok', age)
+            self.assertEqual(row.get('reading_aged', False), aged, age)
+        self.assertIsNone(remaining_reading(local_row(account('/example'), record('/example', used=54), now=1481))[0])
 
     def test_reader_stopping_expires_the_snapshot_even_without_a_refresh(self):
         a = account('/example')
@@ -131,10 +141,15 @@ class CodexUsageTests(unittest.TestCase):
         store = UsageStore([a], fetch=lambda _: row)
         with patch('token_tv.state.time.time', return_value=1000):
             store.refresh()
-        with patch('token_tv.state.time.time', return_value=1200):
+        with patch('token_tv.state.time.time', return_value=1300):   # aged, still shown
+            aged = store.snapshot()['accounts'][a['key']]
+        self.assertEqual(remaining_reading(aged)[0], 46)
+        self.assertTrue(aged['reading_aged'])
+        with patch('token_tv.state.time.time', return_value=1500):
             expired = store.snapshot()['accounts'][a['key']]
         self.assertIsNone(remaining_reading(expired)[0])
         self.assertEqual(expired['status'], 'quota_unavailable')
+        self.assertNotIn('reading_aged', expired)
 
     def test_reset_passing_expires_an_in_memory_reading(self):
         a = account('/example')
@@ -173,10 +188,10 @@ class CodexUsageTests(unittest.TestCase):
         store = UsageStore([a], fetch=lambda _: row)
         with patch('token_tv.state.time.time', return_value=1000):
             store.refresh()
-        for instant in (1000, 1060, 1180):
+        for instant in (1000, 1060, 1180, 1300, 1480):
             with patch('token_tv.state.time.time', return_value=instant):
                 self.assertEqual(remaining_reading(store.snapshot()['accounts'][a['key']])[0], 0)
-        with patch('token_tv.state.time.time', return_value=1181):
+        with patch('token_tv.state.time.time', return_value=1481):
             self.assertIsNone(remaining_reading(store.snapshot()['accounts'][a['key']])[0])
 
     def test_blocked_zero_requires_fresh_explicit_week_and_future_reset(self):
@@ -186,7 +201,7 @@ class CodexUsageTests(unittest.TestCase):
                 raw = record('/example', used=100)
                 raw['ordinary_usage_allowed'] = False
                 if change == 'stale': raw['stale'] = True
-                if change == 'old': raw['fetched_at'] = 800
+                if change == 'old': raw['fetched_at'] = 400    # 600 s old: past the 480 s limit
                 if change == 'reset_passed': raw['windows'][0]['resets_at'] = 1000
                 if change == 'reset_missing': raw['windows'][0]['resets_at'] = None
                 if change == 'permission_unknown': raw['ordinary_usage_allowed'] = None
@@ -254,11 +269,46 @@ class CodexUsageTests(unittest.TestCase):
             with patch('sys.argv', ['collector', '--config', str(path)]), \
                  patch.object(module, 'load_config', return_value=config), \
                  patch.object(module, 'CodexResetReader', return_value=reader) as create, \
-                 patch.object(module, 'notify_display', side_effect=notify), \
+                 patch.object(module, 'notify_display', side_effect=notify), patch.object(module, 'Alerts'), \
                  patch.object(module.threading, 'Event', Event), patch.object(module.signal, 'signal'):
                 module.main()
             self.assertEqual(create.call_count, 2)
         self.assertEqual([w[0]['used_percent'] if w else None for w in events], [0, None, 20])
+
+    def test_worker_publishes_why_a_reading_is_missing_in_fixed_words(self):
+        module = collector()
+        reader = MagicMock()
+        seen, alerts = [], MagicMock()
+        with tempfile.TemporaryDirectory() as directory:
+            a = account(Path(directory) / 'codex')
+            config = {'automatic_codex_resets': True, 'accounts': [a]}
+            path = Path(directory) / 'config.json'
+            status = Path(directory) / 'offline/codex-reader-status.json'
+            reader.read_snapshot.side_effect = [
+                {'available_resets': 0, 'quota': record(a['source_home'], 0, fetched=time.time())},
+                module.SourceError('subscription_login_required'), RuntimeError('PRIVATE ERROR user@example.com'),
+                {'available_resets': 0, 'quota': record(a['source_home'], 20, fetched=time.time())}]
+            class Event:
+                done = False
+                def is_set(self): return self.done
+                def set(self): self.done = True
+                def wait(self, seconds):
+                    seen.append(json.loads(status.read_text()))
+                    self.done = len(seen) == 4
+            with patch('sys.argv', ['collector', '--config', str(path)]), \
+                 patch.object(module, 'load_config', return_value=config), \
+                 patch.object(module, 'CodexResetReader', return_value=reader), \
+                 patch.object(module, 'notify_display', return_value=True), patch.object(module, 'Alerts', return_value=alerts), \
+                 patch.object(module.threading, 'Event', Event), patch.object(module.signal, 'signal'):
+                module.main()
+            self.assertEqual(status.stat().st_mode & 0o777, 0o600)
+        self.assertEqual([(s['state'], s['reason']) for s in seen],
+                        [('ok', None), ('failing', 'login_required'), ('failing', 'unknown'), ('ok', None)])
+        self.assertEqual(seen[1]['since'], seen[2]['since'])           # one outage, one start
+        self.assertNotIn('PRIVATE', json.dumps(seen))
+        self.assertNotIn('example.com', json.dumps(seen))
+        self.assertEqual([c.args[0] for c in alerts.observe.call_args_list], [True, False, False, True])
+        self.assertEqual([c.args[1] for c in alerts.observe.call_args_list], [None, 'login_required', 'unknown', None])
 
     def test_health_does_not_report_success_when_codex_quota_is_old(self):
         from http.server import ThreadingHTTPServer

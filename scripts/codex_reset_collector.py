@@ -2,16 +2,20 @@
 import argparse
 import signal
 import threading
+import time
 from pathlib import Path
 from urllib.request import Request
 
+from token_tv.alerts import Alerts
 from token_tv.codex_resets import CodexResetReader
 from token_tv.local_usage import atomic_json, origin_id
 from token_tv.http import open_direct
+from token_tv.reader_status import last_state, publish_status, reason_for
 from token_tv.reset_balances import ResetBalances
-from token_tv.sources import load_config
+from token_tv.sources import SourceError, load_config
 
 _PENDING = object()
+POLL_SECONDS = 60
 
 
 def notify_display():
@@ -58,9 +62,13 @@ def main():
     signal.signal(signal.SIGTERM, lambda *_: stopping.set())
     signal.signal(signal.SIGINT, lambda *_: stopping.set())
     reader = None
-    cache_path = path.parent / 'offline' / 'codex-official.json'
+    offline = path.parent / 'offline'
+    cache_path = offline / 'codex-official.json'
+    alerts = Alerts(path.parent / 'state' / 'alerts-codex.json', 'codex')
+    state, since = last_state(offline, 'codex')   # a quick restart keeps when the current state began
     try:
         while not stopping.is_set():
+            code = None
             try:
                 if not load_config(path).get('automatic_codex_resets'):
                     break
@@ -69,8 +77,11 @@ def main():
                 observation = reader.read_snapshot()
                 count = observation['available_resets']
                 quota = observation['quota']
-            except Exception:
-                # Error text or RPC payloads must not enter the journal.
+                if not any(w.get('label') == 'WEEK' for w in quota.get('windows', [])):
+                    code = 'no_weekly_reading'   # the client answered, but with no weekly quota
+            except Exception as error:
+                # Error text or RPC payloads must not enter the journal; only a fixed code reaches the status file.
+                code = error.code if isinstance(error, SourceError) else type(error).__name__
                 count = None
                 quota = {'fetched_at': 0, 'windows': [], 'origin': origin_id(accounts[0]['source_home'], email),
                          'source': 'codex_official_cli', 'stale': True}
@@ -80,8 +91,14 @@ def main():
                 print('Codex quota/reset reading unavailable; retrying automatically.', flush=True)
             if stopping.is_set():
                 break
+            now = time.time()
+            if ('failing' if code else 'ok') != state:
+                state, since = 'failing' if code else 'ok', int(now)
+            why = reason_for(code) if code else None
+            publish_status(offline, 'codex', state, why, since, None, now + POLL_SECONDS, now)   # first: publish_reading notifies the monitor
             publish_reading(balances, count, quota, cache_path)
-            stopping.wait(60)
+            alerts.observe(code is None, why, now)
+            stopping.wait(POLL_SECONDS)
     finally:
         if reader is not None:
             reader.close()

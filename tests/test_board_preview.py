@@ -44,6 +44,14 @@ class AnimatedPreviewTests(unittest.TestCase):
         preview.seek(preview.n_frames // 3)
         self.assertIsNotNone(ImageChops.difference(first, preview.convert('RGB')).getbbox())
 
+    def test_surf_with_gulls_previews_the_whole_loop(self):
+        from token_tv.board_preview import _sequence
+        from token_tv.board_surf import render_surf
+        background, payload = render_surf({'accounts': {}}, animated=True, extended_anim=True)
+        sequence, duration = _sequence(rgb565_frame(background, anim=payload))
+        self.assertEqual(duration, 300)
+        self.assertEqual(sum(1 for _ in sequence), 64)
+
     def test_beach_water_is_animated(self):
         background = Image.new('RGB', (320, 240), '#407080')
         palette = tuple(board_anim.rgb565((i, i, 255)) for i in range(256))
@@ -69,22 +77,6 @@ class AnimatedPreviewTests(unittest.TestCase):
         for i, call in enumerate(draw.call_args_list):
             self.assertEqual(call.args[2], i * 2 % 64)
             self.assertEqual(call.kwargs['boat_step'], i)
-
-    def test_smooth_beach_preview_preserves_the_six_point_four_second_loop(self):
-        from token_tv.board_preview import _sequence
-        background = Image.new('RGB', (320, 240), '#407080')
-        palette = tuple(board_anim.rgb565((i, i, 255)) for i in range(256))
-        stride = board_beach.WIDTH * board_beach.HEIGHT
-        old = bytes(stride * board_beach.FRAMES)
-        smooth = b''.join(bytes([min(i, 48 - i)]) * stride for i in range(48))
-        payload = board_beach.encode((None, palette, old, None, (palette, smooth)), version=4)
-        with patch.object(board_beach, 'render_words', return_value=[0] * (320 * 240)) as draw:
-            sequence, duration = _sequence(rgb565_frame(background, waves=payload))
-            self.assertEqual(sum(1 for _ in sequence), 64)
-        self.assertEqual(duration, 100)
-        for i, call in enumerate(draw.call_args_list):
-            self.assertEqual(call.args[2], i * 6)
-        self.assertEqual(draw.call_args_list[32].args[2], 24 * 8)
 
     def test_missing_webp_support_falls_back_to_a_still_without_board_access(self):
         control = BoardControl(None)

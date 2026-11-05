@@ -1,6 +1,6 @@
 {
-  "name": "TokenTV board 7 (ST7789)",
-  "version": "7",
+  "name": "AI Desk Display 44 (ST7789)",
+  "version": "44",
   "new_install_prompt_erase": false,
   "builds": [
     {

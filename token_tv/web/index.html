@@ -8,6 +8,7 @@
 <link rel="icon" href="data:,">
 <link rel="stylesheet" href="/assets/style.css">
 <script src="/assets/i18n.js" defer></script>
+<script src="/assets/history.js" defer></script>
 <script src="/assets/app.js" defer></script>
 </head>
 <body>
@@ -34,12 +35,6 @@
           <h1 id="page-title">AI USAGE DASHBOARD</h1>
           <p class="intro-note" id="intro-note" hidden></p>
         </div>
-        <dl class="summary">
-          <div class="summary-accounts"><dt>Accounts</dt><dd id="account-count">—</dd></div>
-          <div class="summary-reporting"><dt>Reporting</dt><dd id="reporting-count">—</dd></div>
-          <div class="summary-providers"><dt>Providers</dt><dd id="provider-count">—</dd></div>
-          <div class="summary-clock"><dt>Today</dt><dd id="local-time"><span class="zone" id="clock-zone">Local</span><span class="date-iso"></span><span class="date-long"></span><span class="time"></span></dd></div>
-        </dl>
       </header>
       <div id="notice" class="notice" role="status" hidden></div>
       <section id="dashboard-scene" class="dashboard-scene" aria-labelledby="scene-title" hidden>
@@ -54,15 +49,6 @@
         <p class="scene-caption">Live local readings · This page only</p>
       </section>
       <section class="provider-list" id="providers" aria-label="Provider usage"><p class="loading">Loading your accounts…</p></section>
-      <footer class="screen-foot">
-        <div class="footer-meta">
-          <span id="foot-reporting">— reporting</span>
-          <span id="updated">Waiting for data</span>
-          <span>Automatic updates · local background service</span>
-          <span class="signal" id="signal" data-strength="0" aria-hidden="true"><i></i><i></i><i></i></span>
-        </div>
-        <div class="legend" aria-label="Used quota levels"><span class="section-label">Used quota</span><span><i data-level="low"></i>0–49%</span><span><i data-level="medium"></i>50–79%</span><span><i data-level="high"></i>80–89%</span><span><i data-level="critical"></i>90–100%</span></div>
-      </footer>
     </main>
     <aside id="clock-panel" class="clock-panel" aria-label="Saved resets" hidden>
       <div class="aside-head"><div><p class="eyebrow">USAGE SETTINGS</p><h2>Saved resets</h2></div><button class="control icon-control" id="close-clock" type="button" aria-label="Close saved resets panel">×</button></div>
@@ -84,7 +70,7 @@
     <div id="themes" class="themes" role="group" aria-label="Dashboard theme"></div>
     <p class="quiet">To change the screens on your device, open <a href="/board">Desk display</a>.</p>
   </nav>
-  <details class="help"><summary>How to read the dashboard</summary><p>Each appearance shows <strong>weekly quota remaining</strong> and the time until the weekly reset. Expand a card to see other limits, such as the current session. When Codex's weekly allowance is exhausted, its card shows extra credits if the official reading provides them; the empty bar still represents weekly quota. Official readings disappear when a refresh fails, they become more than three minutes old, or their reset time passes. Unknown readings appear as — or ?.</p><p>Hearts count saved resets, which are separate from extra credits and are never calculated from the quota bar. When automatic checks are enabled, balances come from the official account readers. Otherwise, confirm them manually in the official Usage settings. An unknown balance appears as ?.</p></details>
+  <details class="help"><summary>How to read the dashboard</summary><p>Each card shows <strong>weekly quota remaining</strong> and the time until the weekly reset. Claude's current 5-hour window, which is what stops work first, sits right under it. When Codex's weekly allowance is exhausted, its card shows extra credits if the official reading provides them; the empty bar still represents weekly quota. Official readings disappear when a refresh fails, when they are more than eight minutes old, or when their reset time passes. Between three and eight minutes the number stays, marked with a small dot. Unknown readings appear as —.</p><p>Hearts count saved resets, which are separate from extra credits and are never calculated from the quota bar. When automatic checks are enabled, balances come from the official account readers. Otherwise, confirm them manually in the official Usage settings. An unknown balance appears as three faint hearts and a small dot. The chart, when there is one, is only the recent pace carried forward: it changes as your use does, and it stays blank when there is too little history or the usage is flat.</p></details>
 </div>
 <dialog id="screen-library" class="screen-library" aria-labelledby="library-title">
   <div class="library-top">

@@ -40,6 +40,19 @@
           <div class="segments" role="group" aria-label="Animation speed"><button type="button" data-speed="75" aria-pressed="false">Slower <small>75%</small></button><button type="button" data-speed="100" aria-pressed="false">Normal <small>100%</small></button><button type="button" data-speed="125" aria-pressed="false">Faster <small>125%</small></button></div>
           <p class="hint">Changes motion speed, not frame rate.</p>
         </fieldset>
+        <fieldset id="night-controls" hidden disabled>
+          <legend>Night mode</legend>
+          <p class="control-description">Dim the display at night, following this computer's clock.</p>
+          <div class="segments two" role="group" aria-label="Night mode"><button type="button" data-night="on" aria-pressed="false">On</button><button type="button" data-night="off" aria-pressed="false">Off</button></div>
+          <div class="night-fields">
+            <label for="night-start"><span>From</span><input id="night-start" name="night-start" type="time" autocomplete="off"></label>
+            <label for="night-end"><span>To</span><input id="night-end" name="night-end" type="time" autocomplete="off"></label>
+            <label for="night-level"><span>Brightness</span><select id="night-level" name="night-level" autocomplete="off"><option value="10">10%</option><option value="15">15%</option><option value="20">20%</option><option value="25">25%</option><option value="30">30%</option><option value="40">40%</option><option value="50">50%</option><option value="60">60%</option><option value="75">75%</option></select></label>
+          </div>
+          <p class="hint" id="night-state" aria-live="polite">Waiting for your display…</p>
+          <p class="hint" id="night-wait" hidden>Waiting for the display to follow.</p>
+          <p class="hint">After 10 minutes without this computer the display also dims by itself; a touch wakes it for a minute.</p>
+        </fieldset>
         <p id="setting-note" class="setting-note" role="status">Connecting to your display…</p>
       </div>
     </section>
@@ -78,7 +91,7 @@
     </dialog>
 
     <section class="touch-section" id="touch-settings" aria-labelledby="touch-title">
-      <div class="touch-intro"><p class="eyebrow">ON THE DISPLAY</p><h2 id="touch-title">Touch controls</h2><p>A short tap changes the screen. Hold and release for the shortcuts below.</p></div>
+      <div class="touch-intro"><p class="eyebrow">ON THE DISPLAY</p><h2 id="touch-title">Touch controls</h2><p>A short tap changes the screen. Hold and release for the shortcuts below.</p><ul class="touch-legend" id="touch-legend" aria-label="What each hold does" hidden></ul></div>
       <form id="touch-form" class="touch-form">
         <fieldset id="touch-controls" disabled>
           <label for="mode-hold"><span>Change auto-rotate mode</span><select id="mode-hold" name="mode"><option value="1">1 second</option><option value="2">2 seconds</option><option value="3">3 seconds</option><option value="4">4 seconds</option></select></label>

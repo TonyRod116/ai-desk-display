@@ -9,6 +9,7 @@ ASSETS = {
     '/assets/board.css': (WEB / 'board.css', 'text/css; charset=utf-8'),
     '/assets/board.js': (WEB / 'board.js', 'text/javascript; charset=utf-8'),
     '/assets/i18n.js': (WEB / 'i18n.js', 'text/javascript; charset=utf-8'),
+    '/assets/history.js': (WEB / 'history.js', 'text/javascript; charset=utf-8'),
     '/assets/style.css': (WEB / 'style.css', 'text/css; charset=utf-8'),
     '/assets/app.js': (WEB / 'app.js', 'text/javascript; charset=utf-8'),
     '/assets/tokens.css': (WEB / 'tokens.css', 'text/css; charset=utf-8'),

@@ -8,7 +8,11 @@ from pathlib import Path
 from token_tv.local_usage import atomic_json, origin_id, read_record
 from token_tv.usage import timestamp
 
-LAST_KNOWN_SECONDS = 72 * 3600  # how long a stale count is still worth showing, marked OLD
+LAST_KNOWN_SECONDS = 72 * 3600  # how long a stale count is still worth showing, marked by the discreet dot
+# An automatic count is current for 180 s (Tony's tiers of 2026-11-03). A late observation is accepted up to MAX_AGE_SECONDS, the
+# limit a quota reading can still be shown under. token_tv/web/app.js keeps the same numbers.
+FRESH_SECONDS = 180
+MAX_AGE_SECONDS = 480
 
 
 class ResetBalances:
@@ -50,28 +54,45 @@ class ResetBalances:
                     or 'valid_until' in entry and until is None):
                 result[provider] = empty
                 continue
-            if source in ('codex_cli', 'claude_web') and (time.time() - stamp > 180 or until is not None and until <= time.time()):
+            if source == 'claude_web' and count == 0 and entry.get('not_eligible') is True:
+                # Claude said this account has no saved resets (Tony, 2026-11-03). An answer, not a reading that ages:
+                # three faint icons and no dot, until a real inventory says otherwise.
+                result[provider] = {'available': 0, 'confirmed_at': stamp, 'source': 'claude_not_eligible'}
+                continue
+            age = time.time() - stamp
+            if source in ('codex_cli', 'claude_web') and (age > FRESH_SECONDS or until is not None and until <= time.time()):
                 result[provider] = {'available': None, 'confirmed_at': stamp, 'source': 'stale'}
-                # Nothing fresh, but the last confirmed count is a far better answer than "?" while it can
-                # still be true: no counted grant has expired and it is recent. Screens mark it OLD; every
+                # Nothing fresh, but the last confirmed count is a far better answer than "unknown" while it can
+                # still be true: no counted grant has expired and it is recent. Screens mark it with the dot; every
                 # consumer that reads `available` still sees "unknown".
-                if (until is None or until > time.time()) and time.time() - stamp <= LAST_KNOWN_SECONDS:
+                if age <= LAST_KNOWN_SECONDS and (until is None or until > time.time()):
                     result[provider]['last_known'] = count
+                    if until is not None:
+                        result[provider]['valid_until'] = until
                 continue
             result[provider] = {'available': count, 'confirmed_at': stamp, 'source': source}
             if source == 'claude_web':
                 result[provider]['valid_until'] = until
         return result
 
+    def not_eligible(self, provider, organization_hash):
+        """Whether the stored answer is Claude's "this account has no saved resets", for this account and organization."""
+        data = read_record(self.path) or {}
+        entries = data.get('balances') if isinstance(data.get('balances'), dict) else {}
+        entry = entries.get(provider)
+        return (isinstance(entry, dict) and entry.get('not_eligible') is True and entry.get('origin') == self.origins.get(provider)
+                and entry.get('organization_hash') == organization_hash)
+
     def set_count(self, provider, count, source='user_confirmed', observed_at=None, valid_until=None,
-                  organization_hash=None):
+                  organization_hash=None, not_eligible=False):
         if provider not in self.origins or not self.origins[provider]:
             raise ValueError('Choose a configured provider with one account')
         if count is not None and (type(count) is not int or not 0 <= count <= 999):
             raise ValueError('Saved resets must be a whole number from 0 to 999, or unknown')
         if source not in ('user_confirmed', 'codex_cli', 'claude_web') or source in ('codex_cli', 'claude_web') and source != {'codex': 'codex_cli', 'claude': 'claude_web'}[provider]:
             raise ValueError('Unsupported confirmation source')
-        if observed_at is not None and (timestamp(observed_at) is None or not 0 <= time.time()-observed_at <= 180):
+        # An observation is recorded while it can still be shown (flagged old past FRESH_SECONDS); older is dropped.
+        if observed_at is not None and (timestamp(observed_at) is None or not 0 <= time.time()-observed_at <= MAX_AGE_SECONDS):
             raise ValueError('Invalid observation date')
         if valid_until is not None and timestamp(valid_until) is None:
             raise ValueError('Invalid inventory expiry')
@@ -89,6 +110,8 @@ class ResetBalances:
                                   'origin': self.origins[provider], 'source': source}
             if source == 'claude_web' and valid_until is not None:
                 balances[provider]['valid_until'] = valid_until
+            if source == 'claude_web' and not_eligible and count == 0:
+                balances[provider]['not_eligible'] = True
             if source == 'claude_web':
                 balances[provider]['organization_hash'] = organization_hash
             atomic_json(self.path, {'schema': 1, 'balances': balances})
@@ -96,6 +119,7 @@ class ResetBalances:
 
 def attach_balances(snapshot, balances):
     for row in snapshot['accounts'].values():
-        row['banked_resets'] = dict(balances.get(row['provider'],
-                                               {'available': None, 'confirmed_at': None, 'source': 'unknown'}))
+        # The browser reader's own state (`reader`) belongs to the display's saved_resets, not to a row's balance.
+        row['banked_resets'] = {key: value for key, value in balances.get(
+            row['provider'], {'available': None, 'confirmed_at': None, 'source': 'unknown'}).items() if key != 'reader'}
     return snapshot

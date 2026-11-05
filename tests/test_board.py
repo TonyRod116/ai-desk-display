@@ -150,6 +150,15 @@ class BoardTests(unittest.TestCase):
             board.ensure_paired()
             self.assertEqual(board.anim_frames, expected)
 
+    def test_extended_animation_requires_an_explicit_board_capability(self):
+        board = BoardDisplay(self.serve(), TOKEN)
+        for reported, expected in ((None, False), (True, False), ('1', False), (2, False), (1, True)):
+            FakeBoard.diagnostics = {'anim': 1}
+            if reported is not None:
+                FakeBoard.diagnostics['anim_extended'] = reported
+            board.ensure_paired()
+            self.assertEqual(board.extended_anim, expected)
+
     def test_slow_page_transfers_finish_without_relaxing_control_requests(self):
         board = BoardDisplay(self.serve(), TOKEN)
         direct = board_module.open_direct
@@ -478,8 +487,8 @@ class BoardTests(unittest.TestCase):
         with patch('token_tv.state.time.time', return_value=now):
             return store.snapshot()
 
-    def test_the_arcade_page_draws_the_session_only_under_claudes_bar_and_keeps_each_side_apart(self):
-        from token_tv.board_arcade import render_arcade
+    def test_the_arcade_page_draws_the_session_only_in_claudes_strip_and_keeps_each_side_apart(self):
+        from token_tv.board_arcade import render_arcade, meter_left, METER_WIDTH, METER_Y
         with patch('time.time', return_value=1000), patch('token_tv.state.time.time', return_value=1000):
             base = render_arcade(self.arcade_snapshot())
             without = render_arcade(self.arcade_snapshot(session=False))
@@ -491,7 +500,9 @@ class BoardTests(unittest.TestCase):
             return [(x, y) for y in range(240) for x in range(320) if a.getpixel((x, y)) != b.getpixel((x, y))]
         meter = changed(base, without)
         self.assertGreater(len(meter), 40)                                   # the two lines of five parts are drawn,
-        self.assertTrue(all(178 <= x < 221 and 35 <= y < 42 for x, y in meter), 'the session left its place')
+        # Tony, 2026-11-03: the two rows moved from under the life bar to the dark strip, right before Claude's percentage
+        lowest, highest = meter_left('100%'), meter_left('--') + METER_WIDTH
+        self.assertTrue(all(lowest <= x < highest and METER_Y <= y < METER_Y + 7 for x, y in meter), 'the session left its place')
         self.assertTrue(all(x >= 174 for x, _ in changed(base, claude_other)))   # Claude's numbers stay on its side
         self.assertTrue(all(x < 146 for x, _ in changed(base, codex_other)))     # and Codex's on its own
 
@@ -612,13 +623,13 @@ class BoardTests(unittest.TestCase):
         import inspect
         import re
         from PIL import ImageColor
-        from token_tv import board_arcade, board_arcade_stage
+        from token_tv import board_arcade, board_arcade_fighters, board_arcade_stage
         from token_tv.board_arcade import render_arcade
         with patch('time.time', return_value=1000), patch('token_tv.state.time.time', return_value=1000):
             image = render_arcade(self.arcade_snapshot())
         # Every pixel must be an explicitly authored flat colour, not a blended
         # edge. Richer architecture may add colours without adding antialiasing.
-        palette={ImageColor.getrgb(c) for module in (board_arcade,board_arcade_stage)
+        palette={ImageColor.getrgb(c) for module in (board_arcade,board_arcade_fighters,board_arcade_stage)
                  for c in re.findall(r'#[0-9a-fA-F]{6}',inspect.getsource(module))}
         palette.update(ImageColor.getrgb(c) for c in (board_arcade.CODEX,board_arcade.CLAUDE))
         self.assertTrue({c for _,c in image.getcolors(maxcolors=100000)} <= palette)

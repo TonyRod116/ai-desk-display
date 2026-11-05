@@ -165,8 +165,8 @@ def _scenery():
     return im.resize(SIZE,Image.Resampling.NEAREST)
 
 
-def _mario_pose(step, reverse=False):
-    """Original red-capped plumber, with whole-body running and jumping poses."""
+def _runner_pose(step, reverse=False):
+    """Original red-capped runner, with whole-body running and jumping poses."""
     im=Image.new('RGBA',(20,25))
     d=ImageDraw.Draw(im)
     dark='#492f29'; red='#ef3431'; hi='#ff7860'; skin='#ffca87'
@@ -256,7 +256,7 @@ def _rider_pose(step, jumping=False):
     im.alpha_composite(_dino_pose(step, jumping=jumping), (6,14))
     # Redraw the mounted legs bent over the saddle rather than recycling the
     # standing character's wide walking stride.
-    upper=_mario_pose(3 if jumping else (0,1,2,1)[step]).crop((0,0,20,19))
+    upper=_runner_pose(3 if jumping else (0,1,2,1)[step]).crop((0,0,20,19))
     im.alpha_composite(upper,(1,0))
     d=ImageDraw.Draw(im)
     d.polygon(((8,17),(13,18),(17,20),(17,22),(12,22),(9,21),(7,19)),fill='#203773')
@@ -289,10 +289,10 @@ def _cloud_pose(step):
 
 def _sprites(frame_limit=8):
     # Each sprite owns a disjoint restoration rectangle; the firmware restores
-    # it before each pose.  The Mario walk turns smoothly instead of teleporting.
+    # it before each pose.  The runner's walk turns smoothly instead of teleporting.
     full = frame_limit >= 8
     poses = 4 if full else 2
-    mario=[_mario_pose(i) for i in range(poses)]+[_mario_pose(i,True) for i in range(poses)]
+    runner=[_runner_pose(i) for i in range(poses)]+[_runner_pose(i,True) for i in range(poses)]
     positions=list(range(0,49,3))+list(range(45,0,-3))
     jumps=(0,0,0,0,-3,-7,-12,-16,-18,-16,-12,-7,-3,0,0,0,
            0,0,0,0,-3,-7,-12,-16,-18,-16,-12,-7,-3,0,0,0)
@@ -305,7 +305,7 @@ def _sprites(frame_limit=8):
     dino_frames=[_dino_pose(i) for i in range(dino_poses)]
     dino_frames += [im.transpose(Image.Transpose.FLIP_LEFT_RIGHT) for im in dino_frames]
     return [
-        {'x':30,'y':150,'frames':mario,'script':script,'step_ms':200},
+        {'x':30,'y':150,'frames':runner,'script':script,'step_ms':200},
         {'x':204,'y':156,'frames':dino_frames,
          'script':[(i%dino_poses+(dino_poses if i>=9 else 0),dx,0)
                    for i,dx in enumerate((0,1,2,3,4,5,6,7,8,7,6,5,4,3,2,1))],'step_ms':200},
@@ -405,6 +405,8 @@ def render_platform(snapshot,animated=False,anim_frames=8,scroll=False):
             outline=Image.new('RGBA',hud.size,'#102536')
             outline.putalpha(hud.getchannel('A').filter(ImageFilter.MaxFilter(3)))
             outline.alpha_composite(hud)
+            from token_tv.board_low_quota import apply_one
+            apply_one(outline,'cockpit',snapshot)         # the page is redrawn whole on every tick: the line belongs to the overlay
             payload=board_scroll.encode_fullscreen(outline)
             return board_scroll.first_image(version,payload),payload
         image=board_scroll.first_image(version)

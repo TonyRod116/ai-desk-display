@@ -9,6 +9,7 @@ from token_tv.board_pages import PAGE_NAMES, PAGE_SIZE
 
 SCENES = {
     # New additions first; earlier versions stay together at the end.
+    'zelda': 'Hyrule Quest',
     'violet-horizon': 'Violet Horizon',
     'neon-district': 'Neon District',
     'game-boy': 'Game Boy',
@@ -36,13 +37,17 @@ SCENES = {
     'pixel-retro': 'Pixel Retro',
 }
 ARCHIVED_SCENES = tuple(name for name in SCENES if name not in PAGE_NAMES)
-NEW_SCENES = ('violet-horizon', 'neon-district')
+PRIVATE_CITIES = ('violet-horizon', 'neon-district')
+NEW_SCENES = ('zelda', *PRIVATE_CITIES)
 
 
 def image_version(scene):
-    """Detect a changed or removed optional local image without reading its contents."""
+    """Detect a changed, removed or invalid optional local image."""
     if scene not in NEW_SCENES:
         return None
+    if scene == 'zelda':
+        from token_tv.board_zelda import art_version
+        return art_version()
     from token_tv.board_cyber_scenes import ART, FILES
     try:
         path = ART / FILES[scene]
@@ -53,8 +58,8 @@ def image_version(scene):
 
 
 def available(scene):
-    """Personal photographs stay local; offer their screens only where they exist."""
-    return scene not in NEW_SCENES or image_version(scene) is not None
+    """Offer screens with private artwork only where the local artwork exists."""
+    return scene == 'zelda' or scene not in NEW_SCENES or image_version(scene) is not None
 
 
 class BoardScenes:
@@ -155,25 +160,37 @@ class BoardScenes:
             self.delivered[slot] = scene
 
 
-def render_archive(scene, snapshot, animated=False):
+def render_archive(scene, snapshot, animated=False, extended_anim=False, anim_frames=8):
     """Render only an explicitly retained, allowlisted version."""
-    if scene in NEW_SCENES:
+    from token_tv.board_credits import apply_credit_badges
+    from token_tv.board_low_quota import apply_one
+    credits = True          # the versions that draw their own balance (the clock faces, Deep Space, the new cities) say so below
+    if scene == 'zelda':
+        from token_tv.board_zelda import render_quest
+        result = render_quest(snapshot, animated=animated, anim_frames=anim_frames)
+        image, payload = result if animated else (result, None)
+        credits = False
+    elif scene in PRIVATE_CITIES:
         from token_tv.board_cyber_scenes import render_city
-        result = render_city(scene, snapshot, animated=animated)
-        return result if animated else (result, None)
-    if scene == 'deep-space':
+        result = render_city(scene, snapshot, animated=animated, extended_anim=extended_anim)
+        image, payload = result if animated else (result, None)
+        credits = False
+    elif scene == 'deep-space':
         from token_tv.board_space import render_cockpit
         result = render_cockpit(snapshot, animated=animated)
-        return result if animated else (result, None)
-    if scene == 'game-boy-pocket':
+        image, payload = result if animated else (result, None)
+        credits = False
+    elif scene == 'game-boy-pocket':
         from token_tv.board_pages import LCD_GRID
         from token_tv.personal_faces import render_pocket
-        return render_pocket(snapshot, screen=PAGE_SIZE, grid=LCD_GRID[scene], show_credits=True), None
-    if scene in ('pixel-retro', 'amber-terminal', 'orbit'):
+        image, payload = render_pocket(snapshot, screen=PAGE_SIZE, grid=LCD_GRID[scene], show_credits=True), None
+        credits = False
+    elif scene in ('pixel-retro', 'amber-terminal', 'orbit'):
         from token_tv.personal_faces import RENDERERS
         from token_tv.themes import render_retro
         renderer = render_retro if scene == 'pixel-retro' else RENDERERS[scene]
-        return renderer(snapshot, screen=PAGE_SIZE, show_credits=True), None
+        image, payload = renderer(snapshot, screen=PAGE_SIZE, show_credits=True), None
+        credits = False
     else:
         # Explicitly named historical renderers, never arbitrary module paths.
         from token_tv.board_code_workshop import render_forge as workshop
@@ -194,6 +211,7 @@ def render_archive(scene, snapshot, animated=False):
             raise ValueError('Unknown archived screen')
         result = renderers[scene](snapshot, animated=animated)
         image, payload = result if animated else (result, None)
-    from token_tv.board_credits import apply_credit_badges
-    apply_credit_badges([image], [scene], snapshot)
+    if credits:
+        apply_credit_badges([image], [scene], snapshot)
+    apply_one(image, scene, snapshot)         # the low-quota line, the last thing drawn (board_low_quota)
     return image, payload

@@ -5,7 +5,8 @@ import random
 
 from PIL import Image, ImageChops, ImageColor, ImageDraw, ImageFilter, ImageFont
 
-from token_tv import board_anim, board_reset_icons as icons
+from token_tv import board_anim, board_reset_icons as icons, board_surf_rider as rider, board_surf_wave as wave
+from token_tv.board_surf_wave import ORIGIN, flow_overlay, wave_layer
 from token_tv.board_art import _row
 from token_tv.personal_faces import remaining_reading, banked_hearts, session_pace
 from pathlib import Path
@@ -14,7 +15,6 @@ INK = '#102747'
 CREAM = '#fff1c7'
 YELLOW = '#ffd55e'
 STONE = '#e9d9b9'
-BOX = (72, 130, 312, 210)
 STEP_MS = 150
 
 
@@ -25,13 +25,6 @@ def font(size):
 
 def text(d, xy, value, color, size=8):
     d.text(xy, value, font=font(size), fill=color, stroke_width=0)
-
-
-def curve(points, steps=40):
-    """Cubic Bezier sampled on the logical console grid."""
-    return [(round((1-t)**3*points[0][0]+3*(1-t)**2*t*points[1][0]+3*(1-t)*t*t*points[2][0]+t**3*points[3][0]),
-             round((1-t)**3*points[0][1]+3*(1-t)**2*t*points[1][1]+3*(1-t)*t*t*points[2][1]+t**3*points[3][1]))
-            for t in (i/steps for i in range(steps+1))]
 
 
 def _mix(a, b, t):
@@ -63,7 +56,7 @@ def _glow(im, centre, radius, colour, strength):
     px = im.load()
     cx, cy = centre
     target = ImageColor.getrgb(colour)
-    for y in range(max(48, cy - radius), min(120, cy + radius + 1)):
+    for y in range(max(0, cy - radius), min(120, cy + radius + 1)):
         for x in range(max(0, cx - radius), min(160, cx + radius + 1)):
             if (x - cx) ** 2 + (y - cy) ** 2 <= radius * radius:
                 px[x, y] = tuple(round(c + (t - c) * strength) for c, t in zip(px[x, y], target))
@@ -83,6 +76,9 @@ def _cloud(d, cx, cy, w, body, rim, under):
 
 SKY = [(48, '#2a2760'), (52, '#42347a'), (56, '#6a3d8d'), (60, '#9d4a92'), (64, '#cf5f90'),
        (67, '#ee7f89'), (70, '#ffa285'), (73, '#ffc795'), (75, '#ffe3b0')]
+# Tony, 2026-11-03: the weekly panels shrank from about 94 px to about 58 and "the wave and sky gain the space". The sky now runs
+# to the top of the page, deepening into the night above the old top band (the panels cover most of it; no title any more).
+SKY_HIGH = [(0, '#080a26'), (18, '#0c0e32'), (27, '#121340'), (34, '#1a1a4e'), (41, '#222158')]
 SEA = [(76, '#ffd49b'), (77, '#7fbdc0'), (80, '#52a6b3'), (85, '#318ba6'), (91, '#217198'),
        (98, '#185a84'), (106, '#124a73'), (114, '#0f3e66')]
 HORIZON = 76
@@ -94,6 +90,7 @@ def _coast():
     """Sky, sun, far islands, sea and the glitter path. The animated wave and the shore are painted over it."""
     im = Image.new('RGB', (160, 120), INK)
     d = ImageDraw.Draw(im)
+    _bands(d, SKY_HIGH, 0, 52, 1.0, seed=5)          # its last band runs under the old top band, whose wavy edge shows it
     _bands(d, SKY, 48, HORIZON - 1, 1.1, seed=3)
     _bands(d, SEA, HORIZON, 119, 0.9, seed=9)
     # Sun: a pale halo, a disc shaded in rings, cut by two retro stripes and sunk into the horizon.
@@ -109,7 +106,10 @@ def _coast():
     for y in range(HORIZON + 1, HORIZON + 4):                    # the sun's wet reflection right under the horizon
         d.line((cx - 12 + (y - HORIZON), y, cx + 12 - (y - HORIZON), y), fill='#ffd8a0' if y % 2 else '#f9b88c')
     for x, y, colour in ((4, 49, '#8f86d6'), (13, 52, '#b8b0f0'), (27, 50, '#8f86d6'), (41, 53, '#cfc8ff'),
-                         (52, 49, '#8f86d6'), (150, 50, '#b8b0f0'), (156, 54, '#8f86d6'), (141, 52, '#8f86d6')):
+                         (52, 49, '#8f86d6'), (150, 50, '#b8b0f0'), (156, 54, '#8f86d6'), (141, 52, '#8f86d6'),
+                         # the new sky under the panels: a few more, fewer and fainter towards the dark top
+                         (9, 34, '#6f68b4'), (31, 41, '#8f86d6'), (66, 36, '#8f86d6'), (88, 44, '#b8b0f0'), (104, 38, '#6f68b4'),
+                         (123, 46, '#8f86d6'), (137, 40, '#cfc8ff'), (152, 33, '#6f68b4'), (47, 31, '#6f68b4'), (79, 32, '#8f86d6')):
         d.point((x, y), fill=colour)
     # Clouds lit from below by the low sun, kept clear of the title.
     _cloud(d, 134, 61, 34, '#a14c93', '#c9709a', '#ff9d86')
@@ -274,343 +274,103 @@ def _shore(im):
     _palm(d, (10, 104), (7, 66), -2, ('#173f48', '#2c7860', '#a8d870'), ('#5a3526', '#7b4d36', '#c18a5c', '#3b2420'), 1.0, 2)
 
 
-def _band_curve(layer_draw, curve_pts, ramp):
-    """Paint offset copies of a curve (shifted down) as flat colour bands: a gradient that follows the shape."""
-    for first, last, colour in ramp:
-        for k in range(first, last):
-            layer_draw.line([(x, y + k) for x, y in curve_pts], fill=colour, width=2)
+@lru_cache(maxsize=1)
+def _scenery():
+    """Sky, sun, far islands, sea, shore and palms on the 160 x 120 logical canvas: everything that never moves and is not the wave."""
+    im = _coast().copy()
+    _shore(im)
+    return im.convert('RGBA')
 
 
-def _inside(mask, point):
-    x, y = point
-    return 0 <= x < mask.width and 0 <= y < mask.height and bool(mask.getpixel((x, y)))
+@lru_cache(maxsize=1)
+def _shore_foreground():
+    """Keep the beach and palms in front of the wave's distant shoulder."""
+    foreground = Image.new('RGBA', (160, 120))
+    _shore(foreground)
+    return foreground
 
 
-def _erode(mask, steps):
-    for _ in range(steps):
-        mask = mask.filter(ImageFilter.MinFilter(3))
-    return mask
-
-
-def _wave_layer():
-    """The breaking wave as a 124x54 RGBA layer, painted once and shared by every pose (continuous water)."""
-    W, H = 124, 54
-    im = Image.new('RGBA', (W, H), (0, 0, 0, 0))
-    d = ImageDraw.Draw(im)
-    outer = curve([(0, 38), (23, 21), (61, -9), (99, 2)], 90)
-    # The unbroken swell continues beyond the right edge, feeding the curl;
-    # it must not drop like a detached wall immediately behind the lip.
-    shoulder = curve([(99, 2), (120, 3), (130, 28), (140, 44)], 50)
-    bottom = curve([(126, 44), (97, 49), (64, 44), (24, 48)], 60)
-    body_pts = outer + shoulder + bottom + [(0, 38)]
-    body = Image.new('L', (W, H), 0)
-    ImageDraw.Draw(body).polygon(body_pts, fill=255)
-    d.polygon(body_pts, fill='#157d94')
-    # The face: bands that follow the top contour, bright near the sunlit crest, deep towards the base.
-    face = Image.new('RGBA', (W, H), (0, 0, 0, 0))
-    fd = ImageDraw.Draw(face)
-    _band_curve(fd, outer, [(0, 2, '#f4fff0'), (2, 4, '#bff9e4'), (4, 6, '#79ead6'), (6, 9, '#3fd0c8'),
-                            (9, 12, '#26b0bb'), (12, 16, '#1d97ae'), (16, 22, '#188199')])
-    face.putalpha(ImageChops.multiply(face.getchannel('A'), body))
-    im.alpha_composite(face)
-    d = ImageDraw.Draw(im)
-    top = {x: next((y for y in range(H) if body.getpixel((x, y))), None) for x in range(W)}
-    rnd = random.Random(6)
-    for x in range(W):                                        # below the bands the water deepens with depth
-        if top[x] is None:
-            continue
-        for y in range(top[x] + 22, H):
-            if body.getpixel((x, y)):
-                depth = y - top[x]
-                colour = '#1a88a0' if depth < 30 else ('#17788f' if depth < 40 else '#136785')
-                if x > 99 and y < 46:                           # the shoulder's wall catches more light
-                    colour = '#2ab2ba' if y < 30 else ('#22a0b0' if y < 38 else '#1b8aa3')
-                    if rnd.random() < .12:
-                        colour = '#3ecdc6'
-                d.point((x, y), fill=colour)
-    for offset in range(0, 16, 4):                           # water bends over the shoulder into the trough
-        ripple = curve([(106 + offset, 12), (109 + offset, 22),
-                        (112 + offset, 33), (126 + offset, 39)], 24)
-        for i, point in enumerate(ripple):
-            if _inside(body, point):
-                d.point(point, fill='#3ec9c4' if i < 16 else '#239caf')
-    rnd = random.Random(12)                                   # long streaks that follow the face, light and dark
-    for _ in range(46):
-        k = rnd.randint(7, 34)
-        j = rnd.randint(4, len(outer) - 30)
-        length = rnd.randint(6, 20)
-        light = rnd.random() < .62
-        if k < 13:
-            colour = '#9cf3df' if light else '#2bbac0'
-        elif k < 22:
-            colour = '#58d8cf' if light else '#1b92aa'
-        else:
-            colour = '#35b9bf' if light else '#177b98'
-        seg = [(x, y + k) for x, y in outer[j:j + length]]
-        if len(seg) > 1 and all(_inside(body, q) for q in seg):
-            d.line(seg, fill=colour, width=1)
-            if light and length > 11:                         # a thin wisp of foam riding the longer ones
-                d.point(seg[len(seg) // 2], fill='#e9fff6')
-    # The sunset glances off the face: a few warm glints on the sunward side.
-    for x, y in ((12, 33), (20, 29), (26, 26), (34, 22), (17, 36)):
-        if _inside(body, (x, y)):
-            d.point((x, y), fill='#ffd2a8')
-            d.point((x + 1, y), fill='#ffb7a0')
-    # The tube: a recessed lens, rimmed in lit water and darker towards the throat.
-    roof = curve([(43, 43), (53, 22), (69, 7), (88, 10)])
-    opening = curve([(88, 10), (107, 13), (94, 32), (77, 35)])
-    floor = curve([(77, 35), (66, 38), (56, 42), (43, 43)])
-    hole = Image.new('L', (W, H), 0)
-    ImageDraw.Draw(hole).polygon(roof + opening + floor, fill=255)
-    for colour, erosion in (('#1a87a0', 0), ('#146a88', 1), ('#10516f', 3), ('#0c3b58', 5), ('#082b45', 8), ('#061f37', 11)):
-        im.paste(Image.new('RGBA', (W, H), colour), (0, 0), _erode(hole, erosion))
-    d = ImageDraw.Draw(im)
-    for x, y in ((50, 34), (56, 28), (63, 22), (72, 17), (80, 15)):          # rim light along the tube's roof
-        d.point((x, y), fill='#47c4c8'); d.point((x + 1, y), fill='#2fa6b8')
-    # Light coming through the thin lip: a luminous crescent just inside it.
-    inner = curve([(77, 35), (93, 27), (100, 15), (88, 10)])
-    for k, colour in enumerate(('#1f98ae', '#37bcc2', '#7fe6d6', '#37bcc2')):
-        d.line([(x - 1 - k * .8, y) for x, y in inner], fill=colour, width=1)
-    d.point((95, 21), fill='#fff2c8'); d.point((96, 20), fill='#ffe1a8')
-    # The lip: thick, translucent, its edge bright where the sun grazes it.
-    lip = curve([(99, 2), (119, 7), (100, 35), (77, 35)])
-    d.polygon(lip + inner, fill='#6fe4d2')
-    for k, colour in ((0, '#9af2e0'), (2, '#55d2c8'), (4, '#2aaebb')):
-        d.line([(x - k * .6, y) for x, y in lip[len(lip) // 3:]], fill=colour, width=1)
-    # Foam builds up towards the breaking crest, instead of outlining the
-    # entire swell in white all the way down to otherwise calm water.
-    d.line(outer[:24], fill='#68d2cd', width=2)
-    d.line(outer[23:40], fill='#b5f3df', width=2)
-    d.line(outer[39:] + lip, fill='#d9fff0', width=3)
-    d.line(outer[46:] + lip, fill='#fffbe9', width=1)
-    d.line(inner, fill='#2fb1ba', width=2)
-    for x, y in curve([(80, 3), (90, 0), (104, 2), (113, 8)], 7):             # sunlit foam beads on the crest
-        d.point((x, y - 2), fill='#fff6d0')
-    # Foam scattered along the lip's outer curve, like beads of spray.
-    rnd = random.Random(14)
-    for i in range(2, len(lip) - 2, 3):
-        x, y = lip[i]
-        d.point((x + rnd.randint(1, 3), y + rnd.randint(-1, 1)), fill='#f6ffe8')
-        if i % 6 == 0:
-            d.point((x + rnd.randint(2, 4), y + rnd.randint(-2, 2)), fill='#bdf3e5')
-    # The face rolls into the surrounding sea over six rows. Preserve the
-    # crest and tube; only dissolve the lower edge, before adding white water.
-    px = im.load()
-    for x in range(W):
-        edge = max((y for y in range(H) if body.getpixel((x, y))), default=-1)
-        for y in range(max(0, edge - 5), edge + 1):
-            r, g, b, a = px[x, y]
-            px[x, y] = (r, g, b, round(a * (edge - y + 1) / 6))
-    rnd = random.Random(31)
-    bank = [(x, y, r) for x, y, r in ((98, 46, 4), (103, 43, 5), (109, 41, 5), (115, 42, 5), (121, 44, 5),
-                                      (124, 47, 4), (106, 47, 5), (113, 47, 5), (119, 49, 4), (100, 49, 4))]
-    for x, y, r in bank:                                      # shadow side first, then the lit foam on top
-        d.ellipse((x - r, y - r + 2, x + r, y + r + 2), fill='#9fdccf')
-    for x, y, r in bank:
-        d.ellipse((x - r, y - r, x + r, y + r), fill='#e4fff6')
-    for x, y, r in bank:
-        d.ellipse((x - r + 1, y - r, x + r - 2, y), fill='#fbfffc')
-    for _ in range(26):                                       # bubbles and flecks inside the foam
-        x, y = rnd.randint(97, 124), rnd.randint(41, 50)
-        d.point((x, y), fill='#8fdccf')
-    for x, y in ((96, 51), (101, 52), (108, 52), (116, 52), (123, 52), (93, 50)):
-        d.point((x, y), fill='#e4fff6')                       # flecks drifting out over the sea
-    # Whitewater at the left impact joins the animated billows to the sea,
-    # including the shared strip below the sprite's fixed perimeter.
-    for x, y, r in ((3,44,3), (8,43,4), (14,42,4), (20,41,4), (25,42,3)):
-        d.ellipse((x-r,y-r+2,x+r,y+r+1), fill='#62bebc')
-        d.ellipse((x-r,y-r,x+r,y+r-1), fill='#c5f6e6')
-        d.arc((x-r,y-r,x+r,y+r-1), 190, 310, fill='#f4fff0')
-    for x, y in ((2,48), (7,49), (13,47), (21,47), (27,46)):
-        d.line((x,y,x+2,y), fill='#b7ebde')
-    for x in range(16, 90, 15):                              # broken reflections, not an outline at the foot
-        yy = min(bottom, key=lambda q: abs(q[0] - x))[1] - 4
-        d.line((x, yy, x + 4, yy - 1), fill='#45b2b7')
+@lru_cache(maxsize=None)
+def _scene(pose=0, phase=None):
+    """The whole logical scene with the wave in one pose of its lip and, if `phase` is not None, the current at that phase."""
+    im = _scenery().copy()
+    im.alpha_composite(wave_layer(pose), ORIGIN)
+    if phase is not None:
+        im.alpha_composite(flow_overlay(phase), ORIGIN)
+    im.alpha_composite(_shore_foreground())
     return im
 
 
 @lru_cache(maxsize=1)
 def beach():
-    """Continuous water geometry is drawn beyond the animated rectangle."""
-    im = _coast().copy()
-    _shore(im)
-    water = _wave_layer()
-    im.paste(water, (36, 65), water)
-    return im.resize((320, 240), Image.Resampling.NEAREST)
+    """The page's picture below the panels, at screen size: the calm wave, no current and no surfer."""
+    return _scene(0).convert('RGB').resize((320, 240), Image.Resampling.NEAREST)
 
 
-SKIN, SKIN_HI, SKIN_LO = '#ffd4a0', '#ffe8c6', '#d98f62'
-SHIRT, SHIRT_HI, SHIRT_LO = '#ff7770', '#ffa79c', '#c94a4d'
-SHORTS, SHORTS_HI = '#233a73', '#3f62b5'
-HAIR, HAIR_HI = '#3b3352', '#6a5a8c'
-BOARD, BOARD_HI, BOARD_LO, DECK, FIN = '#fc6a59', '#ff9c7e', '#b83f43', '#ffe69b', '#6e2a3a'
-FOAM, SPRAY = '#f6ffdf', '#a5f3df'
+# ---- the animation: four sprites that never overlap (logical pixels, x0 y0 x1 y1) -----------------------------------------
+# Tony, 2026-11-03: a leading surfer who climbs and drops along the face, a lip that really falls and a moment of action every few
+# seconds. The surfer is one sprite with transparent pictures that the engine moves; the three tiles around his reach hold the
+# wave's own motion, each exactly the page's pixels outside what moves. Nothing here reaches the panels (y < 62).
+FACE = (128, 62, 160, 116)      # right-hand face and foam, moving every two beats
+CREST = (36, 60, 128, 73)       # crest above the barrel and the lip's root
+LIP = (36, 73, 74, 116)         # breaking lip and splash on the left
+RIDER = (74, 73, 128, 116)      # everything the surfer's sprite can ever touch
+HOME = (102, 106)               # board centre, clear of the falling lip
+RING = 2                        # logical pixels around a tile that always equal the page: no seam where it meets still water
+BEATS = 32                      # one loop is 32 beats of STEP_MS: 4.8 s
 
 
-def _limb(d, points, colour, shade, width=2):
-    """A limb as a thick line with a darker edge on its lower side, so it reads as round."""
-    d.line([(x, y + 1) for x, y in points], fill=shade, width=width)
-    d.line(points, fill=colour, width=width)
-
-
-def _surfer(d, phase, sx, sy):
-    """A crouching surfer on a fixed board: the feet stay planted while knees, hips, shoulders, arms and head move."""
-    c = (0, 1, 2, 1)[phase]
-    # the board: a thick curved profile, a bright deck edge and a dark underside, with a fin under the tail
-    deck = [(sx - 9, sy + 10), (sx - 4, sy + 10), (sx + 4, sy + 9), (sx + 9, sy + 8), (sx + 13, sy + 5)]
-    d.line([(x, y + 2) for x, y in deck], fill=BOARD_LO, width=1)
-    d.line(deck, fill=BOARD, width=2)
-    d.line([(x, y - 1) for x, y in deck[1:]], fill=BOARD_HI, width=1)
-    d.line([(sx - 5, sy + 9), (sx + 8, sy + 7)], fill=DECK, width=1)
-    d.polygon([(sx - 8, sy + 12), (sx - 6, sy + 12), (sx - 8, sy + 15)], fill=FIN)
-    # legs: planted feet, knees that swing out as the surfer sinks
-    hip = (sx + 1, sy + 1 + c)
-    knee_b = (sx - 4 - c // 2 + (phase == 3), sy + 4 + c // 2)
-    knee_f = (sx + 7 + c // 2, sy + 3 + c)
-    _limb(d, [hip, knee_b, (sx - 4, sy + 8)], SKIN, SKIN_LO)
-    _limb(d, [hip, knee_f, (sx + 5, sy + 7)], SKIN, SKIN_LO)
-    d.point((knee_b[0], knee_b[1] - 1), fill=SKIN_HI); d.point((knee_f[0], knee_f[1] - 1), fill=SKIN_HI)
-    d.rectangle((sx - 5, sy + 7, sx - 3, sy + 8), fill=SKIN_LO)              # feet on the wax
-    d.rectangle((sx + 4, sy + 6, sx + 6, sy + 7), fill=SKIN_LO)
-    # board shorts with a stripe
-    d.rectangle((hip[0] - 2, hip[1] - 1, hip[0] + 3, hip[1] + 1), fill=SHORTS)
-    d.line((hip[0] - 2, hip[1] - 1, hip[0] + 3, hip[1] - 1), fill=SHORTS_HI)
-    d.line((hip[0] + 1, hip[1], hip[0] + 1, hip[1] + 1), fill=DECK)
-    # torso, leaning with the crouch
-    shoulder = (sx + 4 + c // 2, sy - 5 + c + c // 2)
-    d.line([(hip[0] + 1, hip[1] - 2), (shoulder[0] + 1, shoulder[1] + 1)], fill=SHIRT_LO, width=4)
-    d.line([(hip[0], hip[1] - 2), shoulder], fill=SHIRT, width=4)
-    d.line([(hip[0] - 1, hip[1] - 3), (shoulder[0] - 1, shoulder[1])], fill=SHIRT_HI, width=1)
-    # arms: the back one trails, the front one reaches along the board
-    back = [shoulder, (sx - 1 - phase % 2, sy - 6 + c), (sx - 6, sy - 9 + c - (phase == 1))]
-    front = [shoulder, (sx + 9, sy - 1 + c), (sx + 13, sy + 1 + c // 2 - (phase == 3))]
-    _limb(d, back, SKIN, SKIN_LO)
-    _limb(d, front, SKIN, SKIN_LO)
-    for hand in (back[-1], front[-1]):
-        d.point(hand, fill=SKIN_HI)
-    # head: skin, dark hair swept back, an eye and a nose
-    hx, hy = shoulder[0] - 1, shoulder[1] - 6
-    d.rectangle((hx, hy, hx + 3, hy + 3), fill=SKIN)
-    d.rectangle((hx - 1, hy - 1, hx + 3, hy), fill=HAIR)
-    d.rectangle((hx - 1, hy, hx, hy + 2), fill=HAIR)
-    d.point((hx + 1, hy - 1), fill=HAIR_HI)
-    d.point((hx + 3, hy + 1), fill='#2a2438')
-    d.point((hx + 4, hy + 2), fill=SKIN_HI)
-    d.point((hx + 3, hy + 3), fill=SKIN_LO)
-    # cool light from the lip's glow rims the surfer's right side
-    d.point((shoulder[0] + 3, shoulder[1] + 1), fill='#7fe6d6')
-    d.point((hx + 4, hy), fill='#7fe6d6')
-    # the board's shadow on the water and its wake
-    d.line((sx - 7, sy + 13, sx + 8, sy + 12), fill='#0c3b58')
-    d.line((sx - 4, sy + 14, sx + 5, sy + 13), fill='#17789a')
-
-
-def _spray(d, phase, sx, sy):
-    """Spray thrown from the tail and the rail, and a white wake that streams behind the board."""
-    for i in range(7):                                       # roost from the tail
-        x = sx - 10 - i * 2 - (phase + i) % 2
-        y = sy + 9 - (i + phase) % 3 - i // 2
-        d.point((x, y), fill=FOAM if i % 2 else SPRAY)
-    for i in range(6):                                       # rail spray at the nose
-        x = sx + 11 + i * 2 + (phase * 2 + i) % 3
-        y = sy + 7 - i // 2 - (phase + i) % 2
-        d.point((x, y), fill=FOAM if i % 3 else SPRAY)
-    for k in range(4):                                       # the wake: flecks sliding left, a little differently each pose
-        x = sx - 12 - ((k * 6 + phase * 3) % 22)
-        d.line((x, sy + 12 + k % 2, x + 2 + k % 2, sy + 12 + k % 2), fill='#d9fff2' if k % 2 else '#7fd9d0')
-
-
-def _breaking_foam(d, phase):
-    """Impact billows rise, then spread left and dissolve into mint-coloured wash."""
-    for j in range(8):
-        age = (phase+j) % 4
-        x = 10 + j % 4 * 6 - age * 2
-        y = 35 + j // 4 - (0,2,1,0)[age]
-        radius = (2,3,3,2)[age]
-        d.ellipse((x-radius,y-1,x+radius+1,y+2), fill='#42aeb4')
-        d.ellipse((x-radius,y-radius,x+radius,y+1),
-                  fill=('#f4fff0','#e0fff1','#b8eddf','#76d0c8')[age])
-        if age < 2:
-            d.line((x-1,y-radius,x+1,y-radius), fill='#ffffff')
-            d.point((x-2,y-radius-2), fill='#d4fff0')
-        else:
-            d.line((x-radius-2,y+1,x-radius,y+1), fill='#b8eddf')
-    for j in range(5):
-        age = (phase+j) % 4
-        x, y = 8+j*6-age*2, 36-j%2
-        d.line((x,y,x+3+age,y), fill=('#effff2','#c5f6e6','#8adbd0','#53b9bd')[age])
-
-
-def _wave_motion(d, phase):
-    """Foam running along the crest, drops falling from the roof of the tube, sunset glints on the face and
-    refracted streaks flowing into the throat. Everything else about the wave is static."""
-    # The face drains down and left from the crest, never climbs uphill.
-    # Keep falling spray and the surfer's own timeline independent.
-    for lane in range(5):
-        path = list(dict.fromkeys(curve([(5 + lane * 4, 37),
-            (30 + lane * 3, 25), (60 + lane * 2, 4 + lane),
-            (91 + lane, 5 + lane)], 100)))
-        for start in range(-16, len(path) + 16, 16):
-            k = start - phase * 4 + lane * 3 % 16
-            stroke = path[max(0, k):max(0, k + 7)]
-            if len(stroke) > 1:
-                d.line(stroke, fill=('#48c6cb', '#82e9dc', '#2aabbc', '#b1f5df', '#4dcbc9')[lane])
-    crest = [(x, y + 1) for x, y in curve([(0, 38), (23, 21), (61, -9), (99, 2)], 90)[24:]]
-    falling = curve([(99, 2), (119, 7), (100, 35), (77, 35)], 40)
-    # A four-step travelling pattern: the last pose advances into the first,
-    # rather than every fleck jumping backwards when the four-frame loop wraps.
-    for is_lip, points in ((False, reversed(crest)), (True, falling)):
-        for i, (x, y) in enumerate(dict.fromkeys(points)):
-            if (i - phase * 2) % 8 not in (0, 1, 2):
+def _tile(box, source, free=()):
+    """The tile's pictures: the scene crop with its outer RING pixels forced back to the page, except along the edges in `free`
+    (a side shared with another moving tile, which the two draw as one picture)."""
+    base = _scene(0).crop(box)
+    frames = []
+    for image in source:
+        frame = image.crop(box)
+        keep = Image.new('L', frame.size, 0)
+        kd = ImageDraw.Draw(keep)
+        w, h = frame.size
+        for name, rect in (('left', (0, 0, RING - 1, h - 1)), ('right', (w - RING, 0, w - 1, h - 1)),
+                           ('top', (0, 0, w - 1, RING - 1)), ('bottom', (0, h - RING, w - 1, h - 1))):
+            spans = [span for edge, span in free if edge == name]
+            if name == 'right' and box[2] >= 160:
+                continue                                         # the page's own edge: there is no still water beyond it to meet
+            if not spans:
+                kd.rectangle(rect, fill=255)
                 continue
-            d.point((x, y), fill=FOAM if is_lip else SPRAY)
-            if is_lip:
-                d.point((x, y - 1), fill='#ddfff1')
-    # The lip breaks into a fan of froth, rather than simply ending in a line.
-    for j in range(9):
-        age = (phase + j) % 4
-        x, y = 91 + j % 3 * 4 - age * 2, 27 + j // 3 * 3 + age
-        d.line((x, y, x + 2 + age % 2, y), fill=('#f1fff1', '#baffea', '#79dfd5', '#39b1bf')[age])
-    roof = curve([(43, 43), (53, 22), (69, 7), (88, 10)], 40)
-    for j, (x, y) in enumerate(roof[18:38:4]):                  # drops falling from the tube's roof
-        fall = (phase + j) % 4
-        d.line((x, y + 2, x, y + 3 + fall), fill='#289aaa')
-        d.point((x, y + 4 + fall), fill=('#8cded5', '#b2eee3', '#7acbc9', '#3b9fae')[fall])
-    for j, (x, y) in enumerate(((16, 31), (24, 27), (31, 24), (39, 19), (47, 15), (55, 11), (63, 8))):
-        if (j + phase) % 3 == 0:                                  # glints on the face, three of seven at a time
-            d.point((x, y), fill='#fff1c4'); d.point((x + 1, y), fill='#ffd8a8')
-    for j in range(5):
-        x = 49 + j * 7 + (phase % 2)
-        y = 34 - j * 3
-        d.line([(x, y), (x + 3, y - 2)], fill='#2790ab')
-    for j in range(11):
-        x = 79 + (j * 7 + phase * 2) % 22
-        y = 25 + (j * 3 + phase) % 12
-        if x < 102 - (y - 25):
-            d.point((x, y), fill='#b2fff0')
-    _breaking_foam(d, phase)
+            along = 1 if name in ('left', 'right') else 0
+            lo, hi = rect[along], rect[along + 2]
+            cursor = lo
+            for a, b in sorted(spans):                       # ring everywhere along the edge except the free spans
+                if a > cursor:
+                    r = list(rect); r[along], r[along + 2] = cursor, a - 1
+                    kd.rectangle(tuple(r), fill=255)
+                cursor = max(cursor, b + 1)
+            if cursor <= hi:
+                r = list(rect); r[along] = cursor
+                kd.rectangle(tuple(r), fill=255)
+        frame.paste(base, (0, 0), keep)
+        frames.append(frame)
+    return frames
 
 
-def wave_pose(phase):
-    """The animated rectangle: the shared water with its foam, drops, glints and the surfer on top.
-
-    The board holds one line (it may bob a single logical pixel); the feet are planted on it."""
-    background = beach().crop(BOX).resize((120, 40), Image.Resampling.NEAREST).convert('RGBA')
-    im = background.copy()
-    d = ImageDraw.Draw(im)
-    _wave_motion(d, phase)
-    sx, sy = 71, 24 + (phase == 2)
-    _spray(d, phase, sx, sy)
-    _surfer(d, phase, sx, sy)
-    # Exact shared perimeter: moving pixels never reach the crop boundary.
-    # This protects all four sides, including the former seam at board height.
-    im.paste(background.crop((0, 0, 120, 2)), (0, 0))
-    im.paste(background.crop((0, 38, 120, 40)), (0, 38))
-    im.paste(background.crop((0, 0, 2, 40)), (0, 0))
-    im.paste(background.crop((118, 0, 120, 40)), (118, 0))
-    return im
+def _trim_tile(box, frames):
+    """Omit unchanged borders without changing any animated pixel."""
+    background = _scene(0).crop(box).convert('RGB')
+    changes = [ImageChops.difference(frame.convert('RGB'), background).getbbox() for frame in frames]
+    changes = [bounds for bounds in changes if bounds is not None]
+    if not changes:
+        return box, frames
+    left = max(0, min(b[0] for b in changes) - RING)
+    top = max(0, min(b[1] for b in changes) - RING)
+    right = min(background.width, max(b[2] for b in changes) + RING)
+    bottom = min(background.height, max(b[3] for b in changes) + RING)
+    return ((box[0] + left, box[1] + top, box[0] + right, box[1] + bottom),
+            [frame.crop((left, top, right, bottom)) for frame in frames])
 
 
+# The original Tidal Rush gulls, recoloured slightly for the darker sky of
+# the current scene. Their three wing shapes are the ones Tony liked.
 GULL_A = (('X.........X', '.X.......X.', '..XX...XX..', '....XXX....', '...........'),
           ('...........', '.XXX...XXX.', 'X...XXX...X', '...........', '...........'),
           ('...........', '...XXXXX...', '.XXX...XXX.', 'XX.......XX', '...........'))
@@ -619,141 +379,168 @@ GULL_B = (('X.......X', '.X.....X.', '..XXXXX..', '.........'),
           ('.........', '..XXXXX..', '.XX...XX.', 'X.......X'))
 
 
-def _gull_frames(rows_by_frame, colour='#2e1745', rim='#ff9f88'):
-    frames = []
-    for rows in rows_by_frame:
+def _gull_frames(shapes):
+    def paint(rows, colour, rim):
         im = Image.new('RGBA', (len(rows[0]), len(rows)), (0, 0, 0, 0))
         for y, row in enumerate(rows):
             for x, cell in enumerate(row):
                 if cell == 'X':
                     im.putpixel((x, y), ImageColor.getrgb(rim if y == 0 and x % 2 == 0 else colour) + (255,))
-        frames.append(im)
+        return im
+
+    frames = [paint(rows, '#a66787', '#ffd2b0') for rows in shapes]
+    frames += [paint(shapes[1], '#3d345e', '#574569'), paint(shapes[1], '#714d72', '#aa758f')]
+    frames.append(Image.new('RGBA', frames[0].size, (0, 0, 0, 0)))
     return frames
 
 
-def _gull_sprite(rows_by_frame, x, y, step_dx, offset):
-    """A gull crossing the sky right to left: 32 steps of 150 ms (4.8 s), wings up, level, down, level."""
+def _gull_sprite(shapes, y, offset):
+    """Glide left, leave the screen and reappear softly after the wrap."""
     script = []
-    for i in range(32):
-        k = (i + offset) % 32
-        script.append(((0, 1, 2, 1)[i % 4], -round(step_dx * k), 1 if i % 4 == 2 else 0))
-    return {'x': x, 'y': y, 'frames': _gull_frames(rows_by_frame), 'script': script, 'step_ms': STEP_MS}
+    for i in range(128):
+        k = (i + offset) % 128
+        frame = 5 if k == 0 else 3 if k == 1 else 4 if k == 2 else (0, 1, 2, 1)[k % 4]
+        script.append((frame, 126 - 2 * k, 2 if k % 4 == 2 else 0))
+    return {'x': 100, 'y': y, 'frames': _gull_frames(shapes), 'script': script, 'step_ms': STEP_MS}
 
 
-@lru_cache(maxsize=1)
-def animation():
-    poses=[wave_pose(i) for i in range(4)]
-    # Build 7 permits at most 96 logical pixels per sprite. Adjacent, disjoint
-    # halves share the same script and clock; restoration cannot erase the other.
-    sprites=tuple({'x':BOX[0]+half*120,'y':BOX[1],
-                   'frames':[pose.crop((half*60,0,(half+1)*60,40)) for pose in poses],
-                   'script':[(i,0,0) for i in range(4)],'step_ms':STEP_MS}
-                  for half in range(2))
-    sprites += (_gull_sprite(GULL_A, 90, 108, 2.8, 0), _gull_sprite(GULL_B, 84, 120, 2.6, 16))
-    return sprites,board_anim.encode(sprites)
+# What the 32 beats show: (surfer picture, dx, dy in logical pixels, lip pose). The surfer climbs and drops, crouches and skims
+# the water with a hand; at beat 16 the lip is cocked back and falls, he tucks under it, bursts out in foam and stands up, and
+# calm returns with him where he began: beat 31 is one pixel below beat 0 and the same picture, so nothing jumps at the loop.
+PLAN = (
+    (0, 0, 0, 0), (0, 0, -1, 0), (1, 1, -2, 0), (1, 1, -3, 0), (1, 2, -4, 0), (1, 2, -5, 0), (0, 2, -4, 0), (0, 1, -2, 0),
+    (2, 1, 0, 0), (2, 0, 2, 0), (3, 0, 3, 0), (3, -1, 3, 0), (3, -1, 3, 0), (2, 0, 2, 0), (0, 0, 0, 0), (1, 1, -2, 0),
+    (2, 2, -1, 1), (4, 3, 0, 2), (4, 3, 1, 2), (4, 3, 1, 3), (5, 3, 1, 4), (5, 3, 0, 5), (6, 3, 0, 5), (6, 3, -1, 6),
+    (7, 3, -2, 6), (7, 2, -3, 7), (7, 2, -3, 7), (1, 2, -3, 0), (1, 1, -2, 0), (0, 1, -1, 0), (0, 0, 0, 0), (0, 0, 1, 0),
+)
+# boards that hold four pictures per sprite: the same story with the surfer's and the lip's four most telling pictures
+FOUR_RIDER = {0: 0, 1: 1, 2: 2, 3: 3, 4: 2, 5: 3, 6: 2, 7: 0}
+FOUR_LIP = {0: 0, 1: 0, 2: 1, 3: 1, 4: 2, 5: 2, 6: 3, 7: 0}
 
 
-def instrument(d,row,provider,x):
-    color=YELLOW if provider=='codex' else STONE
-    value,_,old,reset=remaining_reading(row)
-    count,old_bank=banked_hearts(row)
-    text(d,(x,5),provider.upper(),color,10)
-    have=count if count is not None else 0
+@lru_cache(maxsize=4)
+def animation(frames=8, extended=False):
+    """The surfer and wave; boards with extended animation also get the two gulls."""
+    full = frames >= 8
+    extended = extended and full
+    pictures = rider.pictures() if full else tuple(rider.pictures()[i] for i in (0, 1, 2, 3))
+    # The last row is transparent in every pose; omit it so the moved sprite
+    # never restores over the page markers in the bottom-right corner.
+    pictures = tuple(im.crop((0, 0, im.width, im.height - 1)) for im in pictures)
+    lip_poses = tuple(range(wave.POSES)) if full else (0, 2, 4, 6)
+    face = _tile(FACE, [_scene(0, q) for q in range(wave.FLOW_PHASES)], free=(('left', (0, 72 - FACE[1])),))
+    crest = _tile(CREST, [_scene(0, q) for q in range(wave.FLOW_PHASES)],
+                  free=(('right', (FACE[1] - CREST[1], CREST[3] - CREST[1] - 1)), ('bottom', (LIP[0] - CREST[0], LIP[2] - CREST[0] - 1))))
+    lip = _tile(LIP, [_scene(p) for p in lip_poses], free=(('top', (0, LIP[2] - LIP[0] - 1)),))
+    face_box, crest_box, lip_box = FACE, CREST, LIP
+    if extended:
+        face_box, face = _trim_tile(face_box, face)
+        crest_box, crest = _trim_tile(crest_box, crest)
+        lip_box, lip = _trim_tile(lip_box, lip)
+    two = [(q, 0, 0) for q in range(wave.FLOW_PHASES)] * 4              # a current phase lasts two beats: 16 steps of 300 ms
+    script = []
+    for picture, dx, dy, pose in PLAN:
+        script.append((picture if full else FOUR_RIDER[picture], -dx * 2, dy * 2, pose if full else FOUR_LIP[pose]))
+    sprites = (
+        {'x': (HOME[0] - rider.ANCHOR[0]) * 2, 'y': (HOME[1] - rider.ANCHOR[1]) * 2, 'frames': list(pictures),
+         'script': [(p, dx, dy) for p, dx, dy, _ in script], 'step_ms': STEP_MS},
+        {'x': face_box[0] * 2, 'y': face_box[1] * 2, 'frames': face, 'script': two, 'step_ms': 2 * STEP_MS},
+        {'x': crest_box[0] * 2, 'y': crest_box[1] * 2, 'frames': crest, 'script': two, 'step_ms': 2 * STEP_MS},
+        {'x': lip_box[0] * 2, 'y': lip_box[1] * 2, 'frames': lip, 'script': [(lip_poses.index(p) if full else p, 0, 0) for _, _, _, p in script],
+         'step_ms': STEP_MS},
+    )
+    if extended:
+        sprites += (_gull_sprite(GULL_A, 92, 0), _gull_sprite(GULL_B, 108, 64))
+    return sprites, board_anim.encode(sprites, extended=extended)
+
+
+PANELS = (('codex', 3), ('claude', 164))                       # the two compact panels: provider, left edge (they start at y=2)
+PANEL_BOTTOM = {'codex': 53, 'claude': 60}                     # last row of each: Claude's carries its two five-hour rows
+PANEL_TOP = 2
+RESET_INK = '#91b8c6'
+
+
+def panel(d, provider, x0):
+    """A compact instrument panel (Tony, 2026-11-03: about 58 px, like Paradise's film panels, instead of 94: the wave and the
+    sky gain the space). Codex's stops where its content does, Claude's is a little taller for its two five-hour rows."""
+    bottom = PANEL_BOTTOM[provider]
+    d.rounded_rectangle((x0, PANEL_TOP, x0 + 152, bottom), radius=4, fill='#102a4c', outline='#2c5a86')
+    d.line((x0 + 4, PANEL_TOP + 1, x0 + 148, PANEL_TOP + 1), fill='#3d78a8')            # light catching the top edge
+    d.line((x0 + 4, bottom - 1, x0 + 148, bottom - 1), fill='#0a1c36')
+
+
+def instrument(d, row, provider, x):
+    """One provider's compact panel: the name and the three palm icons on one row, the big number beside the reset, then the
+    week's bar and, for Claude, its two five-hour rows. Nothing here ever depends on the animation below it."""
+    color = YELLOW if provider == 'codex' else STONE
+    value, _, old, reset = remaining_reading(row)
+    count, old_bank = banked_hearts(row)
+    panel(d, provider, x - 6)
+    text(d, (x, 5), provider.upper(), color, 10)
+    have = count if count is not None else 0
     for i in range(3):                  # one palm tree per saved reset (was a heart)
-        hx=x+83+i*13
-        if have>i:
-            for xx,yy,tone,_ in icons.cells('palm'):
-                d.point((hx+xx,5+yy),fill=_mix(color,'#000000',-icons.DETAIL['palm']) if tone=='o' else color)
+        hx = x + 83 + i * 13
+        if have > i:
+            for xx, yy, tone, _ in icons.cells('palm'):
+                d.point((hx + xx, 5 + yy), fill=_mix(color, '#000000', -icons.DETAIL['palm']) if tone == 'o' else color)
         else:
-            for xx,yy in icons.hollow('palm'):
-                d.point((hx+xx,5+yy),fill='#4a6590')
-    if icons.marked(count,old_bank):    # unknown or old: one faint dot at the end of the row, no ? and no OLD
-        d.rectangle((x+121,9,x+122,10),fill='#4a6590')
-    mark=icons.mark(count,old_bank)
-    if mark:text(d,(x+126,6),mark,CREAM,6)
-    text(d,(x,24),'--' if value is None else str(round(value)),CREAM,28)
-    if value is not None:text(d,(x+88,34),'%',color,12)
-    if old:text(d,(x+115,35),'OLD',color,6)
-    d.rectangle((x-3,53,x+141,63),fill='#0a182f',outline='#2d557f')
-    lit_hi,lit_lo=_mix(color,'#ffffff',.38),_mix(color,'#000000',.32)
+            for xx, yy in icons.hollow('palm'):
+                d.point((hx + xx, 5 + yy), fill='#4a6590')
+    if icons.marked(count, old_bank):    # unknown or old: one faint dot at the end of the row, no ? and no OLD
+        d.rectangle((x + 121, 9, x + 122, 10), fill='#4a6590')
+    mark = icons.mark(count, old_bank)
+    if mark:
+        text(d, (x + 126, 6), mark, CREAM, 6)
+    figure = '--' if value is None else str(round(value))
+    text(d, (x, 16), figure, CREAM, 24)
+    right = x + len(figure) * 24
+    if value is not None:
+        text(d, (right + 3, 28), '%', color, 12)
+        right += 15
+    if old:
+        text(d, (right + 3, 29), 'OLD', color, 6)
+        right += 21
+    # The reset sits at the right of the number: a small label over the time, the time as big as the room left allows.
+    room = x + 141 - right - 4
+    stamp, size = next(((s, k) for s, k in ((reset.upper(), 10), (reset.upper().replace(' ', ''), 10),
+                                            (reset.upper().replace(' ', ''), 8)) if len(s) * k <= room),
+                       (reset.upper().replace(' ', ''), 8))
+    left = x + 141 - len(stamp) * size
+    text(d, (left, 17), 'RST', RESET_INK, 6)
+    text(d, (left, 27), stamp, CREAM, size)
+    d.rectangle((x - 3, 42, x + 141, 50), fill='#0a182f', outline='#2d557f')
+    lit_hi, lit_lo = _mix(color, '#ffffff', .38), _mix(color, '#000000', .32)
     for j in range(20):
-        on=value is not None and j<math.ceil(value/5)
-        d.rectangle((x+j*7,56,x+j*7+4,60),fill=color if on else '#2f435f')
-        d.line((x+j*7,56,x+j*7+4,56),fill=lit_hi if on else '#41587a')
-        d.line((x+j*7,60,x+j*7+4,60),fill=lit_lo if on else '#1d2d46')
-    pace=session_pace(row) if provider=='claude' else None
+        on = value is not None and j < math.ceil(value / 5)
+        d.rectangle((x + j * 7, 44, x + j * 7 + 4, 48), fill=color if on else '#2f435f')
+        d.line((x + j * 7, 44, x + j * 7 + 4, 44), fill=lit_hi if on else '#41587a')
+        d.line((x + j * 7, 48, x + j * 7 + 4, 48), fill=lit_lo if on else '#1d2d46')
+    pace = session_pace(row) if provider == 'claude' else None
     if pace:
-        for line,units in enumerate((math.ceil(pace[0]/5)/4,round(pace[1]*4)/4)):
+        for line, units in enumerate((math.ceil(pace[0] / 5) / 4, round(pace[1] * 4) / 4)):
             for j in range(5):
-                left=x+j*28;top=64+line*4
-                d.rectangle((left,top,left+23,top+2),fill='#2f435f')
-                d.line((left,top+2,left+23,top+2),fill='#1d2d46')
-                amount=max(0,min(1,units-j))
+                left = x + j * 28
+                top = 52 + line * 4
+                d.rectangle((left, top, left + 23, top + 2), fill='#2f435f')
+                d.line((left, top + 2, left + 23, top + 2), fill='#1d2d46')
+                amount = max(0, min(1, units - j))
                 if amount:
-                    d.rectangle((left,top,left+max(0,round(23*amount)),top+2),fill=color)
-                    d.line((left,top,left+max(0,round(23*amount)),top),fill=_mix(color,'#ffffff',.38))
-    text(d,(x,79),'RST', '#91b8c6',7)
-    # Font fits longest supported weekly reset string wholly inside its column.
-    text(d,(x+31,77),reset.upper(),CREAM,10)
+                    d.rectangle((left, top, left + max(0, round(23 * amount)), top + 2), fill=color)
+                    d.line((left, top, left + max(0, round(23 * amount)), top), fill=_mix(color, '#ffffff', .38))
 
 
-def _text_mask(value, size):
-    """A hard-edged (no anti-aliasing) mask of `value` in the pixel font, so letters stay crisp on the panel."""
-    f = font(size)
-    box = f.getbbox(value)
-    mask = Image.new('L', (box[2] + 8, box[3] + 8), 0)
-    ImageDraw.Draw(mask).text((4, 4), value, font=f, fill=255)
-    return mask.point(lambda v: 255 if v > 127 else 0)
-
-
-LOGO_BOX = (144, 99, 240, 115)       # where the title sits (screen px): nothing animated may cross it
-
-
-def _logo(image, left, top):
-    """TIDAL RUSH as a quiet title: small spaced letters, cream to peach, a muted violet outline and a soft shadow.
-
-    The first version used big gradient letters with sparkles and shouted over the scene (Tony, 2026-10-19)."""
-    letters = Image.new('L', (96, 16), 0)
-    ld = ImageDraw.Draw(letters)
-    for i, ch in enumerate('TIDAL RUSH'):
-        ld.text((3 + i * 9, 3), ch, font=font(8), fill=255)           # one pixel of extra air between letters
-    letters = letters.point(lambda v: 255 if v > 127 else 0)
-    outline = letters.filter(ImageFilter.MaxFilter(3))
-    layers = Image.new('RGBA', letters.size, (0, 0, 0, 0))
-    for mask, colour in ((ImageChops.offset(outline, 1, 1), '#3a2468'), (outline, '#5a3d85')):
-        layers.paste(Image.new('RGBA', letters.size, colour), (0, 0), mask)
-    fill = Image.new('RGBA', letters.size, '#fff1d8')
-    fd = ImageDraw.Draw(fill)
-    fd.rectangle((0, 7, 96, 16), fill='#ffd6b0')
-    layers.paste(fill, (0, 0), letters)
-    image.paste(layers, (left, top), layers)
-
-
-def render_surf(snapshot,animated=False):
-    image=beach().copy()
-    d=ImageDraw.Draw(image)
-    d.rectangle((0,0,319,95),fill='#08162b')
-    for x0 in (3,164):
-        d.rounded_rectangle((x0,2,x0+152,90),radius=4,fill='#102a4c',outline='#2c5a86')
-        d.line((x0+4,3,x0+148,3),fill='#3d78a8')                         # light catching the top edge
-        d.line((x0+4,89,x0+148,89),fill='#0a1c36')
-        for cx,cy in ((x0+3,5),(x0+149,5),(x0+3,87),(x0+149,87)):          # four small rivets
-            d.point((cx,cy),fill='#5f93bd')
-    d.line((0,92,319,92),fill='#a9672f')
-    d.line((0,93,319,93),fill='#ffd27a')
-    d.line((0,94,319,94),fill='#ffc77d')
-    d.line((0,95,319,95),fill='#7a4a25')
-    for x in range(4,320,10):                                             # rope twists along the divider
-        d.line((x,93,x+4,94),fill='#fff0b8')
-    instrument(d,_row(snapshot,'codex'),'codex',9)
-    instrument(d,_row(snapshot,'claude'),'claude',170)
-    # Title sits in the sky, never on the quotas or the animated water.
-    _logo(image, 144, 99)
-    sprites,payload=animation()
+def render_surf(snapshot, animated=False, anim_frames=8, extended_anim=False):
+    """The page: sky to the top, two compact panels, the wave and the surfer. `animated` adds the animation payload (and leaves the
+    sprites out of the picture); otherwise the first pose of each sprite is drawn in, so the still equals step 0 exactly."""
+    image = beach().copy()
+    d = ImageDraw.Draw(image)
+    instrument(d, _row(snapshot, 'codex'), 'codex', 9)
+    instrument(d, _row(snapshot, 'claude'), 'claude', 170)
+    sprites, payload = animation(8 if anim_frames >= 8 else 4, extended=extended_anim)
     if not animated:
         for sprite in sprites:                       # the first pose, exactly where step 0 of its script puts it
             frame, dx, dy = sprite['script'][0]
             first = sprite['frames'][frame]
             first = first.resize((first.width * 2, first.height * 2), Image.Resampling.NEAREST)
             image.paste(first, (sprite['x'] + dx, sprite['y'] + dy), first)
-    return (image,payload) if animated else image
+    return (image, payload) if animated else image

@@ -112,7 +112,8 @@ def frame_size(frame):
     return None
 
 
-def render_board_pages(snapshot, stars=False, anim=False, waves=False, anim_frames=8, scroll=False, scene_ids=None):
+def render_board_pages(snapshot, stars=False, anim=False, waves=False, anim_frames=8, scroll=False, scene_ids=None,
+                       extended_anim=False):
     """One frame per page, in PAGE_NAMES order, keeping the clock's separate album unchanged.
 
     `stars` is retained for older clients; none of the current still pages needs a STAR trailer.
@@ -152,7 +153,8 @@ def render_board_pages(snapshot, stars=False, anim=False, waves=False, anim_fram
         forge = render_forge(snapshot)
     images.append(forge)
     if anim:
-        surf, payloads['surf'] = render_surf(snapshot, animated=True)
+        surf, payloads['surf'] = render_surf(snapshot, animated=True, anim_frames=anim_frames,
+                                            extended_anim=extended_anim)
     else:
         surf = render_surf(snapshot)
     images.append(surf)
@@ -186,6 +188,12 @@ def render_board_pages(snapshot, stars=False, anim=False, waves=False, anim_fram
         own_credits.add('paradise')
     credit_pages = [(image, name) for image, name in zip(images, PAGE_NAMES) if name not in own_credits]
     apply_credit_badges([image for image, _ in credit_pages], [name for _, name in credit_pages], snapshot)
+    # The low-quota line is the last thing drawn on a page (board_low_quota). The full-screen scrolling platform page is redrawn
+    # whole on every tick, so it carries the line in its own overlay instead.
+    from token_tv.board_low_quota import apply_low_quota
+    lined = [(image, name) for image, name in zip(images, PAGE_NAMES)
+             if not (name == 'cockpit' and scroll_payload and scroll_payload[0] == 4)]
+    apply_low_quota([image for image, _ in lined], [name for _, name in lined], snapshot)
     frames = [rgb565_frame(image, anim=payloads.get(name), waves=wave_payload if name == 'paradise' else None,
                            scroll=scroll_payload if name == 'cockpit' else None)
               for name, image in zip(PAGE_NAMES, images)]
@@ -198,6 +206,7 @@ def render_board_pages(snapshot, stars=False, anim=False, waves=False, anim_fram
     by_name = dict(zip(PAGE_NAMES, frames))
     for name in scene_ids:
         if name not in by_name:
-            image, payload = render_archive(name, snapshot, animated=anim)
+            image, payload = render_archive(name, snapshot, animated=anim, extended_anim=extended_anim,
+                                            anim_frames=anim_frames)
             by_name[name] = rgb565_frame(image, anim=payload)
     return [by_name[name] for name in scene_ids]

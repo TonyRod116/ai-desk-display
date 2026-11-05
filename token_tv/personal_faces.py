@@ -103,12 +103,15 @@ def reset_heart_fills(count):
 
 
 def banked_hearts(row):
-    """(count, old): the fresh count, or the last confirmed one flagged old, or unknown (None, False)."""
+    """(count, old): the fresh count, or the last confirmed one flagged old, or unknown (None, False).
+
+    A known count beside an aged quota reading (180-480 s, `reading_aged`; Tony, 2026-11-03) is old too: the dot that
+    already marks an old count is the only sign of an aged reading, so no other mark is needed anywhere."""
     banked = row.get('banked_resets') or {}
     count = banked.get('available')
     if count is None and type(banked.get('last_known')) is int:
         return banked['last_known'], True
-    return count, False
+    return count, count is not None and bool(row.get('reading_aged'))
 
 
 def hearts(cv, x, y, count, ink, paper, scale=2, old=False, quiet=False):

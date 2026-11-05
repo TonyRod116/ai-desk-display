@@ -16,15 +16,33 @@ class RotationTests(unittest.TestCase):
 int main() {
  assert(gesture(30)==Gesture::None);
  assert(gesture(31)==Gesture::Page);
- assert(gesture(1999)==Gesture::Page);
+ assert(gesture(699)==Gesture::Page);   // a tap, even a slow one
+ assert(gesture(700)==Gesture::Card);   // about 0.7 s up to the rotation hold: the details card on release
+ assert(gesture(1999)==Gesture::Card);
  assert(gesture(2000)==Gesture::Mode);
  assert(gesture(4999)==Gesture::Mode);
  assert(gesture(5000)==Gesture::Connect);
  assert(gesture(9000)==Gesture::Connect);
  assert(validTouchSeconds(1,5) && validTouchSeconds(4,10));
  assert(!validTouchSeconds(0,5) && !validTouchSeconds(4,4) && !validTouchSeconds(2,11));
- assert(gesture(999,1,7)==Gesture::Page && gesture(1000,1,7)==Gesture::Mode);
+ assert(gesture(699,1,7)==Gesture::Page && gesture(700,1,7)==Gesture::Card && gesture(999,1,7)==Gesture::Card);
+ assert(gesture(1000,1,7)==Gesture::Mode);
  assert(gesture(6999,1,7)==Gesture::Mode && gesture(7000,1,7)==Gesture::Connect);
+ // Every configurable pair: the four thresholds are exactly 30 ms, 700 ms, the rotation hold and the connection hold, the
+ // classes only ever grow with the hold, and the card window never disappears (rotation hold is at least one second).
+ for (int mode=1; mode<=4; ++mode) for (int connect=5; connect<=10; ++connect) {
+  assert(validTouchSeconds(mode,connect));
+  int last=-1;
+  for (uint32_t held=0; held<=11000; ++held) {
+   Gesture g=gesture(held,mode,connect);
+   Gesture expected = held >= uint32_t(connect)*1000 ? Gesture::Connect : held >= uint32_t(mode)*1000 ? Gesture::Mode :
+                      held >= 700 ? Gesture::Card : held > 30 ? Gesture::Page : Gesture::None;
+   assert(g==expected);
+   assert(int(g)>=last); last=int(g);
+  }
+  assert(gesture(uint32_t(mode)*1000-1,mode,connect)==Gesture::Card);
+ }
+ static_assert(CARD_HOLD_MS < 1000, "the card must fit below the shortest rotation hold");
  RotationClock c;
  c.setMode(30,0); assert(!c.due(5000,true)); // no guessed wall time
  c.sync(1800001799ULL,5000); // one second before half-hour

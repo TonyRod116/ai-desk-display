@@ -124,10 +124,63 @@ class BeachFilmTests(unittest.TestCase):
             no_session, _ = render_paradise(sample(session=False), waves=2)
         self.assertEqual(payload, payload2)
         self.assertEqual(payload, payload3)
-        self.assertEqual(len({im.crop((0, 0, 320, 73)).tobytes() for im in (full, empty, unknown)}), 3)
-        self.assertEqual(session.crop((0, 0, 160, 73)).tobytes(), no_session.crop((0, 0, 160, 73)).tobytes())
-        self.assertNotEqual(session.crop((160, 0, 320, 73)).tobytes(), no_session.crop((160, 0, 320, 73)).tobytes())
-        self.assertEqual(session.crop((0, 73, 320, 240)).tobytes(), no_session.crop((0, 73, 320, 240)).tobytes())
+        self.assertEqual(len({im.crop((0, 0, 320, 64)).tobytes() for im in (full, empty, unknown)}), 3)
+        from token_tv.board_paradise import HUD_BOTTOM
+        self.assertEqual(session.crop((0, 0, 160, HUD_BOTTOM)).tobytes(), no_session.crop((0, 0, 160, HUD_BOTTOM)).tobytes())
+        self.assertNotEqual(session.crop((160, 0, 320, HUD_BOTTOM)).tobytes(), no_session.crop((160, 0, 320, HUD_BOTTOM)).tobytes())
+        self.assertEqual(session.crop((0, HUD_BOTTOM, 320, 240)).tobytes(), no_session.crop((0, HUD_BOTTOM, 320, 240)).tobytes())
+
+    def test_compact_panels_cover_far_less_of_the_beach_and_leave_the_photo_below_untouched(self):
+        # Tony, 2026-11-03: the two panels covered a third of the picture (72 of 240 px) and the shells were tiny.
+        from token_tv import board_paradise
+        photo = Image.new('RGB', (320, 240), (40, 90, 140))
+        art = (photo, *fictional_art()[1:])
+        with patch('time.time', return_value=NOW), patch('token_tv.board_beach.load', return_value=art):
+            image, _ = render_paradise(sample(), waves=2)
+        self.assertEqual(image.crop((0, board_paradise.HUD_BOTTOM, 320, 240)).tobytes(),
+                         photo.crop((0, board_paradise.HUD_BOTTOM, 320, 240)).tobytes())
+        glass = [(x, y) for y in range(board_paradise.HUD_BOTTOM) for x in range(320)
+                 if sum(image.getpixel((x, y))) > sum(photo.getpixel((x, y))) + 120]
+        bottoms = {side: max(y for x, y in glass if (x < 160) == (side == 'codex')) for side in ('codex', 'claude')}
+        self.assertLessEqual(bottoms['codex'], 4 + board_paradise.FILM_PANEL['codex'])
+        self.assertLessEqual(bottoms['claude'], 4 + board_paradise.FILM_PANEL['claude'])
+        self.assertLess(bottoms['codex'], 58)
+        self.assertLess(bottoms['claude'], 66)
+        self.assertLess(bottoms['codex'] + bottoms['claude'], 2 * 72 - 20)         # both well above the old 72
+        self.assertLessEqual(len(glass), .22 * 320 * 240)
+
+    def test_the_film_shells_are_half_as_big_again_and_the_old_ones_are_unchanged(self):
+        from token_tv import board_paradise
+        from token_tv.board_art import SS, Scene
+
+        def ink(scale):
+            scene = Scene()
+            board_paradise._heart(scene, 20, 20, True, '#4e3404', False, scale)
+            left, top, right, bottom = scene.ink.getbbox()
+            return (right - left) / SS, (bottom - top) / SS
+        small, big = ink(1), ink(board_paradise.SHELL)
+        self.assertEqual(board_paradise.SHELL, 1.5)
+        self.assertGreaterEqual(big[0], 1.4 * small[0])
+        self.assertGreaterEqual(big[1], 1.4 * small[1])
+        self.assertGreaterEqual(big[0], 12)                                        # about as wide as a capital letter of the name
+
+    def test_film_panels_keep_the_ink_readable_over_any_photograph(self):
+        from PIL import ImageColor
+        from token_tv.board_paradise import COLORS, INK, MUTED
+
+        def luminance(rgb):
+            values = [c / 255 for c in rgb]
+            values = [v / 12.92 if v <= .04045 else ((v + .055) / 1.055) ** 2.4 for v in values]
+            return sum(v * w for v, w in zip(values, (.2126, .7152, .0722)))
+        for backdrop in ('#000000', '#ffffff', '#3c78b4', '#c8b48c'):
+            art = (Image.new('RGB', (320, 240), backdrop), *fictional_art()[1:])
+            with patch('time.time', return_value=NOW), patch('token_tv.board_beach.load', return_value=art):
+                image, _ = render_paradise(sample(), waves=2)
+            for provider, x in (('codex', 4), ('claude', 164)):
+                panel = luminance(image.getpixel((x + 80, 12)))            # empty glass between the name and the shells
+                for ink in (COLORS[provider], INK, MUTED):
+                    darker, lighter = sorted((luminance(ImageColor.getrgb(ink)), panel))
+                    self.assertGreaterEqual((lighter + .05) / (darker + .05), 4.5, (backdrop, provider, ink))
 
     def test_film_moves_and_closes_while_the_boat_and_labels_stay_fixed(self):
         image, payload, background, film = scene(sample())
@@ -304,7 +357,7 @@ class BeachFilmTests(unittest.TestCase):
         b = struct.unpack('<76800H', after[8:153608])
         changes = [(i % 320, i // 320) for i, (left, right) in enumerate(zip(a, b)) if left != right]
         self.assertTrue(changes, 'the exhausted balance must actually be shown')
-        self.assertTrue(all(8 <= x < 80 and 19 <= y < 55 for x, y in changes),
+        self.assertTrue(all(8 <= x < 80 and 16 <= y < 50 for x, y in changes),
                         'credits must replace only the Codex weekly number, not Claude or the photo')
         self.assertEqual(before[153608:], after[153608:], 'credits must not alter the water animation')
 
@@ -324,7 +377,7 @@ class BeachFilmTests(unittest.TestCase):
                 changed = ImageChops.difference(with_credits, without_credits).getbbox()
                 self.assertIsNotNone(changed)
                 x0, y0, x1, y1 = changed
-                self.assertTrue(8 <= x0 < x1 <= 80 and 18 <= y0 < y1 <= 55, changed)  # antialiased edge
+                self.assertTrue(8 <= x0 < x1 <= 80 and 16 <= y0 < y1 <= 50, changed)  # antialiased edge
 
 
 @unittest.skipUnless(shutil.which('g++'), 'needs native compiler')

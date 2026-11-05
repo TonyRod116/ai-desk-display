@@ -16,8 +16,11 @@ import struct
 
 KEY = 0xF81F
 MAX_PAYLOAD = 80000
-MAX_FRAMES = 8  # firmware 14+; older boards receive a static Token Run page
+MAX_FRAMES = 8
 MAX_SPRITES, MAX_STARS, MAX_STEPS = 4, 48, 32
+# Extended scenes are sent only after the board advertises anim_extended;
+# keep the defaults for every other producer and older firmware.
+EXTENDED_FRAMES, EXTENDED_SPRITES, EXTENDED_STEPS = 8, 8, 128
 
 
 def rgb565(rgb):
@@ -35,11 +38,14 @@ def sprite_words(image):
     return words
 
 
-def encode(sprites=(), stars=(), meteor=None):
+def encode(sprites=(), stars=(), meteor=None, extended=False):
     """`sprites`: dicts x, y (final px), frames (RGBA images of one size), script [(frame, dx, dy)], step_ms.
     `stars`: (x, y, base, bright, dim) in RGB565. `meteor`: dict x0 y0 x1 y1 period_ms head tail length speed."""
     sprites, stars = list(sprites), list(stars)
-    if len(sprites) > MAX_SPRITES or len(stars) > MAX_STARS:
+    frame_limit = EXTENDED_FRAMES if extended else MAX_FRAMES
+    sprite_limit = EXTENDED_SPRITES if extended else MAX_SPRITES
+    step_limit = EXTENDED_STEPS if extended else MAX_STEPS
+    if len(sprites) > sprite_limit or len(stars) > MAX_STARS:
         raise ValueError('Too many animated things for one page')
     out = bytearray(struct.pack('<BBBB', len(sprites), len(stars), 1 if meteor else 0, 0))
     if meteor:
@@ -51,7 +57,7 @@ def encode(sprites=(), stars=(), meteor=None):
         frames = sprite['frames']
         w, h = frames[0].size
         script = sprite['script']
-        if not 1 <= len(frames) <= MAX_FRAMES or not 1 <= len(script) <= MAX_STEPS or any(f.size != (w, h) for f in frames):
+        if not 1 <= len(frames) <= frame_limit or not 1 <= len(script) <= step_limit or any(f.size != (w, h) for f in frames):
             raise ValueError('Unexpected sprite')
         if any(not 0 <= frame < len(frames) or not -128 <= dx <= 127 or not -128 <= dy <= 127
                for frame, dx, dy in script):

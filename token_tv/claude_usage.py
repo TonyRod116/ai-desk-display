@@ -11,9 +11,10 @@ import struct
 import subprocess
 import termios
 import time
+from datetime import datetime, timedelta
 from pathlib import Path
 
-from token_tv.local_usage import origin_id
+from token_tv.local_usage import clean_windows, origin_id
 from token_tv.sources import SourceError, exe, scoped_env, identity_matches
 from token_tv.usage import normalize_claude, timestamp
 
@@ -30,7 +31,17 @@ REUSE_SECONDS = 90
 # Words that, if the usage screen shows them, say WHY a refresh was not confirmed. Only whether each one appeared is ever
 # kept (a yes/no per word), never the screen text, so a diagnosis can not leak anything about the account.
 SCREEN_HINTS = ('rate limit', '429', 'too many requests', 'failed to', 'error', 'unable to', 'try again', 'retrying',
-                'not logged in', '/login', 'expired', 'network', 'current session', 'current week')
+                'not logged in', '/login', 'expired', 'network', 'current session', 'current week',
+                'organization has disabled')
+# The client's own status line (scripts/claude_statusline_capture.py) carries the same quota numbers, free of any new request or
+# client start. A capture this young with both windows live is as good as a `/usage` run; the reader still proves the login
+# (`authenticate`) before relying on it. Tony approved this on 2026-11-03.
+STATUSLINE_MAX_AGE = 100
+STATUSLINE_SOURCE = 'claude_official_statusline'
+# `/usage` says "rate limited until <time>" while it is limiting requests. Only that moment, as a number, is ever kept.
+RATE_LIMITED_UNTIL = re.compile(r'rate[ -]limited until\s+([^\r\n]{1,48})', re.I)
+RETRY_MAX_AHEAD = 6 * 3600
+MONTHS = 'jan feb mar apr may jun jul aug sep oct nov dec'.split()
 
 
 def reader_env(root):
@@ -95,6 +106,65 @@ def native_record(data, root, since, now=None, expected_email=None):
             'identity_verified': expected_email is not None}
 
 
+def statusline_record(capture, root, expected_email=None, now=None):
+    """The status-line capture as an official reading, or None unless it is recent, complete (both windows, resets still ahead)
+    and written for this source home. It keeps the capture's REAL fetch time, never the time it was read. The caller proves the
+    login (`ClaudeUsageReader.authenticate`) before it publishes this: a capture alone cannot name its account."""
+    now = time.time() if now is None else now
+    if not isinstance(capture, dict) or capture.get('origin') != origin_id(root):
+        return None
+    if capture.get('source') not in ('claude_statusline', 'local_cache'):
+        return None
+    fetched = timestamp(capture.get('fetched_at'))
+    if fetched is None or not 0 <= now - fetched <= STATUSLINE_MAX_AGE:
+        return None
+    windows = clean_windows(capture.get('windows'))
+    if sorted(w['label'] for w in windows) != ['5H', 'WEEK'] or any(w['resets_at'] is None or w['resets_at'] <= now for w in windows):
+        return None
+    return {'fetched_at': fetched, 'windows': windows, 'origin': origin_id(root, expected_email), 'source': STATUSLINE_SOURCE,
+            'stale': False, 'identity_verified': False}
+
+
+def rate_limited_until(text, now=None):
+    """The moment (epoch seconds, an int) a screen says it is rate limited until, else None. The format is not documented, so
+    12 h ("3:45 PM", "3pm") and 24 h ("15:45") clocks are read as local time, with an optional "tomorrow" or "Nov 3". Anything
+    unparsable, already past or more than six hours ahead is ignored: the caller then falls back to its own backoff."""
+    now = time.time() if now is None else now
+    found = RATE_LIMITED_UNTIL.search(text)
+    if not found:
+        return None
+    tail = found[1].lower()
+    clock = (re.search(r'\b(\d{1,2}):(\d{2})(?::(\d{2}))?\s*([ap])\.?m\b', tail)
+             or re.search(r'\b(\d{1,2})()()\s*([ap])\.?m\b', tail)
+             or re.search(r'\b(\d{1,2}):(\d{2})(?::(\d{2}))?()', tail))
+    if not clock:
+        return None
+    hour, minute, second, meridian = int(clock[1]), int(clock[2] or 0), int(clock[3] or 0), clock[4]
+    if meridian:
+        if not 1 <= hour <= 12:
+            return None
+        hour = hour % 12 + (12 if meridian == 'p' else 0)
+    if hour > 23 or minute > 59 or second > 59:
+        return None
+    months = '|'.join(MONTHS)
+    by_name = re.search(rf'\b({months})[a-z]*\.?\s+(\d{{1,2}})(?![\d:])', tail)   # "nov 3" (not "nov 00:10")
+    by_day = re.search(rf'\b(\d{{1,2}})(?:st|nd|rd|th)?\s+({months})', tail)      # "3 nov"
+    date = ((MONTHS.index(by_name[1]) + 1, int(by_name[2])) if by_name else
+            (MONTHS.index(by_day[2]) + 1, int(by_day[1])) if by_day else None)
+    try:
+        when = datetime.fromtimestamp(now).replace(hour=hour, minute=minute, second=second, microsecond=0)
+        if date:
+            when = when.replace(month=date[0], day=date[1])
+            if when.timestamp() < now - 180 * 86400:
+                when = when.replace(year=when.year + 1)
+        elif 'tomorrow' in tail or when.timestamp() < now - 60:
+            when += timedelta(days=1)   # a clock time already gone is the next one, e.g. 12:10 AM at 11:50 PM
+        ahead = when.timestamp() - now
+    except (ValueError, OverflowError, OSError):
+        return None
+    return int(when.timestamp()) if 0 < ahead <= RETRY_MAX_AHEAD else None
+
+
 class ClaudeUsageReader:
     def __init__(self, root, workspace, expected_email=None):
         self.root = Path(root).expanduser().resolve()
@@ -146,6 +216,7 @@ class ClaudeUsageReader:
 
     def read(self, cancel_event=None):
         cancelled = lambda: cancel_event is not None and cancel_event.is_set()
+        self.trace = {}   # a failure before the client opens (login, identity) must not inherit the last run's screen words
         if cancelled():
             raise SourceError('cancelled')
         self.authenticate()
@@ -233,11 +304,15 @@ class ClaudeUsageReader:
             # How old the client's own usage cache was when this run ended (None if unreadable): a cache fetched shortly before
             # `started` means the client reused it instead of asking again.
             kept = self.cached(0)
+            flat = ' '.join(text.lower().split())   # a message wrapped over two lines still counts
             self.trace = {'seconds': round(time.monotonic() - began, 1), 'sent': sent, 'model_free': model_free,
                           'cache_age_at_end': round(time.time() - kept['fetched_at'], 1) if kept else None,
                           'cache_age_at_start': round(started - kept['fetched_at'], 1) if kept else None,
                           'client_exited': process is not None and process.poll() is not None,
-                          'screen_bytes': len(buffer), 'hints': [w for w in SCREEN_HINTS if w in text.lower()]}
+                          'screen_bytes': len(buffer), 'hints': [w for w in SCREEN_HINTS if w in flat]}
+            retry_at = rate_limited_until(text)
+            if retry_at is not None:
+                self.trace['retry_at'] = retry_at   # a number: when the service says requests are allowed again
             try:
                 if process is not None:
                     try:

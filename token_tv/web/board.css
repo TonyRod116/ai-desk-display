@@ -58,3 +58,16 @@ dialog{width:min(460px,calc(100% - 32px));max-height:calc(100% - 32px);overflow:
 .order-grip{flex:none;width:14px;height:18px;opacity:.7;background:radial-gradient(circle,#a8bdb0 1.5px,transparent 1.8px) 0 0/6px 6px}
 .order-float{position:fixed;z-index:10000;pointer-events:none;margin:0;opacity:.96;transform:rotate(1.5deg) scale(1.02);box-shadow:0 14px 35px #000b;border-color:var(--accent)}
 @media(prefers-reduced-motion:reduce){.order-card{transition:none}.order-float{transform:none}}
+
+/* Night mode sits with the other playback settings, in the same surfaces. */
+.segments.two{grid-template-columns:repeat(2,minmax(0,1fr))}
+.night-fields{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:14px 0 0}
+.night-fields label{display:flex;flex-direction:column;gap:6px;font-size:12px;font-weight:800;color:#c7d1cb}
+.night-fields input,.night-fields select{font:inherit;font-size:13px;width:100%;min-width:0;padding:9px 10px;color:var(--text);background:#1c2521;border:1px solid #4a5b50;border-radius:5px;color-scheme:dark}
+.night-fields input:disabled,.night-fields select:disabled{opacity:.5;cursor:not-allowed}
+.night-fields input:focus-visible,.night-fields select:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+@media(max-width:540px){.night-fields{grid-template-columns:repeat(2,minmax(0,1fr))}.night-fields label:last-child{grid-column:1/-1}}
+/* What each hold does on the display, from the thresholds the display itself reports. */
+.touch-legend{margin:18px 0 0;padding:0;list-style:none;display:grid;gap:8px;max-width:34ch;color:#b7c4bd;font-size:12px}
+.touch-legend li{display:flex;align-items:baseline;gap:12px}
+.touch-legend b{flex:none;min-width:46px;color:var(--accent);font:700 12px Oxanium,sans-serif;font-variant-numeric:tabular-nums}

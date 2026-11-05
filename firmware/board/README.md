@@ -8,6 +8,20 @@ no provider accounts or credentials and never contacts AI services itself.
 The [local control room](../../docs/board-control.md) lets you choose a scene,
 animation speed, automatic rotation and touch timings from your computer.
 
+## Recent capabilities (firmware 42–44)
+
+The newer animation format supports up to eight animated elements and longer
+sequences, used by scenes such as Tidal Rush and Violet Horizon. The display
+continues to animate locally; the computer sends readings and page updates.
+The local control room can also schedule a dimmer backlight at night.
+
+A newly installed build is treated as a trial. Once it has run long enough and
+received an authenticated heartbeat, it is marked as confirmed; repeated trial
+failures can return it to the previously confirmed partition. A watchdog helps
+recover from an unresponsive firmware loop. These measures are not a substitute
+for a stable power supply. Update over Wi-Fi only while the paired board's
+physical connection screen is open.
+
 ## Build (isolated toolchain, nothing global)
 
     python3 -m venv ~/code/tools/pio-venv && ~/code/tools/pio-venv/bin/pip install platformio
@@ -15,22 +29,48 @@ animation speed, automatic rotation and touch timings from your computer.
     PLATFORMIO_CORE_DIR=~/code/tools/pio-core ~/code/tools/pio-venv/bin/pio run -e cyd          # ILI9341
     PLATFORMIO_CORE_DIR=~/code/tools/pio-core ~/code/tools/pio-venv/bin/pio run -e cyd_st7789   # ST7789
 
-Merge one image per variant (flash at offset 0), as the web flasher expects:
+Prepare the files expected by the USB flasher and the Wi-Fi update command.
+From `firmware/board`, after building both variants above:
 
-    P=~/code/tools/pio-core/packages
-    ~/code/tools/pio-venv/bin/python $P/tool-esptoolpy/esptool.py --chip esp32 merge_bin \
-      -o dist/tokentv-board-cyd.bin --flash_mode dio --flash_freq 40m --flash_size 4MB \
-      0x1000 .pio/build/cyd/bootloader.bin 0x8000 .pio/build/cyd/partitions.bin \
-      0xe000 $P/framework-arduinoespressif32/tools/partitions/boot_app0.bin 0x10000 .pio/build/cyd/firmware.bin
+```bash
+mkdir -p dist
+for variant in cyd cyd_st7789; do
+  cp ".pio/build/$variant/bootloader.bin" "dist/tokentv-board-$variant-bootloader.bin"
+  cp ".pio/build/$variant/partitions.bin" "dist/tokentv-board-$variant-partitions.bin"
+  cp ".pio/build/$variant/firmware.bin" "dist/tokentv-board-$variant-firmware.bin"
+done
+cp ~/code/tools/pio-core/packages/framework-arduinoespressif32/tools/partitions/boot_app0.bin dist/boot_app0.bin
+```
+
+If you use a different PlatformIO core directory, use its `packages` folder
+instead. The `dist/` files are generated locally and are not in the repository.
+The application image ending in `-firmware.bin` is also what `board --update`
+uses; choose `--variant cyd_st7789` when updating that screen type.
 
 ## Flash
 
-The web flasher is vendored (no internet needed): `npm pack esp-web-tools@10.4.0`, copy `package/dist/web/*.js`
-to `flasher/vendor/esp-web-tools/`, then
+The source checkout does not bundle esp-web-tools. With Node and npm installed,
+prepare its pinned web files locally (this step downloads the package):
 
-    python3 -m http.server 8790 --bind 127.0.0.1 --directory firmware/board
+```bash
+web_tools_dir="$(mktemp -d)"
+npm pack esp-web-tools@10.4.0 --pack-destination "$web_tools_dir"
+tar -xzf "$web_tools_dir/esp-web-tools-10.4.0.tgz" -C "$web_tools_dir"
+mkdir -p flasher/vendor/esp-web-tools
+cp -R "$web_tools_dir/package/dist/web/." flasher/vendor/esp-web-tools/
+cp "$web_tools_dir/package/LICENSE" flasher/vendor/esp-web-tools/LICENSE
+```
 
-and open `http://127.0.0.1:8790/flasher/` in Chrome or Edge with the board on USB.
+From the repository root, serve the prepared page and firmware locally:
+
+```bash
+python3 -m http.server 8790 --bind 127.0.0.1 --directory firmware/board
+```
+
+Open `http://127.0.0.1:8790/flasher/` in Chrome or Edge with the board connected
+directly over USB. The page and built images are served by your computer. For
+Wi-Fi updates, keep the board paired and first open its physical connection
+screen; see the [setup guide](../../docs/setup.md).
 
 ## Protocol (the PC calls these)
 

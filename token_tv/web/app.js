@@ -10,7 +10,7 @@ const PERSONAL_THEMES = [
 const THEMES = PERSONAL_THEMES;
 const SCENE_THEME = {id:'scene', eyebrow:'LOCAL DASHBOARD', title:'USAGE DASHBOARD', note:'Hearts: saved resets · Bar: remaining quota', remaining:true};
 const themeConfig = id => id === 'scene' ? SCENE_THEME : THEMES.find(t => t.id === id);
-const STATUS = {ok:'Connected', loading:'Loading', auth_required:'Login needed', identity_mismatch:'Check identity', quota_unavailable:'Quota unavailable', usage_blocked:'Blocked by Codex', stale:'OLD · Previous value', rate_limited:'Retry later', error:'Fetch failed'};
+const STATUS = {loading:'Loading', auth_required:'Login needed', identity_mismatch:'Check identity', quota_unavailable:'Quota unavailable', usage_blocked:'Blocked by Codex', stale:'OLD · Previous value', rate_limited:'Retry later', error:'Fetch failed'};
 const PROVIDERS = ['codex', 'claude', 'grok'];
 const COMPANIES = {claude:'ANTHROPIC', codex:'OPENAI', grok:'XAI'};
 const svgNS = 'http://www.w3.org/2000/svg';
@@ -22,6 +22,7 @@ if (!accountChoices || typeof accountChoices !== 'object' || Array.isArray(accou
 // The static demo (scripts/build_demo.py) serves sample data and pre-rendered clock frames.
 const DEMO = document.documentElement.hasAttribute('data-demo');
 let snapshot = null, offline = false, polling = false, displayInfo = null, displayOffline = false;
+let historyData = null, historyAt = 0, historyPolling = false; // GET /history: web only, never the board
 let selectedScene = readPreference('ai-desk-display.dashboard-scene', null);
 if (typeof selectedScene !== 'string' || !/^[a-z0-9-]+$/.test(selectedScene)) selectedScene = null;
 const el = (tag, text, cls) => {const n = document.createElement(tag); if (text !== undefined) n.textContent = text; if (cls) n.className = cls; return n};
@@ -112,18 +113,26 @@ function gauge(value, label, used = value) {
  for (let i = 0; i < 10; i++) {const seg = el('span', undefined, 'meter-segment'), fill = el('span', undefined, 'meter-fill'); seg.style.setProperty('--i', String(i)); fill.style.setProperty('--fill', Number.isFinite(value) ? clamp((value - i * 10) * 10) + '%' : '0%'); seg.append(fill); g.append(seg)}
  return g;
 }
-function stat(key, value, cls) {const s = el('div', undefined, 'stat' + (cls ? ' ' + cls : '')); s.append(el('span', key, 'stat-k'), typeof value === 'string' ? el('span', value, 'stat-v') : value); return s}
 
-function knownResetCount(info, unavailable = offline) {
- const count = info?.available, age = Date.now() / 1000 - info?.confirmed_at;
- const expired = ['codex_cli','claude_web'].includes(info?.source) && (unavailable || !Number.isFinite(info.confirmed_at) || !Number.isFinite(age) || age < -60 || age > 180
-  || info.source === 'claude_web' && (count > 0 && !Number.isFinite(info.valid_until) || info.valid_until != null && (!Number.isFinite(info.valid_until) || info.valid_until <= Date.now() / 1000)));
- return !expired && Number.isInteger(count) && count >= 0 ? count : null;
+// An automatic count is current for 3 minutes; after that it stays, marked old by the discreet dot, for up to 72 hours (Tony,
+// 2026-10-20: "the last known count when old"). The same tiers as token_tv/reset_balances.py, which keeps it as `last_known`.
+const RESET_FRESH = 180, RESET_LAST_KNOWN = 72 * 3600;
+function resetReading(info, unavailable = offline) {
+ const kept = info?.available == null && Number.isInteger(info?.last_known);
+ const count = kept ? info.last_known : info?.available, age = Date.now() / 1000 - info?.confirmed_at;
+ const timed = kept || ['codex_cli','claude_web'].includes(info?.source), until = info?.valid_until;
+ const expired = timed && (unavailable || !Number.isFinite(info.confirmed_at) || !Number.isFinite(age) || age < -60 || age > RESET_LAST_KNOWN
+  || until != null && (!Number.isFinite(until) || until <= Date.now() / 1000)
+  || info.source === 'claude_web' && count > 0 && !Number.isFinite(until));
+ return expired || !Number.isInteger(count) || count < 0 ? {count: null, old: false} : {count, old: timed && age > RESET_FRESH};
 }
-function savedHearts(info) {
- const count = knownResetCount(info), known = count !== null;
+function knownResetCount(info, unavailable = offline) {return resetReading(info, unavailable).count}
+/* Three hearts, one per available saved reset. Unknown is three faint hearts and one discreet dot, as on the board;
+ * an old count, or a reading a few minutes old, keeps its count and gets the same dot. Never a question mark, never zero. */
+function savedHearts(info, aged = false) {
+ const {count, old} = resetReading(info), known = count !== null;
  const hearts = el('span', undefined, 'saved-hearts');
- const label = known ? `${count} saved resets` : 'Saved-reset balance unknown';
+ const label = known ? `${count} saved resets` + (old ? ' · checked a few minutes ago' : '') : 'Saved-reset balance unknown';
  hearts.setAttribute('role', 'img'); hearts.setAttribute('aria-label', label);
  hearts.title = label + (info?.source === 'user_confirmed' ? ' · confirmed by you' : '');
  for (let i = 0; i < 3; i++) {
@@ -132,18 +141,20 @@ function savedHearts(info) {
   s.append(svgNode('path', {d:'M1 0h2v1h1V0h2v1h1v2H6v1H5v1H4v1H3V5H2V4H1V3H0V1h1Z', fill:filled ? 'currentColor' : 'none', stroke:'currentColor', 'stroke-width':filled ? 0 : .75}));
   s.dataset.filled = String(filled); hearts.append(s);
  }
- if (!known || count > 3) hearts.append(el('span', known ? '+' : '?'));
+ if (known && count > 3) hearts.append(el('span', '+'));
+ if (!known || aged || old) {const dot = el('i', undefined, 'hearts-dot'); dot.setAttribute('aria-hidden', 'true'); hearts.append(dot)}
  return hearts;
 }
 
 function visibleWindows(a) {
  let windows = (a.windows || []).filter(w => Number.isFinite(w.used_percent));
  if (a.status === 'identity_mismatch') return [];
- if (['claude_official_cli', 'codex_official_cli'].includes(a.quota_origin)) {
+ if (['claude_official_cli', 'claude_official_statusline', 'claude_browser', 'codex_official_cli'].includes(a.quota_origin)) {
   const now = Date.now() / 1000, age = now - a.fetched_at;
   // A rolled-over Claude five-hour window is unknown; the weekly one has its own reset.
-  if (a.quota_origin === 'claude_official_cli') windows = windows.filter(w => w.label === 'WEEK' || (Number.isFinite(w.resets_at) && w.resets_at > now));
-  if (offline || a.status !== 'ok' || !Number.isFinite(a.fetched_at) || !Number.isFinite(age) || age < -60 || age > 180
+  if (a.quota_origin.startsWith('claude_')) windows = windows.filter(w => w.label === 'WEEK' || (Number.isFinite(w.resets_at) && w.resets_at > now));
+  // Tony, 2026-11-03: the number stays up to 480 s (the monitor marks it `reading_aged` after 180 s); older is unknown.
+  if (offline || a.status !== 'ok' || !Number.isFinite(a.fetched_at) || !Number.isFinite(age) || age < -60 || age > 480
       || !windows.some(w => w.label === 'WEEK') || windows.some(w => !Number.isFinite(w.resets_at) || w.resets_at <= now)) return [];
   if (a.quota_origin === 'codex_official_cli' && a.ordinary_usage_allowed !== true) {
    windows = a.ordinary_usage_allowed === false ? windows.filter(w => w.label === 'WEEK' && w.used_percent === 100) : [];
@@ -181,10 +192,6 @@ function setTheme(theme) {
  $('#eyebrow').textContent = config.eyebrow; $('#eyebrow').hidden = !config.eyebrow;
  $('#page-title').textContent = config.title;
  $('#intro-note').textContent = config.note; $('#intro-note').hidden = !config.note;
- const labels = config.remaining ? ['51–100%', '21–50%', '11–20%', '0–10%'] : ['0–49%', '50–79%', '80–89%', '90–100%'];
- $('.legend').setAttribute('aria-label', config.remaining ? 'Remaining quota levels' : 'Used quota levels');
- $('.legend .section-label').textContent = config.remaining ? 'Remaining quota' : 'Used quota';
- document.querySelectorAll('.legend i').forEach((n, i) => {n.nextSibling.textContent = labels[i]});
  for (const b of document.querySelectorAll('[data-theme-choice]')) b.setAttribute('aria-pressed', String(b.dataset.themeChoice === config.id));
  const libraryButton = $('#scene-browse');
  if (libraryButton) libraryButton.setAttribute('aria-pressed', String(config.id === 'scene'));
@@ -197,24 +204,98 @@ for (const t of THEMES) {
  const sw = el('span', undefined, 'swatch'); sw.dataset.swatch = t.id; sw.setAttribute('aria-hidden', 'true'); sw.append(el('i'), el('i'), el('i'));
  b.append(sw, el('span', t.name, 'theme-name')); b.onclick = () => setTheme(t.id); $('#themes').append(b);
 }
+/* How old a reading is, in the words a person uses: "just now", "40 s", "2 min", "1 h 5 min". */
+function spanShort(seconds) {
+ const s = Math.max(0, Math.round(seconds));
+ if (s < 100) return `${s} s`;
+ const m = Math.round(s / 60);
+ if (m < 60) return `${m} min`;
+ const h = Math.floor(m / 60);
+ return h < 48 ? `${h} h${m % 60 ? ` ${m % 60} min` : ''}` : `${Math.floor(h / 24)} days`;
+}
+const ageText = (label, epoch) => Date.now() / 1000 - epoch < 5 ? `${label} just now` : `${label} ${spanShort(Date.now() / 1000 - epoch)} ago`;
+const clockText = epoch => new Date(epoch * 1000).toLocaleTimeString('en-GB', {hour:'2-digit', minute:'2-digit'});
+
+/* One more window of the same account, shown beside the week: the five hours stop work first. */
+function windowLine(a, w, remaining) {
+ const v = remaining ? clamp(100 - w.used_percent) : w.used_percent, name = period(w);
+ const line = el('div', undefined, 'window-detail'), left = resetTime(w.resets_at), timer = el('span', undefined, 'window-timer');
+ if (/^[\ddh ]+m?$/.test(left) && left !== '—') timer.append(el('span', 'resets in', 'window-timer-label'), ' ', el('span', left, 'window-timer-value'));
+ else timer.append(left);
+ line.append(el('span', name + (remaining ? ' LEFT' : ' USED'), 'window-name'), gauge(v, a.alias + ' ' + name + (remaining ? ' remaining quota' : ' used quota'), w.used_percent), el('span', Math.round(v) + '%', 'window-percent'), timer);
+ return line;
+}
+
+/* The saved-reset counter's own reader (the browser extension), when the monitor reports it. */
+function bankReader(provider) {
+ const info = (snapshot?.display?.saved_resets || displayInfo?.saved_resets)?.[provider];
+ return info?.reader && typeof info.reader === 'object' ? info.reader : null;
+}
+
+/* The chart and its one sentence, only while the reading itself is known and the history has something to say. */
+function historyBlock(provider, accounts, a, windows, remaining) {
+ if (DEMO || offline || a.status !== 'ok' || a.reading_aged === true || accounts.length !== 1 || !historyData || Date.now() / 1000 - historyData.now > 300) return null;
+ const picked = pickForecast(historyData.windows?.[provider], windows.map(w => w.label));
+ if (!picked) return null;
+ // The answer is a minute old at most: count the time to 100% down from the moment it predicts, not from when it was asked.
+ const ahead = picked.forecast.state === 'runs_out' ? {...picked.forecast, seconds:Math.max(0, picked.forecast.at - Date.now() / 1000)} : picked.forecast;
+ const sentence = forecastSentence(ahead, picked.label);
+ if (!sentence) return null;
+ const block = el('div', undefined, 'history'); block.dataset.window = picked.label; block.dataset.state = picked.forecast.state;
+ const key = [provider, picked.label, historyData.now, remaining, document.documentElement.lang].join('|');
+ let kept = historyFigures.get(provider);
+ if (kept?.key !== key) {kept = {key, node:historyFigure(picked, {remaining, name:a.alias, provider})}; historyFigures.set(provider, kept)}
+ const words = el('p', undefined, 'history-sentence'), lead = sentence.match(/^(At this pace,)(.*)$/);
+ if (lead) words.append(el('span', lead[1], 'history-lead'), lead[2]); else words.textContent = sentence;
+ block.append(words, kept.node);
+ return block;
+}
+const historyFigures = new Map(); // the chart is kept between redraws, so hovering or focusing it survives them
+
+/* What went wrong, in order of what a person can do about it. Nothing at all when everything is fine. */
+function cardFoot(provider, a, primary, stale, aged, reader, failing) {
+ const foot = el('div', undefined, 'card-foot'), now = Date.now() / 1000;
+ const checked = stale ? a.last_success_at : a.fetched_at;
+ if (offline) foot.append(el('span', 'Offline · previous value', 'foot-age'));
+ else if (primary && Number.isFinite(checked) && checked > 0) {
+  const when = el('time', ageText(stale ? 'Last good' : 'Checked', checked), 'foot-age'), d = new Date(checked * 1000);
+  when.dateTime = d.toISOString(); when.title = d.toLocaleString('en-GB');
+  if (aged) {when.dataset.aged = 'true'; const dot = el('i', undefined, 'age-dot'); dot.setAttribute('aria-hidden', 'true'); when.append(dot)}
+  foot.append(when);
+  if (a.quota_origin === 'claude_browser') foot.append(el('span', 'Browser backup · claude.ai', 'foot-retry'));
+ } else if (failing && Number.isFinite(reader.since) && reader.since > 0) foot.append(el('span', `No reading for ${spanShort(now - reader.since)}`, 'foot-age'));
+ if (failing && Number.isFinite(reader.retry_at) && reader.retry_at > now) foot.append(el('span', `Next try in ${spanShort(reader.retry_at - now)}`, 'foot-retry'));
+ const notes = [];
+ if (failing && primary) notes.push(typeof reader.text === 'string' && reader.text ? reader.text : 'The quota reader is not updating.');
+ const bank = provider === 'claude' ? bankReader(provider) : null;
+ if (bank?.state === 'failing') notes.push((typeof bank.text === 'string' && bank.text ? bank.text : 'The saved-reset counter is not updating.') + (Number.isFinite(bank.last_delivery) && bank.last_delivery > 0 ? ` Last update ${clockText(bank.last_delivery)}.` : ''));
+ if (!reader && !['ok', 'quota_unavailable', 'stale'].includes(a.status) && STATUS[a.status]) notes.push(STATUS[a.status]);
+ for (const text of notes) {
+  const note = el('p', undefined, 'foot-note'), mark = el('span', undefined, 'note-mark'); mark.setAttribute('aria-hidden', 'true');
+  note.append(mark, el('span', text)); foot.append(note);
+ }
+ return foot.children.length ? foot : null;
+}
+
 function providerCard(provider, accounts) {
  const remaining = Boolean(themeConfig(document.documentElement.dataset.theme)?.remaining);
  let a = accounts.find(x => x.key === accountChoices[provider]) || accounts[0];
  if (!a) a = {key:provider, alias:provider.toUpperCase(), provider, status:'loading', windows:[]};
- const prior = $(`.provider-card[data-provider="${provider}"] .more-windows`);
  const stale = offline || a.status === 'stale';
  const windows = visibleWindows(a);
  const candidates = remaining && ['claude', 'codex'].includes(provider) ? windows.filter(w => w.label === 'WEEK') : windows;
  const primary = candidates.reduce((p, w) => !p || w.used_percent > p.used_percent ? w : p, null);
  const value = primary ? clamp(remaining ? 100 - primary.used_percent : primary.used_percent) : null;
  const credits = exhaustedBalance(a, primary);
+ const aged = a.reading_aged === true && Boolean(primary);
+ const reader = a.reader && typeof a.reader === 'object' ? a.reader : null, failing = reader?.state === 'failing';
  const shell = el('div', undefined, 'card-shell'); shell.dataset.provider = provider;
  const card = el('article', undefined, 'provider-card');
- Object.assign(card.dataset, {provider, key:a.key, stale:String(stale), level:primary ? level(primary.used_percent) : 'unknown', credits:String(credits !== null)});
+ Object.assign(card.dataset, {provider, key:a.key, stale:String(stale), aged:String(aged), level:primary ? level(primary.used_percent) : 'unknown', credits:String(credits !== null)});
  const art = el('div', undefined, 'card-art'); art.setAttribute('aria-hidden', 'true'); art.append(scene(provider));
  const head = el('div', undefined, 'card-head'), logo = el('div', undefined, 'provider-icon'); logo.append(icon(provider), mascot(provider));
  const name = el('div', undefined, 'provider-name'); name.append(el('h2', provider.toUpperCase(), 'provider-title'), el('span', COMPANIES[provider], 'company'));
- if (remaining) name.append(savedHearts(a.status === 'identity_mismatch' ? null : a.banked_resets));
+ if (remaining) name.append(savedHearts(a.status === 'identity_mismatch' ? null : a.banked_resets, aged));
  const tabs = el('div', undefined, 'account-tabs'); tabs.setAttribute('role', 'group'); tabs.setAttribute('aria-label', provider.toUpperCase() + ' accounts');
  for (const row of accounts) {const letter = (row.alias || '').split(' ').at(-1); const b = el('button', letter, 'account-tab'); b.type = 'button'; b.dataset.account = row.key; b.title = row.alias; b.setAttribute('aria-label', row.alias); b.setAttribute('aria-pressed', String(row.key === a.key)); b.onclick = () => {accountChoices[provider] = row.key; savePreference('tokentv.accounts', accountChoices); renderAccounts(); $(`[data-account="${row.key}"]`)?.focus()}; tabs.append(b)}
  tabs.hidden = remaining && accounts.length <= 1;
@@ -223,7 +304,8 @@ function providerCard(provider, accounts) {
  meta.append(el('span', credits !== null ? 'EXTRA CREDITS' : period(primary) + (remaining ? ' LEFT' : ' USED'), 'reading-label'));
  if (credits !== null) meta.append(el('span', credits === '?' ? 'Balance unavailable' : 'Weekly limit reached', 'level-label'));
  else if (primary) meta.append(el('span', stale ? 'OLD · Last known usage' : levelText(primary.used_percent), 'level-label'));
- else meta.append(el('span', ['claude_official_cli', 'codex_official_cli'].includes(a.quota_origin) ?
+ else meta.append(el('span', failing && typeof reader.text === 'string' && reader.text ? reader.text :
+  ['claude_official_cli', 'claude_official_statusline', 'claude_browser', 'codex_official_cli'].includes(a.quota_origin) ?
   'No recent weekly reading. Retrying automatically.' :
   a.status === 'quota_unavailable' && a.source === 'local' && provider === 'claude' ?
   'No current local Claude reading. This page does not refresh the Claude Code reader.' :
@@ -237,32 +319,26 @@ function providerCard(provider, accounts) {
  timer.append(clockGlyph(), el('span', 'RESETS IN', 'timer-label'), until);
  const row = el('div', undefined, 'gauge'); row.append(gauge(value, a.alias + ' ' + period(primary) + (remaining ? ' remaining quota' : ' used quota'), primary?.used_percent), el('span', value === null ? '—' : Math.round(value) + '%', 'gauge-value'));
  card.append(art, head, reading, timer, row);
- const others = windows.filter(w => w !== primary);
- if (others.length) {
-  const details = el('details', undefined, 'more-windows'); details.open = prior?.open || false;
-  const named = period(others[0]) === 'CLI BUDGET' ? 'CLI budget' : period(others[0])[0] + period(others[0]).slice(1).toLowerCase();
-  details.append(el('summary', others.length === 1 ? `${named} window` : `${others.length} more windows`));
-  for (const w of others) {const v = remaining ? clamp(100 - w.used_percent) : w.used_percent; const line = el('div', undefined, 'window-detail'); line.append(el('span', period(w), 'window-name'), gauge(v, a.alias + ' ' + period(w) + (remaining ? ' remaining quota' : ' used quota'), w.used_percent), el('span', Math.round(v) + '%', 'window-percent'), el('span', resetTime(w.resets_at), 'window-timer')); details.append(line)}
-  card.append(details);
- }
- const checked = stale ? a.last_success_at : a.fetched_at;
- let when = el('span', '—', 'stat-v');
- if (checked) {const d = new Date(checked * 1000); when = el('time', d.toLocaleTimeString('en-GB', {hour:'2-digit', minute:'2-digit'}), 'stat-v'); when.dateTime = d.toISOString(); when.title = d.toLocaleString('en-GB')}
- const foot = el('div', undefined, 'card-foot');
- foot.append(stat('Account', a.alias || '—'), stat('Window', primary ? period(primary) : '—'), stat('Source', ['claude_official_cli', 'codex_official_cli'].includes(a.quota_origin) ? 'Official client · local cache' : a.source === 'local' ? 'Local files' : a.source === 'mini' ? 'This computer' : a.source ? 'Linked snapshot' : '—'), stat(stale ? 'Last good' : 'Checked', when), stat('Status', el('span', offline ? 'OFFLINE · Previous value' : STATUS[a.status] || 'Unknown', 'row-status stat-v'), 'stat-status'));
- card.append(foot); shell.append(card); return shell;
+ const more = el('div', undefined, 'more-windows');
+ for (const w of windows.filter(w => w !== primary)) more.append(windowLine(a, w, remaining));
+ const block = primary ? historyBlock(provider, accounts, a, windows, remaining) : null;
+ if (block) more.append(block);
+ if (more.children.length) card.append(more);
+ const foot = cardFoot(provider, a, primary, stale, aged, reader, failing);
+ if (foot) card.append(foot);
+ card.dataset.foot = String(Boolean(foot));
+ shell.append(card); return shell;
 }
 function renderAccounts() {
  paintSavedResets();
  if (!snapshot) return;
- const focused = document.activeElement?.dataset?.account, rows = Object.values(snapshot.accounts || {}), fragment = document.createDocumentFragment();
+ const focused = document.activeElement?.dataset?.account, plot = document.activeElement?.classList?.contains('history-plot') ? document.activeElement.dataset.provider : null;
+ const rows = Object.values(snapshot.accounts || {}), fragment = document.createDocumentFragment();
  const used = PROVIDERS.filter(p => rows.some(a => a.provider === p)); // only services that are set up
  for (const provider of used.length ? used : PROVIDERS) fragment.append(providerCard(provider, rows.filter(a => a.provider === provider)));
  $('#providers').replaceChildren(fragment);
- const reporting = offline ? 0 : rows.filter(a => a.status === 'ok' && visibleWindows(a).length).length;
- $('#account-count').textContent = pad(rows.length); $('#reporting-count').textContent = pad(reporting); $('#provider-count').textContent = pad(used.length);
- $('#foot-reporting').textContent = `${reporting} / ${rows.length} reporting`;
  if (focused) {const b = [...document.querySelectorAll('[data-account]')].find(b => b.dataset.account === focused); b?.focus({preventScroll:true})}
+ if (plot) document.querySelector(`.history-plot[data-provider="${plot}"]`)?.focus({preventScroll:true});
 }
 /* Demo data stores resets as seconds from now so the timers stay plausible on any day. */
 function demoSnapshot(data) {
@@ -280,14 +356,13 @@ async function update() {
   const staleCount = Object.values(data.accounts).filter(a => a.status === 'stale').length;
   $('#connection').textContent = DEMO ? 'Demo · sample data' : staleCount ? `${staleCount} stale · Live server` : 'Live';
   $('#notice').hidden = !staleCount; $('#notice').textContent = staleCount + ' account' + (staleCount === 1 ? ' has' : 's have') + ' an older reading. Check the selected account’s source and last successful update.';
-  $('#updated').textContent = data.updated_at ? 'Server checked ' + new Date(data.updated_at * 1000).toLocaleTimeString('en-GB') : 'Waiting for first reading';
-  $('#signal').dataset.strength = staleCount ? '2' : '3';
  } catch {
-  offline = true; $('#connection').textContent = 'Server offline'; $('#notice').hidden = false; $('#signal').dataset.strength = '0';
+  offline = true; $('#connection').textContent = 'Server offline'; $('#notice').hidden = false;
   $('#notice').textContent = snapshot ? 'Local connection lost. Official quotas remain unknown until readings recover.' : 'Cannot reach the local monitor. Is it running?';
   if (!snapshot) $('#providers').replaceChildren(el('p', 'No usage data received.', 'loading'));
  } finally {
   polling = false; document.body.dataset.offline = String(offline); renderAccounts();
+  if (!offline && Date.now() - historyAt > 55000) refreshHistory();
   if (document.documentElement.dataset.theme === 'scene') {
    if (offline) showSceneOffline();
    else if (wasOffline) refreshScene();
@@ -295,15 +370,6 @@ async function update() {
   if (offline && library.open) pauseLibrary('Local connection lost. Waiting for current readings.');
  }
 }
-function tick() {
- const now = new Date(), t = $('#local-time');
- const iso = t.querySelector('.date-iso'), time = t.querySelector('.time');
- iso.textContent = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`; iso.dataset.ghost = '8888-88-88';
- t.querySelector('.date-long').textContent = now.toLocaleDateString(document.documentElement.lang === 'es' ? 'es-ES' : 'en-US', {month:'short', day:'2-digit', year:'numeric'}).toUpperCase();
- time.textContent = `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`; time.dataset.ghost = '88:88:88';
-}
-$('#clock-zone').textContent = new Intl.DateTimeFormat('en-US', {timeZoneName:'short'}).formatToParts(new Date()).find(p => p.type === 'timeZoneName')?.value || 'Local';
-
 function showClock(show) {$('#clock-panel').hidden = !show; $('#clock-toggle').setAttribute('aria-expanded', String(show)); if (show) {refreshDisplay(); $('#close-clock').focus()} else $('#clock-toggle').focus()}
 $('#clock-toggle').onclick = () => showClock($('#clock-panel').hidden); $('#close-clock').onclick = () => showClock(false);
 function paintSavedResets() {
@@ -312,7 +378,7 @@ function paintSavedResets() {
  for (const provider of ['codex','claude']) {
   const input = $('#resets-' + provider), info = displayInfo.saved_resets?.[provider];
   const automatic = displayInfo.automatic_reset_providers?.includes(provider);
-  const count = automatic && info?.source !== {codex:'codex_cli',claude:'claude_web'}[provider] ? null : knownResetCount(info, offline || displayOffline);
+  const count = automatic && info?.source !== {codex:'codex_cli',claude:'claude_web'}[provider] && info?.source !== 'claude_not_eligible' ? null : knownResetCount(info, offline || displayOffline);
   input.readOnly = Boolean(automatic);
   if (automatic || (document.activeElement !== input && !input.dataset.dirty)) input.value = count ?? '';
   $('#resets-' + provider + '-source').textContent = automatic ?
@@ -346,6 +412,19 @@ async function refreshDisplay() {
   displayInfo = await r.json(); displayOffline = false;
  } catch {displayOffline = true}
  finally {displayPolling = false; paintSavedResets()}
+}
+/* Numbers for the chart. A failed or stalled request clears them: nothing is better than an old forecast. */
+async function refreshHistory() {
+ if (DEMO || historyPolling) return;
+ historyPolling = true;
+ try {
+  const r = await fetch('/history', {cache:'no-store', signal:AbortSignal.timeout(4000)});
+  if (!r.ok) throw Error();
+  const data = await r.json();
+  if (!data || typeof data.windows !== 'object' || !Number.isFinite(data.now)) throw Error();
+  historyData = data;
+ } catch {historyData = null}
+ finally {historyPolling = false; historyAt = Date.now(); renderAccounts()}
 }
 /* Screen previews are rendered by the local service; opening this library never
  * changes a device setting or polls the physical board. */
@@ -508,8 +587,8 @@ document.addEventListener('visibilitychange', () => {
  }
 });
 setTheme(readPreference('tokentv.theme', 'game-boy'));
-buildStarfield(); tick();
-update(); refreshDisplay(); setInterval(update, 30000); setInterval(tick, 1000); setInterval(() => {renderAccounts(); if (!$('#clock-panel').hidden) refreshDisplay()}, 5000);
+buildStarfield();
+update(); refreshDisplay(); setInterval(update, 30000); setInterval(() => {renderAccounts(); if (!$('#clock-panel').hidden) refreshDisplay()}, 5000);
 setInterval(() => {
  if (library.open && Date.now() - libraryOpenedAt >= 120000) pauseLibrary('Previews paused. Reload them for current readings.');
  else if (!library.open && document.documentElement.dataset.theme === 'scene') {

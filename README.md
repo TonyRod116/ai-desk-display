@@ -17,18 +17,26 @@ A Game Boy. A cyberpunk city. A beach. Claude and Codex in an arcade fight.
 
 ## Eight screens, zero boredom
 
-These are the eight screens on my display right now. You can swap any of them for another scene in the library:
+Eight favourites from my screen library. Swap them around, pick something older, or make a new one:
 
 | | |
 |:---:|:---:|
 | **Game Boy** · green LCD, pixels and nostalgia.<br>![Game Boy — simulated quota updates](docs/images/game-boy.gif) | **Paradise** · a tiny tropical break between prompts.<br>![Paradise — a beach and sailboat with an animated shoreline](docs/images/paradise.gif?v=8604eaf692)<br>*Optional local artwork* · [Beach setup](docs/board-paradise.md) |
-| **Neon District** · a rainy rooftop and a city full of signs.<br>![Neon District — animated cyberpunk city with sample numbers](docs/images/neon-district.gif?v=aa28bc1e23)<br>*Optional local artwork* | **Tidal Rush** · ride the barrel, chase the foam, forget the next prompt.<br>![Tidal Rush — flowing wave and animated breaking foam](docs/images/surf.gif)<br>[Still image](docs/images/surf.png) · [Under the hood](docs/board-surf.md) |
-| **Token Run** · coastal cruising, approaching palms and a red convertible.<br>![Token Run — coastal road with palms growing closer and passing on the right](docs/images/dials.gif)<br>[Still image](docs/images/dials.png) · [Under the hood](docs/board-run.md) | **Versus** · Codex and Claude enter a pixel-art arena. Empty quota? KO.<br>![Versus — animated fighters in a retro arena](docs/images/arcade.gif?v=070f732a72)<br>*Optional local stage* · [Still image](docs/images/arcade.png?v=828e60d9f9) · [Under the hood](docs/board-versus.md) |
-| **Platform World** · Mario and Yoshi on a side-scrolling adventure.<br>![Mario and Yoshi — scrolling platform scene with sample numbers](docs/images/cockpit.gif?v=7887cab24d)<br>*Optional local artwork* · [Still image](docs/images/cockpit.png?v=37f2a1c5a6) · [Under the hood](docs/board-platform.md) | **Quota City** · a detailed isometric skyline that shows what's left.<br>![Quota City — city animation](docs/images/countdown.gif) |
+| **Neon District** · a rainy rooftop and a city full of signs.<br>![Neon District — animated cyberpunk city with sample numbers](docs/images/neon-district.gif?v=aa28bc1e23)<br>*Optional local artwork* | **Tidal Rush** · ride the barrel, chase the foam, forget the next prompt.<br>![Tidal Rush — flowing wave, surfer and gulls](docs/images/surf.gif?v=surf-2)<br>[Still image](docs/images/surf.png?v=surf-2) · [Under the hood](docs/board-surf.md) |
+| **Token Run** · coastal cruising, approaching palms and a red convertible.<br>![Token Run — coastal road with palms growing closer and passing on the right](docs/images/dials.gif)<br>[Still image](docs/images/dials.png) · [Under the hood](docs/board-run.md) | **Versus** · Codex and Claude enter a pixel-art arena. Empty quota? KO.<br>![Versus — two animated fighters in the bundled retro arena](docs/images/arcade.gif?v=arcade-2)<br>[Still image](docs/images/arcade.png?v=arcade-2) · [Under the hood](docs/board-versus.md) |
+| **Hyrule Quest** · an adventurous little world with two magic crystals for your limits.<br>![Hyrule Quest — a traveller by a shrine, bridge and two quota crystals](docs/images/quest.gif?v=quest-1)<br>[Still image](docs/images/quest.png) · [Quest guide](docs/board-quest.md) | **Quota City** · a detailed isometric skyline that shows what's left.<br>![Quota City — city animation](docs/images/countdown.gif) |
 
-These GIFs show the scenes on my display with **fictional readings**. The scenes labelled *optional local artwork* or *stage* use personal customizations that aren't included in a fresh download. Paradise, Versus and Platform have bundled alternatives; Neon District needs its own image. The Paradise GIF shows an earlier version of the shoreline; the latest local wave travels farther and moves more slowly. The previews can show third-party artwork; see [asset notes](ASSETS.md). Moving scenes are captured with the firmware simulator, except the scrolling platform scene, which uses its matching Python renderer. The Versus GIF switches between two fictional readings to demonstrate a KO; Game Boy is normally static and shows accelerated sample quota updates. GIFs have a limited color palette; the display receives RGB565 frames.
+These previews use **fictional readings**. Paradise and Neon District show optional local artwork that isn't included in a fresh download. Paradise has a bundled alternative; Neon District needs its own image. The Paradise GIF shows an earlier shoreline; the current optional wave travels farther and moves more slowly. Versus and Hyrule Quest show their bundled artwork; both can also use optional local art. Some previews contain third-party artwork: see [asset notes](ASSETS.md). GIFs have a limited colour palette; the display receives RGB565 frames. Game Boy is normally static and the preview shows accelerated sample quota updates.
 
-On compatible hardware, animations run **on the board**. Your computer doesn't have to upload a new picture for every frame. You can also drag the eight screens into your preferred order in the [local control room](docs/board-control.md); the order is saved across restarts. Prefer still images? [Open the PNG gallery](docs/images/gallery.png?v=b307d4ed9d).
+### One more level: Platform World
+
+Mario and Yoshi on a side-scrolling adventure — because the project was never going to stop at eight ideas.
+
+![Mario and Yoshi — scrolling platform scene with fictional readings](docs/images/cockpit.gif?v=7887cab24d)
+
+*Optional local artwork* · [Still image](docs/images/cockpit.png?v=37f2a1c5a6) · [Platform setup](docs/board-platform.md). A bundled alternative works without private artwork.
+
+On compatible hardware, animations run **on the board**. Your computer doesn't have to upload a new picture for every frame. You can also drag the eight screens into your preferred order in the [local control room](docs/board-control.md); the order is saved across restarts. Prefer still images? [Open the PNG gallery](docs/images/gallery.png?v=quest-1).
 
 ## From lottery miner to quota watcher
 
@@ -58,13 +66,13 @@ The eight slots are yours to rearrange. The local **Desk display** page lets you
 
 The **Usage dashboard** can also display any available scene on your computer, above its detailed usage cards. Its choice belongs to that browser and **doesn't change the physical display**. The dashboard also retains its classic appearances. Both pages offer **English and Spanish**, with English as the default.
 
-![The screen library in the local usage dashboard, showing fictional readings](docs/images/screen-library.png?v=8461e5b0ec)
+![The screen library in the local usage dashboard, showing fictional readings](docs/images/screen-library.png?v=quest-1)
 
-Two additional photo scenes, **Violet Horizon** and **Neon District**, become available when you supply the matching local images. The platform, fight and beach scenes also support optional local artwork, as shown above. No game ROMs, source sprite files or private photo collections are shipped. See the guides for the [control room](docs/board-control.md), [platform](docs/board-platform.md), [fight](docs/board-versus.md) and [beach](docs/board-paradise.md).
+Two additional photo scenes, **Violet Horizon** and **Neon District**, become available when you supply the matching local images. The platform, fight, beach and quest scenes also support optional local artwork, as shown above. Hyrule Quest includes its own original traveller, so it works on a clean download too. No game ROMs, extracted game sprite files or private photo collections are shipped. See the guides for the [control room](docs/board-control.md), [quest](docs/board-quest.md), [platform](docs/board-platform.md), [fight](docs/board-versus.md) and [beach](docs/board-paradise.md).
 
 ### Your display's control room
 
-Once the local monitor is running, open **http://127.0.0.1:8787/board** or select **Desk display** in the dashboard. You can change screens, set animation speed per slot on compatible firmware, choose automatic rotation and adjust the touch-hold durations. The panel reports when a selection is queued and when the display confirms it. Animated previews are generated on the computer; they do not stream frames from the device.
+Once the local monitor is running, open **http://127.0.0.1:8787/board** or select **Desk display** in the dashboard. You can change screens, set animation speed per slot on compatible firmware, choose automatic rotation, adjust the touch-hold durations and schedule a dimmer night mode on compatible firmware. The panel reports when a selection is queued and when the display confirms it. Animated previews are generated on the computer; they do not stream frames from the device.
 
 The computer and display must be connected and paired. Animation speed changes how fast a scene moves, not the number of frames per second. The [control room guide](docs/board-control.md) explains compatibility, preview behaviour and connection status.
 
@@ -99,6 +107,7 @@ Want the animated previews too? With `g++` installed:
 
 ```bash
 python scripts/render_animations.py --out preview
+python scripts/render_quest_preview.py --out preview
 ```
 
 This runs the firmware animation simulator and the platform's matching Python renderer locally and writes GIFs. The example scripts use bundled artwork and don't contact your accounts or hardware.
@@ -126,7 +135,7 @@ Support for GeekMagic clocks is also retained, with different capabilities: they
 3. Configure your own accounts and device using the [step-by-step setup guide](docs/setup.md). No accounts, passwords or private pairing files are bundled.
 4. Explore the options with `ai-desk-display --help` and `ai-desk-display board --help`.
 
-**Updating an existing board?** The latest source includes the control room, smoother scrolling and the longer, calmer optional Paradise wave. Follow the [firmware guide](firmware/board/README.md); for a Wi-Fi update, open the connection screen first by holding and releasing for the configured duration (five seconds by default). The smoothest beach film needs compatible firmware and locally prepared artwork; older boards and missing artwork receive a fallback. See the [beach guide](docs/board-paradise.md) for details.
+**Updating an existing board?** The latest source includes the control room, smoother scrolling, the longer optional Paradise wave, night mode and expanded animation support. Follow the [firmware guide](firmware/board/README.md); for a Wi-Fi update, open the connection screen first by holding and releasing for the configured duration (five seconds by default). The smoothest beach film needs compatible firmware and locally prepared artwork; older boards and missing artwork receive a fallback. See the [beach guide](docs/board-paradise.md) for details.
 
 **This is a tinkering project, not yet a “next, next, finish” installer.** Usage readings depend on the client, plan and information each provider exposes. Claude's optional saved-reset reader requires [pairing a local extension](docs/claude-bank-local.md); that's an advanced integration and may need adjustments when the provider changes things.
 
@@ -138,6 +147,8 @@ Your router can give the board a different local IP address after a reconnect or
 2. Open your router's device list and find the board using that current IP. Note its **MAC address** (its hardware identifier); the device name may start with `esp32`.
 3. In the router, look for **DHCP reservation**, **address reservation** or **static DHCP**. Names vary by router. Select that MAC address, reserve the board's current IP and save. Don't assign an IP already reserved for another device.
 4. Make sure the computer and board are on the same reachable local network, and keep the computer's display service running. The reservation survives a normal restart; it doesn't turn the computer on or keep account sessions signed in.
+
+If the board remains unreachable for 10 minutes, the current monitor can also search the saved address's local subnet, at most once an hour. It checks candidates with the saved pairing token and only switches when exactly one accepts it. The connection is unencrypted HTTP, so use this on a trusted network; a device impersonating the board could receive the token. A router reservation is still the simplest way to avoid address changes.
 
 If the IP has already changed, compare the address on the board with the one saved on the computer. Reconnect using the address shown on the board, then restart **only the display monitor** so it reloads the change. The [setup guide](docs/setup.md#troubleshooting) has the exact commands and covers provider readings too. Keep your pairing token and router credentials private.
 

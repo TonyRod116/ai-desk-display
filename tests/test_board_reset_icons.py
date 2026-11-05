@@ -77,6 +77,37 @@ class ResetIconTests(unittest.TestCase):
             self.assertTrue(changed, name)
             self.assertLessEqual(len(changed), 120, name)                    # two tiny dots (one per provider), no text and no icons
 
+    def test_the_citys_missing_houses_are_much_fainter_than_the_available_ones_and_nothing_else_changed(self):
+        # Tony, 2026-11-03: the hollow houses were nearly as prominent as the filled ones. Only they changed.
+        from token_tv import board_city
+        data = case(1)                                    # one house is available on each card, two are not
+        with patch.object(board_city, 'HOLLOW', board_city.LABEL):
+            before = draw(render_countdown, data)         # how they used to be drawn
+        after = draw(render_countdown, data)
+        slots = {}
+        for provider, card_x in (('codex', 6), ('claude', 164)):
+            left = card_x + 119 - 1.5 * 9 * 1.4
+            slots[provider] = [(round(left + i * 9 * 1.4) - 3, 178, round(left + i * 9 * 1.4 + 7 * 1.4) + 3, 196) for i in range(3)]
+        changed = {(x, y) for y in range(240) for x in range(320) if before.getpixel((x, y)) != after.getpixel((x, y))}
+        self.assertTrue(changed)
+        for x, y in changed:
+            self.assertTrue(any(l <= x < r and t <= y < b for boxes in slots.values() for l, t, r, b in boxes[1:]), (x, y))
+
+        def luminance(rgb):
+            values = [c / 255 for c in rgb]
+            values = [v / 12.92 if v <= .04045 else ((v + .055) / 1.055) ** 2.4 for v in values]
+            return sum(v * w for v, w in zip(values, (.2126, .7152, .0722)))
+
+        def brightest(image, box):
+            left, top, right, bottom = box[0] + 4, box[1] + 3, box[2] - 4, box[3] - 3     # inside the icon, clear of its neighbours
+            return max(luminance(image.getpixel((x, y))) for x in range(left, right) for y in range(top, bottom))
+        for provider, boxes in slots.items():
+            available, missing = brightest(after, boxes[0]), [brightest(after, box) for box in boxes[1:]]
+            old = [brightest(before, box) for box in boxes[1:]]
+            self.assertGreater(available, 4 * max(missing), provider)             # clearly fainter than a filled house
+            self.assertGreater(min(missing), .05, provider)                       # but still there: three slots
+            self.assertGreater(min(old), 3 * max(missing), provider)              # and far fainter than they were (as bright as stone)
+
     def test_the_icons_are_not_the_old_hearts(self):
         heart = ('.##.##.', '#######', '#######', '.#####.', '..###..', '...#...')
         for name, rows in icons.ICONS.items():

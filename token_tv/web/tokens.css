@@ -16,6 +16,8 @@
   --lvl-low: #6ee7b7; --lvl-medium: #79c0ff; --lvl-high: #f6c453; --lvl-critical: #f7768e;
   --lvl-low-2: #22c4a6; --lvl-medium-2: #2f8cff; --lvl-high-2: #f08a24; --lvl-critical-2: #e8455f;
   --radius-card: 22px; --radius-control: 10px;
+  /* Flat surfaces for the parts that carry text and the chart's hairlines: no colour mixing, so every contrast checker reads them alike. */
+  --card: var(--panel); --foot: var(--panel); --picked: var(--panel-2); --notice-bg: #21181f; --grid: var(--line);
   color-scheme: dark;
 }
 
@@ -91,9 +93,10 @@
   --lvl-low: var(--ink); --lvl-medium: var(--ink); --lvl-high: var(--ink); --lvl-critical: var(--ink);
   --lvl-low-2: var(--ink); --lvl-medium-2: var(--ink); --lvl-high-2: var(--ink); --lvl-critical-2: var(--ink);
   --radius-card: 0; --radius-control: 0;
+  --card: #a3ae4c; --foot: #9aa645; --picked: #aab552; --notice-bg: #9aa645; --grid: #87933f;
   color-scheme: light;
 }
-:root[data-theme=game-boy-pocket] {--bg:#caced0; --ink:#282d31}
+:root[data-theme=game-boy-pocket] {--bg:#caced0; --ink:#282d31; --card: #cdd1d3; --foot: #bbc0c2; --picked: #d6dadc; --notice-bg: #bbc0c2; --grid: #a9adaf}
 :root[data-theme=amber-terminal] {
   --font-body: 'VT323', monospace; --font-num: var(--font-body);
   --bg:#100c07; --panel:#171108; --panel-2:#1c150a;
@@ -103,6 +106,7 @@
   --lvl-low:var(--ink); --lvl-medium:var(--ink); --lvl-high:var(--ink); --lvl-critical:var(--ink);
   --lvl-low-2:var(--ink); --lvl-medium-2:var(--ink); --lvl-high-2:var(--ink); --lvl-critical-2:var(--ink);
   --radius-card:0; --radius-control:0;
+  --notice-bg:#261d11;
 }
 :root[data-theme=orbit] {
   --font-display:'Orbitron', sans-serif; --font-num:'Oxanium', sans-serif;
@@ -111,4 +115,5 @@
   --line:#28404b; --line-2:#44636f; --track:#263a42; --focus:#91e4e6;
   --claude:#e8a96e; --codex:#74d9e2; --grok:#a6dca4;
   --radius-card:12px; --radius-control:6px;
+  --notice-bg:#1d1a24;
 }
