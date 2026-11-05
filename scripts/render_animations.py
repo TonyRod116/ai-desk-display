@@ -103,7 +103,9 @@ def main():
     # Never include user-supplied local art in reproducible public examples.
     with (patch('time.time', return_value=NOW),
           patch('token_tv.board_arcade_local.load', return_value=None),
-          patch('token_tv.board_beach.load', return_value=None)):
+          patch('token_tv.board_beach.load', return_value=None),
+          patch('token_tv.board_zelda._local_art', return_value=None),
+          patch('token_tv.board_zelda.ART', Path('/nonexistent/quest-art.png'))):
         pages = render_board_pages(fixture(), stars=True, anim=True, anim_frames=8, waves=3, scroll=2,
                                    extended_anim=True)
     with tempfile.TemporaryDirectory(prefix='desk-display-gifs-') as tmp:

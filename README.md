@@ -24,9 +24,9 @@ Eight favourites from my screen library. Swap them around, pick something older,
 | **Game Boy** · green LCD, pixels and nostalgia.<br>![Game Boy — simulated quota updates](docs/images/game-boy.gif) | **Paradise** · a tiny tropical break between prompts.<br>![Paradise — a beach and sailboat with an animated shoreline](docs/images/paradise.gif?v=8604eaf692)<br>*Optional local artwork* · [Beach setup](docs/board-paradise.md) |
 | **Neon District** · a rainy rooftop and a city full of signs.<br>![Neon District — animated cyberpunk city with sample numbers](docs/images/neon-district.gif?v=aa28bc1e23)<br>*Optional local artwork* | **Tidal Rush** · ride the barrel, chase the foam, forget the next prompt.<br>![Tidal Rush — flowing wave, surfer and gulls](docs/images/surf.gif?v=surf-2)<br>[Still image](docs/images/surf.png?v=surf-2) · [Under the hood](docs/board-surf.md) |
 | **Token Run** · coastal cruising, approaching palms and a red convertible.<br>![Token Run — coastal road with palms growing closer and passing on the right](docs/images/dials.gif)<br>[Still image](docs/images/dials.png) · [Under the hood](docs/board-run.md) | **Versus** · Codex and Claude enter a pixel-art arena. Empty quota? KO.<br>![Versus — two animated fighters in the bundled retro arena](docs/images/arcade.gif?v=arcade-2)<br>[Still image](docs/images/arcade.png?v=arcade-2) · [Under the hood](docs/board-versus.md) |
-| **Hyrule Quest** · an adventurous little world with two magic crystals for your limits.<br>![Hyrule Quest — a traveller by a shrine, bridge and two quota crystals](docs/images/quest.gif?v=quest-1)<br>[Still image](docs/images/quest.png) · [Quest guide](docs/board-quest.md) | **Quota City** · a detailed isometric skyline that shows what's left.<br>![Quota City — city animation](docs/images/countdown.gif) |
+| **Hyrule Quest** · a little village adventure with life bars for your limits.<br>![Hyrule Quest — an adventurer cuts a bush beneath two life meters](docs/images/quest.gif?v=quest-2)<br>[Still image](docs/images/quest.png?v=quest-2) · [Quest guide](docs/board-quest.md) | **Quota City** · a detailed isometric skyline that shows what's left.<br>![Quota City — city animation](docs/images/countdown.gif) |
 
-These previews use **fictional readings**. Paradise and Neon District show optional local artwork that isn't included in a fresh download. Paradise has a bundled alternative; Neon District needs its own image. The Paradise GIF shows an earlier shoreline; the current optional wave travels farther and moves more slowly. Versus and Hyrule Quest show their bundled artwork; both can also use optional local art. Some previews contain third-party artwork: see [asset notes](ASSETS.md). GIFs have a limited colour palette; the display receives RGB565 frames. Game Boy is normally static and the preview shows accelerated sample quota updates.
+These previews use **fictional readings**. Paradise and Neon District show optional local artwork that isn't included in a fresh download. Paradise has a bundled alternative; Neon District needs its own image. The Paradise GIF shows an earlier shoreline; the current optional wave travels farther and moves more slowly. Versus and Hyrule Quest show their bundled artwork; both can also use optional local art. The Quest preview is the included original-art version, so personal game artwork stays on its owner's computer. Some previews contain third-party artwork: see [asset notes](ASSETS.md). GIFs have a limited colour palette; the display receives RGB565 frames. Game Boy is normally static and the preview shows accelerated sample quota updates.
 
 ### One more level: Platform World
 
@@ -36,7 +36,7 @@ Mario and Yoshi on a side-scrolling adventure — because the project was never 
 
 *Optional local artwork* · [Still image](docs/images/cockpit.png?v=37f2a1c5a6) · [Platform setup](docs/board-platform.md). A bundled alternative works without private artwork.
 
-On compatible hardware, animations run **on the board**. Your computer doesn't have to upload a new picture for every frame. You can also drag the eight screens into your preferred order in the [local control room](docs/board-control.md); the order is saved across restarts. Prefer still images? [Open the PNG gallery](docs/images/gallery.png?v=quest-1).
+On compatible hardware, animations run **on the board**. Your computer doesn't have to upload a new picture for every frame. You can also drag the eight screens into your preferred order in the [local control room](docs/board-control.md); the order is saved across restarts. Prefer still images? [Open the gallery of included scenes](docs/images/gallery.png?v=quest-2).
 
 ## From lottery miner to quota watcher
 
@@ -60,13 +60,15 @@ Token Run gets a little more road-trip energy: **resort palms grow closer and pa
 
 Paradise now has a calmer option for the supported local beach GIF: the wave reaches farther along the shore, rolls over the sand and retreats in a seamless loop. On **firmware 41**, that optional 48-position animation takes **6.4 seconds per cycle** at normal speed; it runs on the display, and the sailboat stays still. Actual smoothness depends on the hardware and ongoing transfers. The bundled beach still works without local artwork. [Set up the local beach film](docs/board-paradise.md).
 
+Hyrule Quest turns each weekly allowance into a life meter, with a percentage, reset countdown and up to three saved-reset hearts beside it. A tiny adventurer cuts a bush while a fairy and butterfly keep the village company. Claude's five-hour indicators and Codex credits appear when available. [See the Quest guide](docs/board-quest.md).
+
 ### A whole library, not just eight screens
 
 The eight slots are yours to rearrange. The local **Desk display** page lets you browse animated previews and replace a slot with an earlier scene, such as **Deep Space**, **Game Boy Pocket**, **Prism**, **Night Train**, or an older Neon City. Change your mind? The previous scene stays in the library.
 
 The **Usage dashboard** can also display any available scene on your computer, above its detailed usage cards. Its choice belongs to that browser and **doesn't change the physical display**. The dashboard also retains its classic appearances. Both pages offer **English and Spanish**, with English as the default.
 
-![The screen library in the local usage dashboard, showing fictional readings](docs/images/screen-library.png?v=quest-1)
+![The screen library in the local usage dashboard, showing fictional readings](docs/images/screen-library.png?v=quest-2)
 
 Two additional photo scenes, **Violet Horizon** and **Neon District**, become available when you supply the matching local images. The platform, fight, beach and quest scenes also support optional local artwork, as shown above. Hyrule Quest includes its own original traveller, so it works on a clean download too. No game ROMs, extracted game sprite files or private photo collections are shipped. See the guides for the [control room](docs/board-control.md), [quest](docs/board-quest.md), [platform](docs/board-platform.md), [fight](docs/board-versus.md) and [beach](docs/board-paradise.md).
 

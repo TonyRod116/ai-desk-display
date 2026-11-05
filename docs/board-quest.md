@@ -1,21 +1,31 @@
 # Hyrule Quest
 
-![Hyrule Quest with fictional usage readings](images/quest.gif?v=quest-1)
+![Hyrule Quest with fictional usage readings](images/quest.gif?v=quest-2)
 
-Take a tiny walk by the river while two glowing crystals watch your AI limits.
-The left crystal represents Codex, the right one Claude; their fill follows the
-verified weekly allowance remaining. The top panel includes reset times, saved
-resets when known and Claude's session information when available. Missing
-readings stay unknown. With supported firmware the traveller, water and fairy
-animate on the display.
+Take a tiny trip to a pixel-art village while your AI limits become life bars.
+The left meter represents Codex and the right one Claude; each fills from the
+bottom according to the verified weekly allowance remaining. Next to each are
+the percentage, time until reset and up to three saved-reset hearts when known.
+Claude's five-hour indicators and Codex credits appear when available; missing
+readings stay unknown. With supported firmware, the traveller cuts a bush and
+finds a little gem while a fairy and a butterfly move through the scene.
 
-The included scene has an **original traveller drawn by the project** and works
-without any game files. You can optionally provide your own local sprite strip
-at `~/.local/share/ai-desk-display/zelda-local/link-walk.png`: a transparent RGBA
-image **192 × 26 pixels**, containing eight **24 × 26** poses side by side;
-the first four face right and the last four face left. If it is missing or
-invalid, the bundled traveller is used. Use artwork you have permission to use.
-The project does not ship, fetch or require a ROM or extracted game sprites.
+The included village and traveller are **original artwork drawn by the project**
+and work without any game files. The preview shows this included version; a
+private custom setup may look different. You can provide artwork locally in
+`~/.local/share/ai-desk-display/zelda-local/`:
+
+- `link-walk.png`: an optional transparent **192 × 26** strip with eight
+  **24 × 26** poses, the first four facing right and the rest facing left.
+- For a completely custom scene, provide all three: `landscape.png` (**320 × 240**),
+  `action.png` (**232 × 30**, eight **29 × 30** RGBA poses) and `guard.png`
+  (**192 × 24**, eight **24 × 24** RGBA poses). The action and guard strips
+  appear at fixed positions and follow the scene's loop.
+
+If the three custom-scene images are missing or invalid, the included village
+is used with the optional traveller strip, falling back to the bundled traveller
+when necessary. Use artwork you have permission to use. The project does not
+ship, fetch or require a ROM or extracted game sprites.
 
 Generate the included scene and animation with made-up readings:
 

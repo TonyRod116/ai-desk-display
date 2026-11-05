@@ -44,6 +44,18 @@ class AnimatedPreviewTests(unittest.TestCase):
         preview.seek(preview.n_frames // 3)
         self.assertIsNotNone(ImageChops.difference(first, preview.convert('RGB')).getbbox())
 
+    def test_compact_fast_cycle_keeps_single_frame_poses(self):
+        from token_tv.board_preview import _sequence
+        background = Image.new('RGB', (320, 240), '#102030')
+        frames = [Image.new('RGBA', (4, 4), (20 + i * 25, 180, 90)) for i in range(8)]
+        steps = [0] * 8 + list(range(1, 8)) + [0] * 17
+        payload = board_anim.encode(sprites=[{'x': 40, 'y': 50, 'frames': frames,
+                                              'script': [(i, 0, 0) for i in steps], 'step_ms': 80}])
+        sequence, duration = _sequence(rgb565_frame(background, anim=payload))
+        pictures = list(sequence)
+        self.assertEqual((len(pictures), duration), (32, 80))
+        self.assertIsNotNone(ImageChops.difference(pictures[8], pictures[9]).getbbox())
+
     def test_surf_with_gulls_previews_the_whole_loop(self):
         from token_tv.board_preview import _sequence
         from token_tv.board_surf import render_surf

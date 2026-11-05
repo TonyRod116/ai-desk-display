@@ -28,7 +28,9 @@ def main():
     # Public demos use the bundled art even if the user has private art installed.
     with (patch('time.time', return_value=now),
           patch('token_tv.board_arcade_local.load', return_value=None),
-          patch('token_tv.board_beach.load', return_value=None)):
+          patch('token_tv.board_beach.load', return_value=None),
+          patch('token_tv.board_zelda._local_art', return_value=None),
+          patch('token_tv.board_zelda.ART', Path('/nonexistent/quest-art.png'))):
         frames = render_board_pages(data, anim=True, waves=3, scroll=2)
     gallery = Image.new('RGB', (1280, 480), '#10131e')
     for index, (name, frame) in enumerate(zip(PAGE_NAMES, frames)):

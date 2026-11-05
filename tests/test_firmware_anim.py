@@ -450,5 +450,43 @@ class AnimationEngineTests(unittest.TestCase):
                                  (out / f'screen_{step + 32}.bin').read_bytes(), f'quest loop {step}')
 
 
+    def test_quest_action_restores_the_background_across_two_loops(self):
+        from token_tv.board_zelda import render_quest
+        with patch('time.time', return_value=NOW), \
+                patch('token_tv.board_zelda.ART', Path('/nonexistent/quest-art.png')), \
+                patch('token_tv.board_zelda._local_art', return_value=None):
+            image, payload = render_quest(snapshot(), animated=True)
+        spec = board_anim.decode(payload)
+        background = list(struct.unpack('<76800H', rgb565_frame(image)[8:]))
+        capture = 200
+        out = self.run_engine(payload, capture * 64, image=image, capture_ms=capture)
+        for step in range(64):
+            elapsed = ((step + 1) * capture - 1) // 40 * 40
+            expected = struct.pack('<76800H', *self.expected(step, background, spec, elapsed_ms=elapsed))
+            self.assertEqual((out / f'screen_{step}.bin').read_bytes(), expected, f'quest step {step}')
+        for step in range(32):
+            self.assertEqual((out / f'screen_{step}.bin').read_bytes(),
+                             (out / f'screen_{step + 32}.bin').read_bytes(), f'quest loop {step}')
+
+    def test_custom_quest_scene_restores_each_sprite_across_two_loops(self):
+        from token_tv.board_zelda import render_quest
+        action = tuple(Image.new('RGBA', (29, 30), (50 + i * 20, 180, 70, 255)) for i in range(8))
+        guard = tuple(Image.new('RGBA', (24, 24), (70, 50 + i * 20, 180, 255)) for i in range(8))
+        local = (Image.new('RGB', (320, 240), '#517b51'), action, guard)
+        with patch('time.time', return_value=NOW), patch('token_tv.board_zelda._local_art', return_value=local):
+            image, payload = render_quest(snapshot(), animated=True)
+        spec = board_anim.decode(payload)
+        background = list(struct.unpack('<76800H', rgb565_frame(image)[8:]))
+        capture = 80
+        out = self.run_engine(payload, capture * 64, image=image, capture_ms=capture)
+        for step in range(64):
+            elapsed = ((step + 1) * capture - 1) // 40 * 40
+            expected = struct.pack('<76800H', *self.expected(step, background, spec, elapsed_ms=elapsed))
+            self.assertEqual((out / f'screen_{step}.bin').read_bytes(), expected, f'custom quest step {step}')
+        for step in range(32):
+            self.assertEqual((out / f'screen_{step}.bin').read_bytes(),
+                             (out / f'screen_{step + 32}.bin').read_bytes(), f'custom quest loop {step}')
+
+
 if __name__ == '__main__':
     unittest.main()

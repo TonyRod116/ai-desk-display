@@ -49,11 +49,42 @@ class QuestTests(unittest.TestCase):
             d.rectangle((i * 24 + 6,4,i * 24 + 17,22), fill=(40 + i * 20, 180, 90, 255))
         strip.save(self.path)
         art = patch.object(board_zelda, 'ART', self.path)
+        private_paths = [patch.object(board_zelda, key, Path(self.directory.name) / name)
+                         for key, name in (('LANDSCAPE', 'landscape.png'), ('ACTION', 'action.png'),
+                                           ('GUARD', 'guard.png'))]
         clock = patch('time.time', return_value=NOW)
-        art.start(); clock.start()
-        self.addCleanup(art.stop); self.addCleanup(clock.stop)
-        board_zelda._cached_walk.cache_clear()
-        self.addCleanup(board_zelda._cached_walk.cache_clear)
+        for item in (art, clock, *private_paths):
+            item.start()
+            self.addCleanup(item.stop)
+        for cached in (board_zelda._cached_walk, board_zelda._cached_landscape, board_zelda._cached_strip):
+            cached.cache_clear()
+            self.addCleanup(cached.cache_clear)
+
+    def test_optional_local_scene_falls_back_safely_when_incomplete(self):
+        self.assertIsNone(board_zelda._local_art())
+        Image.new('RGB', (320, 240), '#547443').save(board_zelda.LANDSCAPE)
+        for path, width, height in ((board_zelda.ACTION, 29, 30), (board_zelda.GUARD, 24, 24)):
+            sheet = Image.new('RGBA', (width * 8, height))
+            d = ImageDraw.Draw(sheet)
+            for i in range(8):
+                d.rectangle((i * width + 5, 5, i * width + 16, 20), fill=(30 + i * 25, 180, 70, 255))
+            sheet.save(path)
+        before = board_zelda.art_version()
+        self.assertEqual(before[0], 'scene')
+        for limit in (4, 8):
+            image, payload = board_zelda.render_quest(sample(), animated=True, anim_frames=limit)
+            sprites = board_anim.decode(payload)['sprites']
+            self.assertEqual(len(sprites), 2)
+            self.assertTrue(all(len(sprite['script']) == 32 and sprite['step_ms'] == 80 for sprite in sprites))
+            self.assertTrue(all(sprite['script'][0] == sprite['script'][-1] for sprite in sprites))
+            self.assertEqual(image.getpixel((160, 180)), (84, 116, 67))
+        Image.new('RGB', (320, 240), '#4c7655').save(board_zelda.LANDSCAPE)
+        self.assertNotEqual(board_zelda.art_version(), before)
+        board_zelda.ACTION.unlink()
+        self.assertIsNone(board_zelda._local_art())
+        self.assertTrue(available('zelda'))
+        _, payload = board_zelda.render_quest(sample(), animated=True)
+        self.assertEqual(len(board_anim.decode(payload)['sprites']), 3)
 
     def test_the_scene_uses_a_bundled_traveller_when_private_art_is_missing_or_bad(self):
         self.assertTrue(available('zelda'))
@@ -73,7 +104,7 @@ class QuestTests(unittest.TestCase):
             static = board_zelda.render_quest(sample(), anim_frames=frames)
             image, payload = board_zelda.render_quest(sample(), animated=True, anim_frames=frames)
             decoded = board_anim.decode(payload)
-            self.assertLess(len(payload), 20000)
+            self.assertLess(len(payload), board_anim.MAX_PAYLOAD)
             self.assertEqual(len(decoded['sprites']), 3)
             self.assertTrue(all(len(s['frames']) <= frames for s in decoded['sprites']))
             self.assertEqual(struct.pack('<76800H', *compose(image, decoded, 0)), rgb565_frame(static)[8:])
@@ -87,6 +118,31 @@ class QuestTests(unittest.TestCase):
                 self.assertLessEqual(abs(a[1] - b[1]),2)
                 self.assertLessEqual(abs(a[2] - b[2]),2)
             self.assertNotEqual(compose(image, decoded, 0), compose(image, decoded, 4))
+
+    def test_weekly_life_meters_drain_from_the_top_on_both_sides(self):
+        for provider, strip in (('codex', (8, 30, 16, 92)), ('claude', (304, 30, 312, 92))):
+            with self.subTest(provider=provider):
+                pictures = []
+                for used in (100, 50, 0):
+                    data = sample()
+                    data['accounts'][provider]['windows'][0]['used_percent'] = used
+                    pictures.append(board_zelda.render_quest(data).crop(strip))
+                empty, half, full = pictures
+                upper, lower = (0, 0, 8, 27), (0, 38, 8, 62)
+                self.assertIsNone(ImageChops.difference(empty.crop(upper), half.crop(upper)).getbbox())
+                self.assertIsNotNone(ImageChops.difference(empty.crop(lower), half.crop(lower)).getbbox())
+                self.assertIsNotNone(ImageChops.difference(half.crop(upper), full.crop(upper)).getbbox())
+                self.assertIsNone(ImageChops.difference(half.crop(lower), full.crop(lower)).getbbox())
+
+    def test_bush_action_has_a_complete_repeatable_cycle(self):
+        for limit in (4, 8):
+            _, payload = board_zelda.render_quest(sample(), animated=True, anim_frames=limit)
+            action = board_anim.decode(payload)['sprites'][0]
+            frames = [frame for frame, _, _ in action['script']]
+            self.assertEqual(len(frames), 32)
+            self.assertEqual(frames[0], frames[-1])
+            self.assertEqual(set(frames), set(range(limit)))
+            self.assertGreater(len({tuple(frame) for frame in action['frames']}), 2)
 
     def test_each_provider_and_credits_are_independent(self):
         normal = sample(used=40)
@@ -109,8 +165,16 @@ class QuestTests(unittest.TestCase):
         old['accounts']['claude']['status'] = 'stale'
         without = copy.deepcopy(data)
         without['accounts']['claude']['windows'] = without['accounts']['claude']['windows'][:1]
-        self.assertEqual(board_zelda.render_quest(old).crop((254,18,316,31)).tobytes(),
-                         board_zelda.render_quest(without).crop((254,18,316,31)).tobytes())
+        self.assertEqual(board_zelda.render_quest(old).crop((239,81,300,93)).tobytes(),
+                         board_zelda.render_quest(without).crop((239,81,300,93)).tobytes())
+
+    def test_quest_keeps_every_reading_and_unknown_distinct_from_zero(self):
+        from tests.test_board_data_grammar import NOW as GRAMMAR_NOW, PAIRS
+        with patch('time.time', return_value=GRAMMAR_NOW):
+            for label, (before, after) in PAIRS.items():
+                with self.subTest(reading=label):
+                    self.assertNotEqual(board_zelda.render_quest(before).tobytes(),
+                                        board_zelda.render_quest(after).tobytes())
 
     def test_five_hour_bars_change_in_five_percent_and_quarter_hour_steps(self):
         data = sample()

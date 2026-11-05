@@ -81,6 +81,12 @@ def _sequence(frame):
             # The extended city has 16 s ship journeys and independent 32 s
             # windows. Keep the complete loop at a modest preview cadence.
             return _anim_frames(base, animation, 128, 250), 250
+        if periods and 0 < period <= 8000 and not animation['stars'] and not animation['meteor']:
+            # Keep individual brief poses when the entire cycle fits.
+            step = math.gcd(*(s['step_ms'] for s in animation['sprites']))
+            beats = period // step
+            if step >= 80 and 16 <= beats <= 32:
+                return _anim_frames(base, animation, beats, step), step
         # Preserve slower, deterministic scenes when their full cycle fits in
         # a bounded thumbnail; otherwise a preview would jump back mid-cycle.
         if 8000 < period <= 32000 and not animation['stars'] and not animation['meteor']:

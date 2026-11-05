@@ -23,7 +23,8 @@ def main():
     out.mkdir(parents=True, exist_ok=True)
     # An impossible local path guarantees the public preview uses only bundled art.
     with patch('time.time', return_value=NOW), \
-            patch('token_tv.board_zelda.ART', Path('/nonexistent/quest-art.png')):
+            patch('token_tv.board_zelda.ART', Path('/nonexistent/quest-art.png')), \
+            patch('token_tv.board_zelda._local_art', return_value=None):
         image, animation = render_archive('zelda', fixture(), animated=True, anim_frames=8)
     page = rgb565_frame(image, anim=animation)
     with tempfile.TemporaryDirectory(prefix='quest-preview-') as tmp:
