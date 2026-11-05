@@ -1,14 +1,17 @@
 # Hyrule Quest
 
-![Hyrule Quest with fictional usage readings](images/quest.gif?v=quest-2)
+![Bundled Hyrule Quest demo with fictional usage readings](images/quest.gif?v=quest-2)
+
+*This preview shows the bundled original-art demo. It is not the maintainer's
+custom Zelda scene, which uses locally supplied artwork.*
 
 Take a tiny trip to a pixel-art village while your AI limits become life bars.
 The left meter represents Codex and the right one Claude; each fills from the
 bottom according to the verified weekly allowance remaining. Next to each are
 the percentage, time until reset and up to three saved-reset hearts when known.
 Claude's five-hour indicators and Codex credits appear when available; missing
-readings stay unknown. With supported firmware, the traveller cuts a bush and
-finds a little gem while a fairy and a butterfly move through the scene.
+readings stay unknown. With supported firmware, the bundled traveller cuts a bush
+and finds a little gem while a fairy and a butterfly move through the scene.
 
 The included village and traveller are **original artwork drawn by the project**
 and work without any game files. The preview shows this included version; a
