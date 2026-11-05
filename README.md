@@ -4,95 +4,79 @@
 
 ### Your AI limits deserve more personality than a progress bar.
 
-A Game Boy. A cyberpunk city. A beach. Claude and Codex in an arcade fight.
-**Your desk already had enough boring numbers.**
+Turn a little desk display into an animated home for your **Claude and Codex usage**.
 
 [![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python&logoColor=white)](pyproject.toml)
 [![License: MIT](https://img.shields.io/badge/code-MIT-green)](LICENSE)
 [![Local rendering](https://img.shields.io/badge/rendering-local-7c3aed)](#local-not-magic)
 
-[Download ZIP](https://github.com/TonyRod116/ai-desk-display/archive/refs/heads/main.zip) · [Meet the screens](#eight-screens-zero-boredom) · [Try without hardware](#try-it-without-a-display-or-an-account) · [Build yours](#okay-i-want-this-on-my-desk) · [Make it your own](#make-it-yours-with-or-without-ai)
+[Download ZIP](https://github.com/TonyRod116/ai-desk-display/archive/refs/heads/main.zip) · [The screens](#eight-screens-zero-boredom) · [Try it first](#try-it-without-a-display-or-an-account) · [Set it up](#okay-i-want-this-on-my-desk) · [Make it yours](#make-it-yours-with-or-without-ai)
 
 </div>
 
+I had a NerdMiner V2 sitting on my desk. After working out that finding a Bitcoin block could take an *average* of about **19 billion years** at an optimistic 1 MH/s,[^mining-math] I figured it might appreciate a career change.
+
+Now it tells me when I'm running out of AI instead. Progress?
+
 ## Eight screens, zero boredom
 
-Eight favourites from my screen library. Swap them around, pick something older, or make a new one:
+Pick eight screens for your display and change them whenever you like. Here are a few favourites:
 
 | | |
 |:---:|:---:|
-| **Game Boy** · green LCD, pixels and nostalgia.<br>![Game Boy — simulated quota updates](docs/images/game-boy.gif) | **Paradise** · a tiny tropical break between prompts.<br>![Paradise — a beach and sailboat with an animated shoreline](docs/images/paradise.gif?v=8604eaf692)<br>*Optional local artwork* · [Beach setup](docs/board-paradise.md) |
-| **Neon District** · a rainy rooftop and a city full of signs.<br>![Neon District — animated cyberpunk city with sample numbers](docs/images/neon-district.gif?v=aa28bc1e23)<br>*Optional local artwork* | **Tidal Rush** · ride the barrel, chase the foam, forget the next prompt.<br>![Tidal Rush — flowing wave, surfer and gulls](docs/images/surf.gif?v=surf-2)<br>[Still image](docs/images/surf.png?v=surf-2) · [Under the hood](docs/board-surf.md) |
-| **Token Run** · coastal cruising, approaching palms and a red convertible.<br>![Token Run — coastal road with palms growing closer and passing on the right](docs/images/dials.gif)<br>[Still image](docs/images/dials.png) · [Under the hood](docs/board-run.md) | **Versus** · Codex and Claude enter a pixel-art arena. Empty quota? KO.<br>![Versus — two animated fighters in the bundled retro arena](docs/images/arcade.gif?v=arcade-2)<br>[Still image](docs/images/arcade.png?v=arcade-2) · [Under the hood](docs/board-versus.md) |
-| **Hyrule Quest · bundled demo** · a little village adventure with life bars for your limits.<br>![Bundled Quest demo — an adventurer cuts a bush beneath two life meters](docs/images/quest.gif?v=quest-2)<br>[Still image](docs/images/quest.png?v=quest-2) · [Quest guide and custom artwork](docs/board-quest.md) | **Quota City** · a detailed isometric skyline that shows what's left.<br>![Quota City — city animation](docs/images/countdown.gif) |
+| **Game Boy**<br>Green pixels and a little nostalgia.<br>![Game Boy display with simulated usage updates](docs/images/game-boy.gif) | **Paradise**<br>A tropical break between prompts.<br>![Paradise beach with an animated shoreline and sailboat](docs/images/paradise.gif?v=8604eaf692)<br>*Optional local artwork* · [Setup](docs/board-paradise.md) |
+| **Tidal Rush**<br>Catch a wave; ignore the token count for a second.<br>![Tidal Rush surfer riding an animated wave](docs/images/surf.gif?v=surf-2)<br>[Still](docs/images/surf.png?v=surf-2) · [Scene guide](docs/board-surf.md) | **Token Run**<br>A coastal drive with quotas on the dashboard.<br>![Token Run animated coastal drive](docs/images/dials.gif)<br>[Still](docs/images/dials.png) · [Scene guide](docs/board-run.md) |
+| **Versus**<br>Claude vs Codex. Run out of quota? KO.<br>![Versus animated retro fighting game](docs/images/arcade.gif?v=arcade-2)<br>[Still](docs/images/arcade.png?v=arcade-2) · [Scene guide](docs/board-versus.md) | **Platform World**<br>A side-scrolling trip with Mario and Yoshi.<br>![Animated platform scene with Mario and Yoshi](docs/images/cockpit.gif?v=7887cab24d)<br>*Optional local artwork* · [Setup](docs/board-platform.md) |
+| **Neon District**<br>Two rooftop figures glow with your remaining usage.<br>![Neon District animated cyberpunk city](docs/images/neon-district.gif?v=aa28bc1e23)<br>*Optional local artwork* | **Quota City**<br>An isometric skyline that changes with your limits.<br>![Quota City animated isometric skyline](docs/images/countdown.gif) |
 
-These previews use **fictional readings**. Paradise and Neon District show optional local artwork that isn't included in a fresh download. Paradise has a bundled alternative; Neon District needs its own image. The Paradise GIF shows an earlier shoreline; the current optional wave travels farther and moves more slowly. Versus and Hyrule Quest show their bundled artwork; both can also use optional local art. **The Quest GIF and still above show the included original-art demo, not the maintainer's custom Zelda scene**, whose artwork stays on the owner's computer. Some previews contain third-party artwork: see [asset notes](ASSETS.md). GIFs have a limited colour palette; the display receives RGB565 frames. Game Boy is normally static and the preview shows accelerated sample quota updates.
+All readings in these previews are **made up**. Some images show optional artwork that isn't included in a fresh download. Paradise and Platform World also have bundled alternatives; Neon District needs its own local image. The Paradise GIF shows an earlier wave; the current optional version reaches farther and moves more slowly. No game ROMs or separate extracted game sprites are included. See [asset notes](ASSETS.md) for provenance.
 
-### One more level: Platform World
+**Hyrule Quest** is in the library too, with life meters, hearts and an animated village scene. The repository includes an original-art demo; the custom Zelda artwork used on my display stays local and isn't included. [See the Quest guide and demo](docs/board-quest.md).
 
-Mario and Yoshi on a side-scrolling adventure — because the project was never going to stop at eight ideas.
+GIFs have a limited colour palette; the display receives RGB565 frames. Game Boy is normally static: its GIF simulates changing usage.
 
-![Mario and Yoshi — scrolling platform scene with fictional readings](docs/images/cockpit.gif?v=7887cab24d)
+## What does it show?
 
-*Optional local artwork* · [Still image](docs/images/cockpit.png?v=37f2a1c5a6) · [Platform setup](docs/board-platform.md). A bundled alternative works without private artwork.
+The display turns account information into something a bit more fun:
 
-On compatible hardware, animations run **on the board**. Your computer doesn't have to upload a new picture for every frame. You can also drag the eight screens into your preferred order in the [local control room](docs/board-control.md); the order is saved across restarts. Prefer still images? [Open the gallery of included scenes](docs/images/gallery.png?v=quest-2).
+- **Weekly usage remaining** for Codex and Claude, with the time until each reset.
+- **Claude's five-hour limit**, where that reading is available.
+- Up to **three saved-reset hearts** per provider when the balance is known.
+- **Codex extra credits** when the weekly allowance is exhausted and a verified balance is available.
 
-## From lottery miner to quota watcher
+What you can see depends on your plan, clients and what the providers expose. Missing or expired readings stay unknown; the project doesn't guess a reset balance from your percentage.
 
-I had a NerdMiner V2. Then I checked the odds: even giving it a generous **1 million hashes per second**, the illustrative average wait to find a Bitcoin block was about **19 billion years**.[^mining-math]
+On compatible hardware, the board plays its animations locally between updates. Your computer provides the fresh readings, so you don't need to keep an AI chat open or ask an AI to redraw the screen.
 
-Turns out my patience wasn't covered by the warranty.
+## A screen library, not just eight slots
 
-So I gave it a better job: watching my AI limits. At least those reset this week.
+The local **Desk display** page lets you preview the scenes, replace any of the eight slots and drag the tiles into a new order. Earlier designs stay in the library, so you can bring back Deep Space, Game Boy Pocket, Prism or an older city whenever you want. Violet Horizon and Neon District are available when you supply their local artwork.
 
-## What's this?
+![The local screen library with fictional readings and the bundled Quest demo](docs/images/screen-library.png?v=quest-2)
 
-A small desk display that shows how much **Claude and Codex** usage you have left, when your limits reset and, where supported, how many saved resets are available. If Codex's weekly quota is exhausted, it can show your extra credit balance instead when the official client provides it.
+*This library example uses fictional readings and the included Quest demo.*
 
-The fun is in how it tells you: two rooftop figures glow with your remaining quota, Claude and Codex face off in an arcade fight, and a surfer rides a foamy barrel while you try not to check how many tokens you've burned. We can't promise it'll make you use less AI. We're doing our best to make it look good, though.
+On compatible firmware, the same page lets you set animation speed, automatic rotation, touch-hold durations and night-mode dimming. A change can be queued while the board is offline; the page shows when it has been delivered. Animation speed changes how fast a scene moves, not its frame rate.
 
-**AI Desk Display** is a project by Tony, built with Claude Code and Codex: eight customisable screen slots, a library of current and earlier scenes, on-board animation, touch controls, timed screen rotation and local usage readers. It's designed around the **2.8-inch NerdMiner V2 touchscreen** (ESP32-2432S028R). This repo includes the host application, display firmware, bundled artwork and tools to make it your own.
+The **Usage dashboard** can show any available scene on the computer, above its detailed usage cards. Choosing a dashboard appearance doesn't change the screen on the physical display. Both web pages offer English and Spanish, with English as the default.
 
-Neon District hides its readings in the scene: **pink for Codex and blue for Claude**. The two rooftop figures light up according to the weekly quota remaining, while small neon signs show the percentages. [See the screen library](docs/board-control.md).
-
-Token Run gets a little more road-trip energy: **resort palms grow closer and pass on the right**, while the nearby roadside scenery rushes past faster. No swaying back to where they started. Just a coastal drive, a red convertible and two AI quotas pretending to be dashboard instruments. The still, GIF and overview above show the updated scene. [Take the scenic route](docs/board-run.md).
-
-Paradise now has a calmer option for the supported local beach GIF: the wave reaches farther along the shore, rolls over the sand and retreats in a seamless loop. On **firmware 41**, that optional 48-position animation takes **6.4 seconds per cycle** at normal speed; it runs on the display, and the sailboat stays still. Actual smoothness depends on the hardware and ongoing transfers. The bundled beach still works without local artwork. [Set up the local beach film](docs/board-paradise.md).
-
-Hyrule Quest turns each weekly allowance into a life meter, with a percentage, reset countdown and up to three saved-reset hearts beside it. In the bundled demo, a tiny adventurer cuts a bush while a fairy and butterfly keep the village company. A custom local scene can use different artwork and animation. Claude's five-hour indicators and Codex credits appear when available. [See the Quest guide](docs/board-quest.md).
-
-### A whole library, not just eight screens
-
-The eight slots are yours to rearrange. The local **Desk display** page lets you browse animated previews and replace a slot with an earlier scene, such as **Deep Space**, **Game Boy Pocket**, **Prism**, **Night Train**, or an older Neon City. Change your mind? The previous scene stays in the library.
-
-The **Usage dashboard** can also display any available scene on your computer, above its detailed usage cards. Its choice belongs to that browser and **doesn't change the physical display**. The dashboard also retains its classic appearances. Both pages offer **English and Spanish**, with English as the default.
-
-![The screen library in the local usage dashboard, showing fictional readings and the bundled Quest demo](docs/images/screen-library.png?v=quest-2)
-
-Two additional photo scenes, **Violet Horizon** and **Neon District**, become available when you supply the matching local images. The platform, fight, beach and quest scenes also support optional local artwork, as shown above. Hyrule Quest includes its own original traveller, so it works on a clean download too. No game ROMs, extracted game sprite files or private photo collections are shipped. See the guides for the [control room](docs/board-control.md), [quest](docs/board-quest.md), [platform](docs/board-platform.md), [fight](docs/board-versus.md) and [beach](docs/board-paradise.md).
-
-### Your display's control room
-
-Once the local monitor is running, open **http://127.0.0.1:8787/board** or select **Desk display** in the dashboard. You can change screens, set animation speed per slot on compatible firmware, choose automatic rotation, adjust the touch-hold durations and schedule a dimmer night mode on compatible firmware. The panel reports when a selection is queued and when the display confirms it. Animated previews are generated on the computer; they do not stream frames from the device.
-
-The computer and display must be connected and paired. Animation speed changes how fast a scene moves, not the number of frames per second. The [control room guide](docs/board-control.md) explains compatibility, preview behaviour and connection status.
+With the monitor running, open **http://127.0.0.1:8787/board** or choose **Desk display** from the dashboard. [Explore the control room](docs/board-control.md).
 
 ### One tap, another world
 
-With the included touch firmware, gestures take effect when you release:
+The default touch gestures take effect when you release your finger:
 
-| Gesture | What happens |
+| Gesture | Action |
 |---|---|
-| Quick tap | Switch to the next screen. |
+| Quick tap | Go to the next screen. |
 | Hold for 2 to less than 5 seconds | Cycle between fixed, every 30 minutes and every hour. |
 | Hold for 5 seconds or more | Open the connection screen. |
 
-Rotation happens at **:00 and :30**, or just **:00**. A tiny indicator shows the mode, and the board remembers your selected screen and mode after a restart.
+When the clock is synchronised, rotation happens on the hour and half hour, or on the hour only. A discreet indicator shows the selected mode. Supported firmware remembers the chosen screen and mode after a restart; the hold times can also be changed in the control room.
 
 ## Try it without a display or an account
 
-You'll need Python 3.10 or newer. These commands render all eight scenes with **made-up data**, without signing in or connecting to a device:
+You can render the bundled scenes with **fictional readings** before connecting anything. You'll need Python 3.10 or newer:
 
 ```bash
 git clone https://github.com/TonyRod116/ai-desk-display.git
@@ -103,113 +87,90 @@ pip install -e .
 python scripts/render_gallery.py --out preview
 ```
 
-Open `preview/gallery.png`. Your tiny desk multiverse is ready to browse.
-
-Want the animated previews too? With `g++` installed:
+Open `preview/gallery.png` to explore. For animated previews, install `g++` and run:
 
 ```bash
 python scripts/render_animations.py --out preview
 python scripts/render_quest_preview.py --out preview
 ```
 
-This runs the firmware animation simulator and the platform's matching Python renderer locally and writes GIFs. The example scripts use bundled artwork and don't contact your accounts or hardware.
+The Quest command renders its **bundled demo**, even if you have custom artwork. These scripts don't contact your accounts or a display; installing dependencies does require a download.
 
-On Windows, create the environment with `py -m venv .venv` and activate it with `.venv\Scripts\Activate.ps1`. The reference installation for the full account-reader integration uses **Linux/WSL**; native Windows and macOS have not received the same level of testing. WSL is also the simplest route for the C++ preview simulator on Windows.
-
-You can also render the classic clock faces:
-
-```bash
-ai-desk-display demo --out preview/clock
-```
-
-No API key is needed for the demos. Installation does download dependencies.
+On Windows, create the environment with `py -m venv .venv` and activate it with `.venv\Scripts\Activate.ps1`. Linux or WSL is the reference environment for the full account-reader setup; native Windows and macOS haven't received the same level of testing.
 
 ## Okay, I want this on my desk
 
-**Got a NerdMiner V2 with the 2.8-inch touchscreen? That's the display used in this project.** Your lottery miner might enjoy a career change, too.
+The reference device is the **2.8-inch NerdMiner V2 touchscreen based on ESP32-2432S028R**, also known as the Cheap Yellow Display (CYD), at 320 × 240. NerdMiner V2 is available on other boards too, so check the board and display controller before flashing.
 
-The reference setup uses the **NerdMiner V2 touchscreen variant based on ESP32-2432S028R**, also known as the **Cheap Yellow Display (CYD), 320×240**. Firmware configurations are included for ILI9341 and ST7789 controllers. NerdMiner V2 also runs on other boards, so check the board model and display controller rather than relying on the NerdMiner name alone. Installing this firmware replaces the mining application.
+Installing this firmware replaces the mining application. This is still a tinkering project, not a one-click installer:
 
-Support for GeekMagic clocks is also retained, with different capabilities: they are not the same platform and do not run this ESP32 firmware.
+1. **Check the hardware.** Follow the [hardware guide](docs/hardware.md) and build the correct ILI9341 or ST7789 version from the [firmware instructions](firmware/board/README.md).
+2. **Install the host and sign in.** Install the project as shown above, then sign in to the official Claude Code and/or Codex CLI with your own accounts.
+3. **Pair and start the readers.** Follow the [setup guide](docs/setup.md) for the private configuration, board pairing, monitor and provider readers. Use only the providers you need.
+4. **Open the local dashboard** at `http://127.0.0.1:8787` while the monitor is running, and choose your screens.
 
-1. Try the gallery and check your display's exact model.
-2. For the touchscreen board, follow the [hardware guide](docs/hardware.md) and [firmware instructions](firmware/board/README.md). Flashing replaces whatever program is currently on the board.
-3. Configure your own accounts and device using the [step-by-step setup guide](docs/setup.md). No accounts, passwords or private pairing files are bundled.
-4. Explore the options with `ai-desk-display --help` and `ai-desk-display board --help`.
+For Claude's saved-reset balance, the optional [local browser extension](docs/claude-bank-local.md) needs its own private pairing. Available readings can change with the provider or plan.
 
-**Updating an existing board?** The latest source includes the control room, smoother scrolling, the longer optional Paradise wave, night mode and expanded animation support. Follow the [firmware guide](firmware/board/README.md); for a Wi-Fi update, open the connection screen first by holding and releasing for the configured duration (five seconds by default). The smoothest beach film needs compatible firmware and locally prepared artwork; older boards and missing artwork receive a fallback. See the [beach guide](docs/board-paradise.md) for details.
+**Updating an existing board?** Follow the [firmware guide](firmware/board/README.md). For a Wi-Fi update, physically open the connection screen first: hold and release for the configured duration, five seconds by default.
 
-**This is a tinkering project, not yet a “next, next, finish” installer.** Usage readings depend on the client, plan and information each provider exposes. Claude's optional saved-reset reader requires [pairing a local extension](docs/claude-bank-local.md); that's an advanced integration and may need adjustments when the provider changes things.
+The repository doesn't install startup services automatically. If you want the monitor and readers to start with your computer, see the [Windows/WSL startup notes](docs/windows-startup-local.md) and adapt them to your machine.
 
-### Keep your board easy to find
+A GeekMagic SmallTV Ultra uses a different integration and does **not** run the ESP32 touchscreen firmware. See the [SmallTV guide](docs/smalltv-ultra.md).
 
-Your router can give the board a different local IP address after a reconnect or restart. The computer may then keep looking at the old address and the display can show **NO DATA**. A **DHCP reservation** tells your router to keep giving this particular board the same local IP; it doesn't expose the board to the Internet.
+### Keep the connection steady
 
-1. On the board, hold for **5 seconds and release** to show its current address. On firmware 9 or older, hold for about 2 seconds instead.
-2. Open your router's device list and find the board using that current IP. Note its **MAC address** (its hardware identifier); the device name may start with `esp32`.
-3. In the router, look for **DHCP reservation**, **address reservation** or **static DHCP**. Names vary by router. Select that MAC address, reserve the board's current IP and save. Don't assign an IP already reserved for another device.
-4. Make sure the computer and board are on the same reachable local network, and keep the computer's display service running. The reservation survives a normal restart; it doesn't turn the computer on or keep account sessions signed in.
+A router can give the board a different local IP after a restart, leaving the computer looking at the old address. Reserving its address in your router helps prevent that:
 
-If the board remains unreachable for 10 minutes, the current monitor can also search the saved address's local subnet, at most once an hour. It checks candidates with the saved pairing token and only switches when exactly one accepts it. The connection is unencrypted HTTP, so use this on a trusted network; a device impersonating the board could receive the token. A router reservation is still the simplest way to avoid address changes.
+1. Hold the board's screen for **5 seconds and release** to see its IP address. Older firmware may use a shorter hold.
+2. Find that IP in the router's device list and note the board's MAC address; its name may start with `esp32`.
+3. Add a **DHCP reservation** (sometimes called static DHCP) for that MAC address and the current IP. Don't use an address already reserved for another device.
 
-If the IP has already changed, compare the address on the board with the one saved on the computer. Reconnect using the address shown on the board, then restart **only the display monitor** so it reloads the change. The [setup guide](docs/setup.md#troubleshooting) has the exact commands and covers provider readings too. Keep your pairing token and router credentials private.
+This is a local-network setting, **not port forwarding**. If the board is unreachable for ten minutes, the monitor may automatically search its saved local subnet, at most once an hour. That search sends the pairing token to candidate devices over unencrypted HTTP, so an impersonating device could receive it; use a trusted network. Keep the monitor running for updates. If you see `NO DATA`, the [troubleshooting guide](docs/setup.md#troubleshooting) walks through the address, power and reader checks.
 
 ## Local, not magic
 
-- Your computer renders the scenes and sends updates over your local network. The dashboard listens on localhost.
-- Enabled account readers contact the official services for fresh numbers. **Local rendering doesn't mean you can fetch current quotas without Internet access.**
-- Your computer and service need to be running to refresh readings. The board animates the scenes it already has, but marks data unavailable when it stops hearing from the host.
-- You don't need to keep an AI chat open or ask an AI to draw each update.
-- Missing data stays unknown. It isn't quietly turned into zero, and saved resets aren't guessed from your usage percentage.
-- Keep the board on a trusted network: its local connection uses HTTP. Don't expose the board or dashboard ports to the Internet.
+- The computer renders screens and sends them over your local network. The web dashboard listens on localhost.
+- Enabled readers contact the **official providers** for current usage. Local rendering doesn't make those account requests work offline.
+- The computer and monitor need to be running for fresh readings. The board can animate stored scenes while the host is away, but marks stale data unavailable.
+- Startup, account sign-in and the optional extension are yours to configure; the repository doesn't include your credentials or pairing files.
+- The board connection uses unencrypted HTTP. Keep it on a trusted network and don't expose the board or dashboard ports to the Internet.
 
 ## Make it yours, with or without AI
 
-**This project is meant to be changed.** Ask an AI to tweak the colors, rearrange the percentages, design another scene or adjust an animation. Many of these screens were built exactly that way: try something, look at it, then say “okay… but more cyberpunk.”
+This project is meant to be changed. Ask an AI to tweak colours, rearrange a meter, invent a scene or adjust an animation. A lot of these screens came from exactly that process: try something, look at it, then say “okay… but more cyberpunk.”
 
-You can also use AI to **adapt it to other displays**. Rendering and device communication are separate, so there's a useful starting point for a different resolution or connection method. That doesn't make every display automatically compatible: depending on your hardware, you may need to adapt the driver, protocol or firmware.
+You can also use AI to help adapt the project to **another display**. Rendering and device communication are separate starting points, but another resolution or connection may still require a new driver, protocol changes or different firmware. Test on your own hardware.
 
-A good first request:
+A useful first prompt:
 
-> “Read AGENTS.md and the Tidal Rush renderer. I'd like a purple sunset palette. Keep the usage readings intact, don't access my accounts, and generate a preview with fictional data before touching the board.”
-
-For help setting up an existing board:
-
-> “Read the README and setup guide, then help me connect my board. Check the address on its connection screen and guide me through reserving it in my router. Don't ask me to share credentials or pairing tokens, query my accounts without permission, or flash firmware without the physical confirmation step.”
-
-Feeling adventurous?
-
-> “I'd like to adapt these scenes to my [model and resolution] display. First inspect the rendering and image-transfer code. Explain what can be reused and what needs to be implemented.”
-
-A quick map:
+> Read AGENTS.md and the Tidal Rush renderer. Give the scene a purple sunset palette, keep the usage readings intact, and make a preview with fictional data before touching the display or my accounts.
 
 | I want to change… | Start here |
 |---|---|
-| Scenes and their order | `token_tv/board_pages.py` and `token_tv/board_*.py` |
-| Screen library and control room | `token_tv/board_scenes.py`, `token_tv/board_control.py` and [the control room guide](docs/board-control.md) |
-| Neon City artwork and bridge lights | `token_tv/board_neon_bridge.py` and [the scene guide](docs/board-neon-city.md) |
-| Board animations | `token_tv/board_anim.py`, `token_tv/board_wave.py` and `firmware/board/` |
+| Screens and their order | `token_tv/board_pages.py` and `token_tv/board_*.py` |
+| Scene library and control room | [Control room guide](docs/board-control.md) and `token_tv/board_scenes.py` |
+| Neon City and its bridge lights | [Neon City guide](docs/board-neon-city.md) |
+| Board animation | `token_tv/board_anim.py`, `token_tv/board_wave.py` and `firmware/board/` |
 | Classic clock faces | [Make a face](docs/clock-faces.md) |
-| README previews | `scripts/render_gallery.py` and `scripts/render_animations.py` |
 
 ## Made something cool?
 
-Show it off in an [issue](https://github.com/TonyRod116/ai-desk-display/issues). A new scene, support for another display or a small improvement all count. Use fictional readings in your screenshots: your accounts don't need a field trip to GitHub.
+I'd love to see it. Share a new screen, display adaptation or improvement in an [issue](https://github.com/TonyRod116/ai-desk-display/issues). Please use fictional readings in screenshots and keep account and pairing details private.
 
-Run the local tests with:
+Run the local test suite with:
 
 ```bash
 python -m unittest discover -s tests
 ```
 
-Some firmware tests need a C++ compiler; JavaScript checks need Node. Don't run `scripts/e2e_live.py` as a routine test: it is intended for a real device.
+Some firmware tests need a C++ compiler; JavaScript checks need Node. `scripts/e2e_live.py` is intended for a real device and isn't a routine test.
 
 ## Credits and license
 
-Created by **Tony**, with a lot of help from **Claude Code and Codex**. Original inspiration and some retained components: [TokenTV, by click6067-ship-it](https://github.com/click6067-ship-it/token-tv), whose MIT copyright notice is preserved in [LICENSE](LICENSE).
+Created by **Tony**, with a lot of help from **Claude Code and Codex**. Original inspiration and some retained components: [TokenTV, by click6067-ship-it](https://github.com/click6067-ship-it/token-tv); its MIT notice is preserved in [LICENSE](LICENSE).
 
-Code is licensed under [MIT](LICENSE). Fonts retain their license files in `token_tv/web/`. See [ASSETS.md](ASSETS.md) for visual-asset provenance and permissions. This is not an official product and is not affiliated with OpenAI, Anthropic, Nintendo or Atari.
+Code is licensed under [MIT](LICENSE); fonts keep their own license files. See [ASSETS.md](ASSETS.md) for artwork provenance and permissions. This is an independent project and isn't affiliated with OpenAI, Anthropic, Nintendo or Atari.
 
 If it ends up on your desk, mission accomplished. 🌊
 
-[^mining-math]: Back-of-the-envelope estimate checked on 2026-10-23: Bitcoin difficulty **140,577,680,051,919.6**, from [mempool.space's mining API](https://mempool.space/api/v1/mining/hashrate/3d). Expected years ≈ `difficulty × 2^32 ÷ hashes_per_second ÷ 31,557,600` = **19.13 billion** at an assumed **1 MH/s**. That's a generous illustrative rate, not a measurement of this board; modified CYD firmware [reports roughly 990 kH/s](https://github.com/HenrysCat/NerdMiner-Modded). The calculation assumes continuous operation and unchanged difficulty forever. It's a statistical mean, not a countdown, guarantee or prediction: a lucky block could arrive sooner, and future difficulty changes the odds. [Solo mining wins a block reward plus fees](https://developer.bitcoin.org/devguide/mining.html#solo-mining), not exactly 1 BTC. The network figure above is a dated snapshot; the linked API changes over time.
+[^mining-math]: Back-of-the-envelope estimate checked on 2026-10-23: Bitcoin difficulty **140,577,680,051,919.6**, from [mempool.space's mining API](https://mempool.space/api/v1/mining/hashrate/3d). Expected years ≈ `difficulty × 2^32 ÷ hashes_per_second ÷ 31,557,600` = **19.13 billion** at an assumed **1 MH/s**. That's a generous illustrative rate, not a measurement of this board; modified CYD firmware [reports roughly 990 kH/s](https://github.com/HenrysCat/NerdMiner-Modded). The calculation assumes continuous operation and unchanged difficulty forever. It's a statistical mean, not a countdown or guarantee: a lucky block could arrive sooner, and future difficulty changes the odds. [Solo mining wins a block reward plus fees](https://developer.bitcoin.org/devguide/mining.html#solo-mining), not exactly 1 BTC. The network figure is a dated snapshot; the linked API changes over time.
