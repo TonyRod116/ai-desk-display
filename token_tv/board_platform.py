@@ -317,7 +317,7 @@ def _sprites(frame_limit=8):
 
 
 def _text(draw, xy, text, font, colour='#ffffff'):
-    """The white-on-dark offset mimics a SNES HUD and reads over the sky."""
+    """The white-on-dark offset mimics a 16-bit console HUD and reads over the sky."""
     x,y=xy
     draw.text((x+1,y+1),text,font=font,fill='#163143')
     draw.text((x,y),text,font=font,fill=colour)

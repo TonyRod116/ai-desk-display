@@ -156,7 +156,7 @@ class FullscreenScrollTests(unittest.TestCase):
                 y1, middle, y2 = (actor_top(i) for i in (110, 111, 112))
                 self.assertEqual(middle, (y1 + y2) // 2)
                 self.assertNotIn(middle, (y1, y2))
-                # At the half-frames around the hit, Mario's head stays below
+                # At the half-frames around the hit, the rider's head stays below
                 # the block until it rises, including the instant of contact.
                 for index in range(204, 215):
                     camera = index * 2

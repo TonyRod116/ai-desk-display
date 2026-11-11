@@ -159,7 +159,7 @@ class AnimationEngineTests(unittest.TestCase):
                 image,payload=render_platform(snapshot(),animated=True,anim_frames=limit)
             spec=board_anim.decode(payload)
             background=list(struct.unpack('<76800H',rgb565_frame(image)[8:]))
-            # Two Mario loops, with the cloud, coins and dinosaur on their own clocks.
+            # Two runner loops, with the cloud, coins and dinosaur on their own clocks.
             capture=200
             out=self.run_engine(payload,capture*64,image=image,capture_ms=capture)
             for step in range(64):
