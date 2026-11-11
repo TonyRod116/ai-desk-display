@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">AI Desk</string>
+    <string name="status_connecting">Connecting to the PC...</string>
+    <string name="status_waiting">Waiting for the PC...</string>
+    <string name="status_waiting_hint">Is the computer on, and is this tablet on the same Wi-Fi network? This screen tries again every 10 seconds.</string>
+    <string name="status_certificate">Cannot make a secure connection to the PC.</string>
+    <string name="status_certificate_hint">This app only trusts the certificate it was built with. If the PC\'s address or certificate changed, install the new version of the app from the PC.</string>
+</resources>

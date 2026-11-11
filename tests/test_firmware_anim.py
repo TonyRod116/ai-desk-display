@@ -435,6 +435,7 @@ class AnimationEngineTests(unittest.TestCase):
         poses = tuple(Image.new('RGBA', (24,26), (50 + i * 20, 180, 70, 255)) for i in range(8))
         for limit in (4,8):
             with self.subTest(frame_limit=limit), patch('time.time', return_value=NOW), \
+                    patch('token_tv.board_zelda._local_art', return_value=None), \
                     patch('token_tv.board_zelda._walk', return_value=poses):
                 image, payload = render_quest(snapshot(), animated=True, anim_frames=limit)
             spec = board_anim.decode(payload)

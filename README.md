@@ -10,7 +10,7 @@ Turn a little desk display into an animated home for your **Claude and Codex usa
 [![License: MIT](https://img.shields.io/badge/code-MIT-green)](LICENSE)
 [![Local rendering](https://img.shields.io/badge/rendering-local-7c3aed)](#local-not-magic)
 
-[Download ZIP](https://github.com/TonyRod116/ai-desk-display/archive/refs/heads/main.zip) · [The screens](#eight-screens-zero-boredom) · [Try it first](#try-it-without-a-display-or-an-account) · [Set it up](#okay-i-want-this-on-my-desk) · [Make it yours](#make-it-yours-with-or-without-ai)
+[Download ZIP](https://github.com/TonyRod116/ai-desk-display/archive/refs/heads/main.zip) · [The screens](#eight-screens-zero-boredom) · [Tablet companion](#an-old-tablet-gets-a-new-job) · [Try it first](#try-it-without-a-display-or-an-account) · [Set it up](#okay-i-want-this-on-my-desk) · [Make it yours](#make-it-yours-with-or-without-ai)
 
 </div>
 
@@ -34,6 +34,22 @@ All readings in these previews are **made up**. Some images show optional artwor
 **Hyrule Quest** is in the library too, with life meters, hearts and an animated village scene. The repository includes an original-art demo; the custom Zelda artwork used on my display stays local and isn't included. [See the Quest guide and demo](docs/board-quest.md).
 
 GIFs have a limited colour palette; the display receives RGB565 frames. Game Boy is normally static: its GIF simulates changing usage.
+
+## An old tablet gets a new job
+
+The little screen invited its bigger cousin to the desk. The **tablet companion** is a separate portrait dashboard: your AI limits, time and computer stats over an animated scene. Tap the clock for picture mode, swipe to change scenes, or double-tap to open the gallery. Seven little divisions on each weekly bar and five on Claude's five-hour bar make it easier to see where you are.
+
+There's an isometric city that lights up with your remaining usage, a coastal drive, a fighting game and a surf scene. You can also add your own photographs and compatible scene art. The tablet and the little board have their own scene choices and settings, so changing one doesn't rearrange the other.
+
+The tablet connects to your computer over your local Wi-Fi, with a password and HTTPS. An optional Android app keeps the display awake and pins the computer's certificate. Fresh readings still need the computer and monitor running. CPU, GPU, temperature and disk details depend on your hardware; unavailable readings stay unavailable. Optional weather is off until you enable it.
+
+The downloadable code includes original procedural artwork and a demo with fictional readings. My personal photos, videos, game artwork and account data are not included. [Try and set up the tablet companion](docs/tablet.md).
+
+| Dashboard | Picture mode |
+|:---:|:---:|
+| <img src="docs/images/tablet-dashboard.png" width="280" alt="Tablet dashboard with a city, usage and computer metrics"> | <img src="docs/images/tablet-picture-mode.png" width="280" alt="Tablet picture mode with an isometric city and compact usage bars"> |
+
+*Both screenshots use fictional readings and the included procedural city.*
 
 ## What does it show?
 

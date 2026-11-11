@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The mark inside the launcher's safe zone: the adaptive layer is 108 dp and only its middle 66 dp is guaranteed visible. -->
+<inset xmlns:android="http://schemas.android.com/apk/res/android"
+    android:drawable="@drawable/ic_mark"
+    android:inset="21%" />

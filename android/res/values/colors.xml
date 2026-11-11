@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The page's own palette (token_tv/tablet_web/style.css): a very dark blue ground, a warm gold mark. -->
+    <color name="black">#000000</color>
+    <color name="ink">#f5f8fa</color>
+    <color name="muted">#b9cbd3</color>
+    <color name="dim">#9fb0b8</color>
+    <color name="icon_background">#071018</color>
+    <color name="icon_mark">#f1c877</color>
+</resources>

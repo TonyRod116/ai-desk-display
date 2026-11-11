@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Android 12 and later draw a system launch screen first: keep it black too. -->
+    <style name="AppTheme" parent="Base.AppTheme">
+        <item name="android:windowSplashScreenBackground">@color/black</item>
+    </style>
+</resources>

@@ -22,4 +22,4 @@ token-tv = "token_tv.cli:main"
 packages = ["token_tv", "token_tv.providers"]
 
 [tool.setuptools.package-data]
-token_tv = ["web/*", "assets/*.png", "assets/*.json"]
+token_tv = ["web/*", "tablet_web/*", "assets/*.png", "assets/*.json"]

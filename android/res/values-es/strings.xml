@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">AI Desk</string>
+    <string name="status_connecting">Conectando con el PC...</string>
+    <string name="status_waiting">Esperando al PC...</string>
+    <string name="status_waiting_hint">Comprueba que el ordenador esté encendido y que la tablet esté en la misma red Wi-Fi. Esta pantalla vuelve a intentarlo cada 10 segundos.</string>
+    <string name="status_certificate">No se puede establecer una conexión segura con el PC.</string>
+    <string name="status_certificate_hint">Esta aplicación solo confía en el certificado con el que se creó. Si ha cambiado la dirección o el certificado del PC, instala desde el PC la versión nueva de la aplicación.</string>
+</resources>

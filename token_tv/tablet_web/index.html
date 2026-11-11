@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#071018">
+  <meta name="color-scheme" content="dark">
+  <title>AI Desk Display · Tablet</title>
+  <link rel="stylesheet" href="/style.css">
+  <script src="/scene-stage.js" defer></script>
+  <script src="/stage-crt.js" defer></script>
+  <script src="/stage-lcd.js" defer></script>
+  <script src="/stage-live.js" defer></script>
+  <script src="/stage-game.js" defer></script>
+  <script src="/game-token-run.js" defer></script>
+  <script src="/game-city-iso.js" defer></script>
+  <script src="/game-fighting.js" defer></script>
+  <script src="/game-surf.js" defer></script>
+  <script src="/stage-photo.js" defer></script>
+  <script src="/schedule.js" defer></script>
+  <script src="/alerts.js" defer></script>
+  <script src="/weather.js" defer></script>
+  <script src="/panels.js" defer></script>
+  <script src="/app.js" defer></script>
+</head>
+<body data-scene="city">
+  <div class="stage" id="stage" aria-hidden="true"></div>
+  <div class="landscape" id="landscape" aria-hidden="true"></div>
+  <div class="veil" aria-hidden="true"></div>
+  <main class="display" id="display">
+    <header class="topbar">
+      <div class="brand"><span class="brand-mark" aria-hidden="true">✳</span><span>AI DESK <b>DISPLAY</b></span></div>
+      <nav class="dots" id="dots" aria-label="Pages">
+        <button type="button" data-page="home" aria-label="Home" aria-current="page"><i></i></button>
+        <button type="button" data-page="computer" aria-label="Computer"><i></i></button>
+        <button type="button" data-page="remote" aria-label="Small screen"><i></i></button>
+      </nav>
+      <div class="top-controls">
+        <span class="chip" id="connection" data-state="error"><span class="chip-dot"></span><span class="chip-text" data-i18n="connecting">CONNECTING</span></span>
+        <span class="chip" id="awake" data-state="off" role="status" hidden><span class="chip-dot"></span><span class="chip-text" id="awake-text"></span></span>
+        <button type="button" class="chip chip-button" id="update" hidden><span class="chip-dot"></span><span class="chip-text" data-i18n="update">UPDATE</span></button>
+        <button type="button" class="chip chip-button" id="app-update" hidden><span class="chip-dot"></span><span class="chip-text" data-i18n="app_update">APP UPDATE</span></button>
+        <button type="button" id="scene-open" class="scene-open" aria-haspopup="dialog"><span class="scene-label" data-i18n="scene">SCENE</span><strong id="scene-name">Cyberpunk City</strong><span aria-hidden="true">▾</span></button>
+        <button class="round" id="settings-open" type="button" aria-label="Settings" aria-haspopup="dialog">⚙</button>
+        <button class="round" id="fullscreen" type="button" aria-label="Enter full screen" title="Enter full screen" aria-pressed="false" hidden>⛶</button>
+      </div>
+    </header>
+    <div class="pager" id="pager">
+      <section class="page" id="page-home" data-page="home">
+        <div class="slot" id="slot"></div>
+        <section class="intro" id="intro" role="button" tabindex="0" aria-pressed="false">
+          <p class="date" id="date">—</p>
+          <div class="timeline">
+            <time class="clock" id="clock">--:--</time>
+            <div class="weather" id="weather" role="img" hidden><span class="wx-icon" id="wx-icon" aria-hidden="true"></span><span class="wx-body"><b class="wx-temp" id="wx-temp"></b><span class="wx-text" id="wx-text"></span></span></div>
+          </div>
+          <div class="picture-quota" id="picture-quota" aria-hidden="true">
+            <div class="pq-week" data-pq="codex">
+              <div class="pq-heading"><b>CODEX</b><strong>—</strong></div>
+              <i class="pq-meter"><em></em></i>
+              <div class="pq-reset"><span data-i18n="reset_in">RESET IN</span><small>—</small></div>
+            </div>
+            <div class="pq-week" data-pq="claude">
+              <div class="pq-heading"><b>CLAUDE</b><strong>—</strong></div>
+              <i class="pq-meter"><em></em></i>
+              <div class="pq-reset"><span data-i18n="reset_in">RESET IN</span><small>—</small></div>
+              <div class="pq-session" data-pq="session"><b>5H</b><i class="pq-meter"><em></em></i><strong>—</strong><small></small></div>
+            </div>
+          </div>
+        </section>
+        <div class="dock" id="dock">
+          <section class="quota-section" aria-labelledby="usage-heading">
+            <h1 id="usage-heading" class="sr-only" data-i18n="usage">YOUR AI USAGE · WEEKLY REMAINING</h1>
+            <div class="quota-grid">
+              <article class="quota-card codex" data-provider="codex">
+                <div class="card-top"><span class="provider"><span class="provider-icon" aria-hidden="true">✳</span>CODEX</span><span class="hearts" aria-label="Reset balance unavailable"><i>♥</i><i>♥</i><i>♥</i><span class="unknown-dot">•</span></span></div>
+                <div class="amount"><span class="amount-number">—</span><span class="amount-unit"></span></div>
+                <div class="meter" data-parts="7" role="img" aria-label="Remaining usage unavailable"><span></span></div>
+                <div class="card-bottom"><span class="caption" data-i18n="weekly_left">WEEKLY LEFT</span><span class="reset"><small data-i18n="reset_in">RESET IN</small><strong class="reset-time">—</strong></span></div>
+                <div class="credits" hidden><span data-i18n="credits">CREDITS</span><strong></strong></div>
+              </article>
+              <article class="quota-card claude" data-provider="claude">
+                <div class="card-top"><span class="provider"><span class="provider-icon" aria-hidden="true">✳</span>CLAUDE</span><span class="hearts" aria-label="Reset balance unavailable"><i>♥</i><i>♥</i><i>♥</i><span class="unknown-dot">•</span></span></div>
+                <div class="amount"><span class="amount-number">—</span><span class="amount-unit"></span></div>
+                <div class="meter" data-parts="7" role="img" aria-label="Remaining usage unavailable"><span></span></div>
+                <div class="card-bottom"><span class="caption" data-i18n="weekly_left">WEEKLY LEFT</span><span class="reset"><small data-i18n="reset_in">RESET IN</small><strong class="reset-time">—</strong></span></div>
+              </article>
+            </div>
+            <div class="session-band" data-level="unknown"><span class="caption"><span class="session-who">CLAUDE</span> <span data-i18n="five_hour">5-HOUR LIMIT</span></span><div class="meter" data-parts="5" role="img" aria-label="Remaining usage unavailable"><span></span></div><strong class="session-value">—</strong><span class="session-time"></span></div>
+          </section>
+          <section class="system-section" aria-labelledby="system-heading">
+            <h2 id="system-heading" class="sr-only" data-i18n="computer">YOUR COMPUTER</h2>
+            <div class="machine" id="machine" role="button" tabindex="0">
+              <div class="system-grid">
+                <article class="system-card"><div class="system-title"><span>CPU</span><b id="cpu-load">—</b></div><div class="system-value" id="cpu-temp">—<span>°C</span></div><div class="system-meter"><span id="cpu-meter"></span></div></article>
+                <article class="system-card"><div class="system-title"><span>GPU</span><b id="gpu-load">—</b></div><div class="system-value" id="gpu-temp">—<span>°C</span></div><div class="system-meter"><span id="gpu-meter"></span></div></article>
+                <article class="system-card"><div class="system-title"><span data-i18n="memory">MEMORY</span><b id="memory-load"></b></div><div class="system-value" id="memory-value">—</div><div class="system-meter"><span id="memory-meter"></span></div></article>
+              </div>
+              <div class="busy"><span class="busy-text" id="busy"></span><span class="more"><span data-i18n="more">DETAILS</span> ›</span></div>
+              <div class="storage-card"><div class="disks" id="disks"><span class="disk-empty">—</span></div></div>
+            </div>
+          </section>
+        </div>
+      </section>
+      <section class="page" id="page-computer" data-page="computer" aria-label="Computer"><div class="sheet" id="computer"></div></section>
+      <section class="page" id="page-remote" data-page="remote" aria-label="Small screen"><div class="sheet" id="remote"></div></section>
+    </div>
+    <p class="fullscreen-status" id="fullscreen-status" role="status" hidden></p>
+    <div class="toast" id="toast" role="status" hidden></div>
+    <pre class="diag" id="diag" hidden></pre>
+    <i class="ruler" id="ruler" aria-hidden="true"></i>
+    <dialog class="scene-dialog" id="scene-dialog" aria-labelledby="scene-dialog-title">
+      <div class="scene-dialog-header"><div><p data-i18n="scene">SCENE</p><h2 id="scene-dialog-title" data-i18n="choose_scene">Choose a background</h2></div><button type="button" id="scene-close" class="scene-close" aria-label="Close">×</button></div>
+      <div class="scene-grid" id="scene-grid"></div>
+    </dialog>
+    <dialog class="scene-dialog pool" id="pool-dialog" aria-labelledby="pool-title">
+      <div class="scene-dialog-header"><div><p>AI DESK</p><h2 id="pool-title"></h2></div><button type="button" id="pool-close" class="scene-close action" aria-label="Done"></button></div>
+      <p class="hint" id="pool-hint"></p>
+      <div class="scene-grid" id="pool-grid"></div>
+      <div class="pool-foot"><button type="button" id="pool-reset" class="action"></button></div>
+    </dialog>
+    <dialog class="scene-dialog settings" id="settings-dialog" aria-labelledby="settings-title">
+      <div class="scene-dialog-header"><div><p>AI DESK</p><h2 id="settings-title" data-i18n="settings">Settings</h2></div><button type="button" id="settings-close" class="scene-close" aria-label="Close">×</button></div>
+      <div class="settings-body" id="settings-body"></div>
+    </dialog>
+  </main>
+  <div class="night-shade" id="night-shade" aria-hidden="true"></div>
+  <div class="flash" id="flash" aria-hidden="true"></div>
+</body>
+</html>

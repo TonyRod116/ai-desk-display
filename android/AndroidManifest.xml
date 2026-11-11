@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  AI Desk, the tablet shell: one full-screen WebView around the page the PC serves (docs/tablet-app.md).
+  The version name and code are not written here: scripts/build_tablet_app.py passes them to aapt2 on every build.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="app.aidesk.tablet">
+
+    <uses-sdk
+        android:minSdkVersion="26"
+        android:targetSdkVersion="35" />
+
+    <!-- Exactly these four and nothing else: the page, the Wi-Fi state (to retry as soon as it returns), a short buzz and the
+         user-confirmed update of this very app from the PC (Android still asks, and only accepts the same signing key). -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.VIBRATE" />
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+
+    <application
+        android:label="@string/app_name"
+        android:icon="@mipmap/ic_launcher"
+        android:theme="@style/AppTheme"
+        android:allowBackup="false"
+        android:usesCleartextTraffic="false"
+        android:hardwareAccelerated="true"
+        android:supportsRtl="true">
+
+        <!-- Nothing here goes to Google: the only address is the PC's, on the private network. -->
+        <meta-data
+            android:name="android.webkit.WebView.EnableSafeBrowsing"
+            android:value="false" />
+
+        <!-- The only exported component in the app, and the only entry point. Rotating, resizing or changing the font or the
+             language never recreates the activity, so the page is never reloaded by them. -->
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:launchMode="singleTask"
+            android:screenOrientation="sensorPortrait"
+            android:configChanges="mcc|mnc|locale|touchscreen|keyboard|keyboardHidden|navigation|orientation|screenLayout|uiMode|screenSize|smallestScreenSize|density|layoutDirection|colorMode|grammaticalGender|fontScale|fontWeightAdjustment"
+            android:windowSoftInputMode="adjustResize"
+            android:enableOnBackInvokedCallback="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>

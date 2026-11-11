@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The AI Desk mark: an eight-spoked asterisk (the star of the page's header), four round-ended strokes through one centre. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="96dp"
+    android:height="96dp"
+    android:viewportWidth="100"
+    android:viewportHeight="100">
+    <path
+        android:pathData="M50,8 L50,92 M8,50 L92,50 M20.3,20.3 L79.7,79.7 M79.7,20.3 L20.3,79.7"
+        android:strokeColor="@color/icon_mark"
+        android:strokeWidth="11"
+        android:strokeLineCap="round" />
+</vector>
