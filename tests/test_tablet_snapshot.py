@@ -70,6 +70,16 @@ class TabletSnapshotTests(unittest.TestCase):
         not_exhausted = row('codex', 99, credits_balance='4.65')
         self.assertIsNone(tablet_snapshot({'accounts': {'x': not_exhausted}}, NOW)['providers']['codex']['credits'])
 
+    def test_exhausted_credit_amount_and_unknown_stay_distinct(self):
+        def show(item):
+            return tablet_snapshot({'accounts': {'x': item}}, NOW)['providers']['codex']
+        self.assertEqual(show(row('codex', 100, credits_balance='2468'))['credits'], '2468')
+        self.assertEqual(show(row('codex', 100, credits_balance='0'))['credits'], '0')
+        self.assertEqual(show(row('codex', 100))['credits'], '?')
+        self.assertIsNone(show(row('codex', 100, credits_balance='2468', identity_verified=False))['credits'])
+        self.assertIsNone(show(row('codex', 100, credits_balance='2468', fetched_at=NOW - 481))['credits'])
+        self.assertIsNone(tablet_snapshot({'accounts': {'x': row('claude', 100)}}, NOW)['providers']['claude']['credits'])
+
     def test_multiple_accounts_do_not_silently_switch_identity(self):
         data = {'accounts': {'one': row('claude', 20), 'other': row('claude', 50)}}
         self.assertIsNone(tablet_snapshot(data, NOW)['providers']['claude']['weekly'])

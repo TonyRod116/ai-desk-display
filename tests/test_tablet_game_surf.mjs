@@ -246,7 +246,7 @@ test('every variant is a chain of moves that starts where the last one ended: no
     for (const seg of SEGMENTS[v]) assert.ok(seen.has(seg.name), `${v} plays ${seg.name}`);
   }
   const lengths = Object.fromEntries(VARIANTS.map((v) => [v, SEGMENTS[v].reduce((n, s2) => n + s2.dur, 0) / 30]));
-  for (const [v, seconds] of Object.entries(lengths)) assert.ok(seconds > 10 && seconds < 20, `${v} lasts ${seconds.toFixed(1)} s`);
+  for (const [v, seconds] of Object.entries(lengths)) assert.ok(seconds > 8 && seconds < 20, `${v} lasts ${seconds.toFixed(1)} s`);
 });
 
 test('the story: pump and trim, a bottom turn low with the rails in, a straight-up air with a pop, a tuck, a grab, an extension and a landing that absorbs; a tube, a hang ten, a cutback; a fall without a spin, a paddle and a pop-up', () => {
@@ -260,7 +260,7 @@ test('the story: pump and trim, a bottom turn low with the rails in, a straight-
   assert.ok(has('air', 'hang').pose.some((k) => k[1] === 'hangTen') && POSES.hangTen.ffx < POSES.trim.ffx - 5, 'hang ten on a flat section: the front foot on the nose');
   const air = has('air', 'airUp');
   assert.deepEqual(air.pose.map((k) => k[1]), ['anticipate', 'pop', 'airTuck', 'grab', 'extend', 'land', 'land'], 'coil, pop, tuck, grab, extend, land');
-  assert.ok(air.wps.every((w) => Math.abs(w.dx) < 8), 'straight up: no sideways swing'); assert.ok(Math.min(...air.wps.map((w) => w.dy)) < -25, 'a real jump'); assert.ok(air.hang > 0.3, 'a hold at the top');
+  assert.ok(air.wps.every((w) => Math.abs(w.dx) < 8), 'straight up: no sideways swing'); assert.ok(Math.min(...air.wps.map((w) => w.dy)) <= -18 && Math.min(...air.wps.map((w) => w.dy)) >= -22, 'a modest jump below the lip'); assert.ok(air.hang > 0.3, 'a hold at the top');
   assert.ok(POSES.land.hy > POSES.pop.hy + 4 && POSES.land.lean > 25, 'the landing absorbs with the knees');
   assert.deepEqual(names('wipeout').slice(3), ['wobble', 'fall', 'under', 'swim', 'paddle', 'popup']);
   assert.ok(has('wipeout', 'wobble').pose.map((k) => k[1]).includes('fall1') && has('wipeout', 'wobble').pose.map((k) => k[1]).includes('fall2'), 'he loses his balance and his arms windmill');
@@ -566,16 +566,16 @@ test('a jump holds at the top: the slow-motion makes the middle of the jump last
   const speed = (i) => Math.hypot(path[i + 1][0] - path[i][0], path[i + 1][1] - path[i][1]);
   const early = (speed(3) + speed(4) + speed(5)) / 3, middle = (speed(28) + speed(29) + speed(30)) / 3;
   assert.ok(early > 1.15 * middle, `the jump is quick at its start (${early.toFixed(2)} px a step) and slow at the top (${middle.toFixed(2)})`);
-  const top = Math.min(...path.map((p) => p[1])); assert.ok(top < path[0][1] - 22, 'it rises well above where it started');
+  const top = Math.min(...path.map((p) => p[1])); assert.ok(top < path[0][1] - 14 && top > path[0][1] - 23, 'it makes a modest jump without reaching the lip');
   assert.ok(Math.max(...path.map((p) => Math.abs(p[0] - path[0][0]))) < 9, 'and stays above where it started: straight up');
   const end = path[path.length - 1]; assert.ok(Math.abs(end[1] - path[0][1]) < 6, 'it comes back down to the face');
 });
 
-test('the wake is a trail that lasts: up to 76 points that fade over 76 steps and drift with the water', () => {
+test('the wake is bounded but lasts long enough to travel around the wave', () => {
   const w = world();
   let most = 0, oldest = 0;
   for (let i = 0; i < 900; i++) { w.step(); most = Math.max(most, w.wake.length); for (const k of w.wake) oldest = Math.max(oldest, k.age); }
-  assert.ok(most > 50 && most <= 76, `${most} wake points`); assert.ok(oldest > 60 && oldest < 76, `the oldest point is ${oldest} steps old`);
+  assert.ok(most > 30 && most <= 72, `${most} wake points`); assert.ok(oldest > 60 && oldest < 72, `the oldest point is ${oldest} steps old`);
 });
 
 test('the head is a small hand-made picture: 11 x 12 characters, two variants, hair on the side away from the face; the board has a graphic', () => {
@@ -830,7 +830,7 @@ test('rail foam follows the perspective of the board and vanishes in the air', (
     const touched = [];
     for (let i = 0; i < fb.length; i++) if (fb[i] !== 0xff141414) touched.push([i % W, Math.floor(i / W)]);
     assert.ok(touched.length > 4, 'visible water touches the board');
-    assert.ok(touched.every(([px,py]) => Math.hypot(px - rider.x, py - rider.y) < 35), 'foam stays near the board');
+    assert.ok(touched.every(([px,py]) => Math.hypot(px - rider.x, py - rider.y) < 38), 'foam stays near the board');
     for (const field of ['air', 'hop', 'hidden']) {
       fb.fill(0xff141414); rider[field] = true; surf.drawBoardContact(state, simulation); rider[field] = false;
       assert.ok(fb.every(px => px === 0xff141414), `no contact foam while ${field}`);
@@ -840,23 +840,259 @@ test('rail foam follows the perspective of the board and vanishes in the air', (
   }
 });
 
+test('the rail foam and wake return when a hop lands, even while its timer finishes', () => {
+  const rider = {x: 110, y: 120, pitchQ: 0, mode: 'stand', hidden: false, air: false, hop: surf.HOP.length - 2, pose: POSES.trim};
+  const cls = new Uint8Array(W * H).fill(CLS.WATER), fb = new Uint32Array(W * H).fill(0xff141414);
+  const state = {fb, back: {cls}, foamLut: surf.buildFoamLut()}, simulation = {surfer: rider, steps: 13};
+  surf.drawBoardContact(state, simulation);
+  assert.ok(fb.every(pixel => pixel === 0xff141414), 'no contact while the board is raised');
+  rider.hop = surf.HOP.length - 12;
+  surf.drawBoardContact(state, simulation);
+  assert.ok(fb.some(pixel => pixel !== 0xff141414), 'the wet rail returns as soon as the board lands');
+  const w = world();
+  w.surfer.hop = surf.HOP.length - 11;
+  w.step();
+  assert.equal(w.wake.at(-1)?.age, 1, 'the trailing wake also resumes on contact');
+});
+
+test('the surfer keeps a lower line in the tube and on a jump', () => {
+  const surface = surf.makeSurface(surf.DEFAULT_GEOM), ceiling = surface.at(0.65, 12)[1] - 2;
+  for (const variant of ['tube', 'air']) {
+    const ride = surf.createRide(surface, rand(19), variant), heights = [];
+    let minAir = Infinity;
+    for (let step = 0; step < 600; step++) {
+      const frame = ride.step();
+      if (frame.mode === 'stand' && !frame.hidden) {
+        heights.push(frame.y);
+        if (frame.name === 'airUp') minAir = Math.min(minAir, frame.y);
+      }
+      if (frame.ended) break;
+    }
+    assert.ok(Math.min(...heights) >= ceiling, `${variant} gets too close to the lip`);
+    assert.ok(Math.max(...heights) - Math.min(...heights) > 15, `${variant} still moves on the wave`);
+    if (variant === 'air') assert.ok(Number.isFinite(minAir), 'a smaller jump still happens');
+  }
+});
+
+test('the wake travels back, rises, curls left with the wave and fades away', () => {
+  const w = world(), [cx, cy] = w.geom.centre, trail = {x: cx + 48, y: cy + 15, age: 0};
+  const origin = [trail.x, trail.y], positions = {};
+  w.wake = [trail];
+  let maxStep = 0, last = origin;
+  for (let i = 1; i <= 90; i++) {
+    w.step();
+    const point = [trail.x, trail.y];
+    maxStep = Math.max(maxStep, Math.hypot(point[0] - last[0], point[1] - last[1]));
+    if ([6, 30, 55].includes(i)) positions[i] = point;
+    last = point;
+  }
+  assert.ok(positions[6][0] > origin[0] + 2, 'first it moves behind the board');
+  assert.ok(positions[30][1] < origin[1] - 35, 'then it rises quickly with the water');
+  assert.ok(positions[55][0] < positions[30][0] - 8, 'then it curves left');
+  assert.ok(maxStep < 3.5, `the faster trail does not jump: ${maxStep}`);
+  assert.ok(!w.wake.includes(trail), 'the old trail disappears');
+  const cls = new Uint8Array(W * H).fill(CLS.WATER), fb = new Uint32Array(W * H).fill(0xff141414);
+  surf.drawWake({fb, back: {cls}, foamLut: surf.buildFoamLut()}, [{x: 100, y: 120, age: 15}, {x: 108, y: 120, age: 10}]);
+  let changed = 0; const rows = new Set();
+  for (let y = 115; y <= 125; y++) for (let x = 95; x <= 113; x++) if (fb[y * W + x] !== 0xff141414) {changed++;rows.add(y);}
+  assert.ok(changed >= 22 && rows.size >= 3, `a visible, textured wake: ${changed} pixels across ${rows.size} rows`);
+});
+
+test('the visible wake opens into two sides of a V behind the board', () => {
+  const cls = new Uint8Array(W * H).fill(CLS.WATER), fb = new Uint32Array(W * H).fill(0xff141414);
+  const wake = [{x:128,y:100,age:60,group:1},{x:122,y:100,age:45,group:1},{x:116,y:100,age:30,group:1},{x:110,y:100,age:15,group:1},{x:104,y:100,age:1,group:1}];
+  surf.drawWake({fb, back:{cls,geom:{centre:[100,0]}}, foamLut:surf.buildFoamLut()}, wake);
+  const extent = (xs) => {
+    const rows=[];
+    for (const x of xs) for(let y=80;y<120;y++) if(fb[y*W+x]!==0xff141414)rows.push(y);
+    return rows.length ? Math.max(...rows)-Math.min(...rows) : 0;
+  };
+  const near=extent([105,106,107]),far=extent([123,124,125]);
+  assert.ok(far >= 10 && far > near + 5, `the V opens behind the rider: near ${near}, far ${far}`);
+  assert.ok([...Array(40)].some((_,i)=>fb[(80+i)*W+125]!==0xff141414 && 80+i < 97), 'one arm opens above the centre');
+  assert.ok([...Array(40)].some((_,i)=>fb[(80+i)*W+125]!==0xff141414 && 80+i > 103), 'the other arm opens below the centre');
+});
+
+test('the wake climbs and turns around the wave much faster', () => {
+  const w=world(),[cx,cy]=w.geom.centre,point={x:cx+48,y:cy+15,age:0},origin=[point.x,point.y],trace={};
+  w.wake=[point];
+  for(let i=1;i<=90;i++){w.step();if([6,30,55].includes(i))trace[i]=[point.x,point.y];}
+  assert.ok(trace[6][0]>origin[0]+2,'the wake first moves behind the board');
+  assert.ok(trace[30][1]<origin[1]-35,'the wake rises quickly with the wave');
+  assert.ok(trace[55][0]<trace[30][0]-8,'the wake bends left');
+  assert.ok(!w.wake.includes(point),'the trail fades and expires');
+});
+
+test('turns are quicker and the surfer absorbs the chop while keeping the feet planted', () => {
+  const turns=surf.SEGMENTS.carve;
+  for (const [name,maxDuration] of [['bottom',27],['snap',24],['carve',34]]) {
+    const matches=turns.filter(m=>m.name===name);assert.ok(matches.length);
+    for(const move of matches) assert.ok(move.dur<=maxDuration,`${name} is responsive`);
+  }
+  for (const sequence of Object.values(surf.SEGMENTS)) for (const move of sequence) for (const [at] of move.events || []) {
+    assert.ok(at <= move.dur, `${move.name} keeps its timed effects`);
+  }
+  let low=Infinity,high=-Infinity,worst=0,prev=null;
+  for(let i=0;i<500;i++){
+    const pose=surf.dress(POSES.trim,i,1,1,0),dy=pose.hy-POSES.trim.hy;
+    low=Math.min(low,dy);high=Math.max(high,dy);if(prev)worst=Math.max(worst,Math.abs(pose.hy-prev.hy));
+    assert.equal(pose.ffx,POSES.trim.ffx);assert.equal(pose.bfx,POSES.trim.bfx);prev=pose;
+  }
+  assert.ok(high-low>3.2,`the knees visibly absorb the water: ${(high-low).toFixed(2)}`);
+  assert.ok(worst<1.6,`no abrupt body jumps: ${worst.toFixed(2)}`);
+});
+
+test('water chop reaches the visible knees and body with both feet on the board', () => {
+  const base=POSES.trim,pose={...base},ref=surf.standingJoints(64,84,base,0);
+  let minHip=Infinity,maxHip=-Infinity,minKnee=Infinity,maxKnee=-Infinity,worst=0,last=null;
+  for(let step=0;step<600;step++){
+    surf.followPose(pose,surf.dress(base,step,0.6,0.7,0),1);
+    const j=surf.standingJoints(64,84,pose,0);
+    minHip=Math.min(minHip,j.hip[1]);maxHip=Math.max(maxHip,j.hip[1]);
+    minKnee=Math.min(minKnee,j.kneeB[1]);maxKnee=Math.max(maxKnee,j.kneeB[1]);
+    if(last)worst=Math.max(worst,Math.hypot(j.hip[0]-last[0],j.hip[1]-last[1]));
+    assert.deepEqual(j.footF,ref.footF);assert.deepEqual(j.footB,ref.footB);last=j.hip;
+  }
+  assert.ok(maxHip-minHip>0.8 && maxKnee-minKnee>0.45, `visible flex: hip ${(maxHip-minHip).toFixed(2)}, knee ${(maxKnee-minKnee).toFixed(2)}`);
+  assert.ok(worst<1.2,`no jolt: ${worst.toFixed(2)}`);
+});
+
+test('the wake fades smoothly instead of disappearing at once', () => {
+  const cls = new Uint8Array(W * H).fill(CLS.WATER), background = 0xff141414;
+  function brightness(age) {
+    const fb = new Uint32Array(W * H).fill(background);
+    surf.drawWake({fb, back: {cls}, foamLut: surf.buildFoamLut()}, [{x: 100, y: 120, age}, {x: 108, y: 120, age}]);
+    let total = 0;
+    for (const pixel of fb) total += (pixel & 255) + ((pixel >> 8) & 255) + ((pixel >> 16) & 255) - 60;
+    return total;
+  }
+  const values = [40, 50, 60, 65, 72].map(brightness);
+  assert.ok(values[0] > values[1] && values[1] > values[2] && values[2] > values[3] && values[3] > values[4], values.join(','));
+  assert.equal(values[4], 0, 'fully faded at the end');
+});
+
+test('the wake does not draw a bridge between separate water contacts', () => {
+  const cls = new Uint8Array(W * H).fill(CLS.WATER), fb = new Uint32Array(W * H).fill(0xff141414);
+  const s = {fb, back: {cls}, foamLut: surf.buildFoamLut()};
+  surf.drawWake(s, [{x: 100, y: 120, age: 10, group: 1}, {x: 104, y: 120, age: 1, group: 2}]);
+  assert.ok(fb.every(pixel => pixel === 0xff141414), 'separate trails remain separate');
+  surf.drawWake(s, [{x: 100, y: 120, age: 10, group: 1}, {x: 104, y: 120, age: 1, group: 1}]);
+  assert.ok(fb.some(pixel => pixel !== 0xff141414), 'one continuous trail is drawn');
+});
+
+test('water covers only a varying part of the board near the tail, without painting the surfer', () => {
+  const boardColours = new Set([surf.S.board, surf.S.boardLight, surf.S.boardDark, surf.S.cream, surf.S.cap]);
+  for (const pitchQ of [-30, 0, 30]) {
+    const immersedStarts = [];
+    for (const steps of [0, 13, 29, 50, 72]) {
+      const rider = {x: 110, y: 120, pitchQ, mode: 'stand', hidden: false, air: false, hop: 0, pose: POSES.bottom};
+      const raster = surf.makeRaster(128, 112), originX = rider.x - 64, originY = rider.y - 84;
+      surf.drawStanding(raster, 64, 84, {pose: rider.pose, pitch: pitchQ, board: true});
+      const cls = new Uint8Array(W * H).fill(CLS.WATER), fb = new Uint32Array(W * H).fill(0xff777777);
+      surf.blitRaster(fb, raster, originX, originY, surf.surferPalette(), 0xff332211);
+      const before = fb.slice();
+      surf.drawBoardContact({fb, back: {cls}, foamLut: surf.buildFoamLut(), raster}, {surfer: rider, steps});
+      let visible = 0, boardPixels = 0, firstBoardPoint = Infinity;
+      for (let y = rider.y - 30; y < rider.y + 30; y++) for (let x = rider.x - 35; x < rider.x + 40; x++) {
+        const index = y * W + x;
+        if (fb[index] === before[index]) continue;
+        visible++;
+        const rx = x - originX, ry = y - originY;
+        const colour = rx >= 0 && rx < raster.w && ry >= 0 && ry < raster.h ? raster.buf[ry * raster.w + rx] : 0;
+        assert.ok(!colour || boardColours.has(colour), 'water never paints the surfer himself');
+        const projectedX = (x - rider.x) / 0.63, projectedY = y - rider.y + 0.5 * projectedX;
+        const angle = pitchQ * Math.PI / 180;
+        const along = projectedX * Math.cos(angle) + projectedY * Math.sin(angle);
+        assert.ok(along >= -3, 'only the rear half of the board can touch the wave');
+        if (boardColours.has(colour)) { boardPixels++; firstBoardPoint = Math.min(firstBoardPoint, along); }
+      }
+      assert.ok(visible >= 60, `strong splash stays visible on the immersed end at pitch ${pitchQ}, frame ${steps}: ${visible} pixels`);
+      assert.ok(boardPixels >= 4 && firstBoardPoint > 2, 'part of the rear board is immersed, while its front stays dry');
+      immersedStarts.push(firstBoardPoint);
+    }
+    assert.ok(Math.max(...immersedStarts) - Math.min(...immersedStarts) > 1, 'the wet part varies as the water moves');
+  }
+});
+
+test('the water at the immersed edge moves quickly without flashing the whole board', () => {
+  const rider={x:110,y:120,pitchQ:0,mode:'stand',hidden:false,air:false,hop:0,pose:POSES.bottom};
+  const raster=surf.makeRaster(128,112);surf.drawStanding(raster,64,84,{pose:rider.pose,pitch:0,board:true});
+  const cls=new Uint8Array(W*H).fill(CLS.WATER),foamLut=surf.buildFoamLut();let previous=null,changes=0;
+  for(let step=0;step<90;step++){
+    const fb=new Uint32Array(W*H).fill(0xff777777);
+    surf.blitRaster(fb,raster,46,36,surf.surferPalette(),0xff332211);
+    surf.drawBoardContact({fb,back:{cls},foamLut,raster},{surfer:rider,steps:step});
+    if(previous)for(let y=90;y<150;y++)for(let x=75;x<150;x++){
+      const i=y*W+x,a=previous[i],b=fb[i];
+      const d=Math.abs((a&255)-(b&255))+Math.abs(((a>>8)&255)-((b>>8)&255))+Math.abs(((a>>16)&255)-((b>>16)&255));
+      if(d>20)changes++;
+    }
+    previous=fb;
+  }
+  const mean=changes/89;
+  assert.ok(mean>35 && mean<85, `fast, local water motion: ${mean.toFixed(1)} changing pixels per frame`);
+});
+
+test('paddling alternates the arms and flows directly into the first pop-up frame', () => {
+  for (const pitch of [-15, 0, 15]) {
+    const a = surf.makeRaster(128, 112), b = surf.makeRaster(128, 112);
+    const first = surf.drawPaddler(a, 64, 84, 0, 0, pitch);
+    b.clear(); const opposite = surf.drawPaddler(b, 64, 84, Math.PI, 0, pitch);
+    assert.ok(first && opposite, 'paddling exposes the body joints');
+    assert.ok((first.handF[0] - opposite.handF[0]) * (first.handB[0] - opposite.handB[0]) < 0, 'arms alternate their strokes');
+    assert.ok(first.head[1] < first.hip[1], 'chest and head are raised while paddling');
+    a.clear(); b.clear();
+    const last = surf.drawPaddler(a, 64, 84, 1.2, 1, pitch);
+    const start = surf.drawPopUp(b, 64, 84, POSES.crouch, pitch, 0, 1.2);
+    assert.deepEqual(start, last, 'the same body pose starts the pop-up');
+    assert.deepEqual(a.buf, b.buf, 'there is no one-frame change in the figure or board');
+  }
+});
+
+test('the board keeps a fresh wake while the surfer gets up', () => {
+  const w = world({first: 'wipeout'});
+  for (let i = 0; i < 600 && w.surfer.mode !== 'popup'; i++) w.step();
+  assert.equal(w.surfer.mode, 'popup', 'the stand-up phase occurs');
+  for (let i = 0; i < 10; i++) {
+    w.step();
+    assert.equal(w.surfer.mode, 'popup');
+    assert.ok(w.wake.at(-1)?.age <= 2, 'a fresh wake stays attached to the board');
+  }
+});
+
+test('paddling keeps both arms within reach at every board angle', () => {
+  const raster = surf.makeRaster(128, 112), reach = (surf.UPPER + surf.FORE) * 1.2;
+  for (const pitch of [-30, -15, 0, 15, 30]) for (let i = 0; i < 32; i++) {
+    raster.clear();
+    const j = surf.drawPaddler(raster, 64, 84, i * Math.PI / 16, 0, pitch);
+    for (const side of ['F', 'B']) {
+      const shoulder = j['s' + side], hand = j['hand' + side];
+      assert.ok(Math.hypot(hand[0] - shoulder[0], hand[1] - shoulder[1]) < reach, `arm ${side} stretches at ${pitch} degrees, phase ${i}`);
+    }
+  }
+});
+
 test('the board and articulated pop-up face left and join the standing stance smoothly', () => {
   const r = surf.makeRaster(128, 112);
   surf.drawBoard(r, 64, 84, 0, 1, 0);
   const capPixels = [];
   for (let y = 0; y < r.h; y++) for (let x = 0; x < r.w; x++) if (r.buf[y * r.w + x] === surf.S.cap) capPixels.push(x);
   assert.ok(capPixels.length && Math.max(...capPixels) < 64, 'the nose points in the same direction as the surfer');
-  let previous;
-  for (let i = 0; i <= 22; i++) {
-    r.clear();
-    const joints = surf.drawPopUp(r, 64, 84, POSES.crouch, 0, i / 22);
-    assert.ok(joints.head[0] < joints.hip[0], 'the head faces forward');
-    if (previous) for (const part of ['head', 'hip', 'handF', 'handB', 'footF', 'footB']) {
-      assert.ok(Math.hypot(joints[part][0] - previous[part][0], joints[part][1] - previous[part][1]) < 3, `${part} moves continuously`);
+  for (const pitch of [-30, -15, 0, 15, 30]) {
+    let previous;
+    for (let i = 0; i <= 22; i++) {
+      r.clear();
+      const t = i / 22, joints = surf.drawPopUp(r, 64, 84, POSES.crouch, pitch, t, 1.2);
+      assert.ok(joints.head[0] < joints.hip[0], 'the head faces forward');
+      if (previous) for (const part of ['head', 'hip', 'shoulder', 'handF', 'handB', 'elbowF', 'elbowB', 'kneeF', 'kneeB', 'footF', 'footB']) {
+        assert.ok(Math.hypot(joints[part][0] - previous[part][0], joints[part][1] - previous[part][1]) < 3, `${part} moves continuously at ${pitch} degrees`);
+      }
+      const eased = t * t * (3 - 2 * t), reach = (surf.UPPER + surf.FORE) * (1.2 - 0.2 * eased);
+      for (const side of ['F', 'B']) assert.ok(Math.hypot(joints['hand' + side][0] - joints['s' + side][0], joints['hand' + side][1] - joints['s' + side][1]) < reach, `arm ${side} stays within reach`);
+      previous = joints;
     }
-    previous = joints;
+    assert.deepEqual(previous, surf.standingJoints(64, 84, POSES.crouch, pitch));
   }
-  assert.deepEqual(previous, surf.standingJoints(64, 84, POSES.crouch, 0));
 });
 
 test('a distant swell grows in width as well as height instead of appearing as a long straight white line', () => {
@@ -875,4 +1111,77 @@ test('a distant swell grows in width as well as height instead of appearing as a
   }
   assert.ok(changed > 0, 'the new swell is visible');
   assert.ok(longest <= 14, `the emerging crest has a short edge (${longest} pixels)`);
+});
+
+test('the wake stays on the actual blue water, even where the wave has warm reflections', () => {
+  const cls = new Uint8Array(W * H).fill(CLS.WATER);
+  const blue = 0xffb49b19, orange = 0xff5080dc;
+  const rgb = new Uint32Array(W * H).fill(blue), base = rgb.slice(), fb = rgb.slice();
+  for (let y = 0; y < H; y++) for (let x = 116; x < W; x++) base[y * W + x] = orange;
+  const before = fb.slice();
+  const wake = [{x:108,y:100,age:35,group:1},{x:114,y:100,age:32,group:1},{x:120,y:100,age:29,group:1}];
+  surf.drawWake({fb, base, back:{cls,rgb,geom:{centre:[100,0]}}, foamLut:surf.buildFoamLut()}, wake);
+  let blueChanged=0;
+  for(let i=0;i<fb.length;i++) if(fb[i]!==before[i]) {
+    assert.equal(base[i],blue,'warm reflected water stays untouched');blueChanged++;
+  }
+  assert.ok(blueChanged>15,'the blue water still receives a visible wake');
+});
+
+test('the wake has broken, foamy water throughout its V instead of only two outlines', () => {
+  const cls=new Uint8Array(W*H).fill(CLS.WATER),fb=new Uint32Array(W*H).fill(0xff141414);
+  const wake=[{x:128,y:100,age:60,group:1},{x:122,y:100,age:45,group:1},{x:116,y:100,age:30,group:1},{x:110,y:100,age:15,group:1},{x:104,y:100,age:1,group:1}];
+  surf.drawWake({fb,back:{cls,geom:{centre:[100,0]}},foamLut:surf.buildFoamLut()},wake);
+  let interior=0;for(let y=97;y<=103;y++)for(let x=119;x<=127;x++)if(fb[y*W+x]!==0xff141414)interior++;
+  assert.ok(interior>=12 && interior<60,`broken turbulent water between the V arms: ${interior} pixels`);
+});
+
+test('the wake streams away dramatically faster without teleporting', () => {
+  const w=world(),[cx,cy]=w.geom.centre,point={x:cx+48,y:cy+15,age:0},origin=[point.x,point.y];
+  w.wake=[point];let maxStep=0,last=origin;
+  for(let i=1;i<=25;i++){w.step();maxStep=Math.max(maxStep,Math.hypot(point.x-last[0],point.y-last[1]));last=[point.x,point.y];}
+  assert.ok(point.y<origin[1]-40,`wake should climb rapidly: ${origin[1]-point.y} px in 25 frames`);
+  assert.ok(maxStep<4,'water remains continuous between frames');
+});
+
+test('the paddling hands stay outside the visible board while alternating', () => {
+  for(const pitch of [-30,-15,0,15,30]){
+    const board=surf.makeRaster(128,112);surf.drawBoard(board,64,84,pitch*Math.PI/180,1,0);
+    for(let i=0;i<32;i++){
+      const figure=surf.makeRaster(128,112),j=surf.drawPaddler(figure,64,84,i*Math.PI/16,0,pitch);
+      for(const side of ['F','B']){
+        const [x,y]=j['hand'+side].map(Math.round);
+        for(let dy=-1;dy<=1;dy++) for(let dx=-1;dx<=1;dx++)
+          assert.equal(board.buf[(y+dy)*board.w+x+dx],0,`hand ${side} must be clearly outside the board at ${pitch}°, phase ${i}`);
+      }
+    }
+  }
+});
+
+
+test('the faster wake remains connected throughout the ride', () => {
+  const w=world();let segments=0;
+  for(let step=0;step<1600;step++){
+    w.step();
+    for(let i=1;i<w.wake.length;i++){
+      const a=w.wake[i-1],b=w.wake[i];if(a.group!==b.group)continue;
+      assert.ok(Math.max(Math.abs(a.x-b.x),Math.abs(a.y-b.y))<=9,'adjacent samples do not leave a visible gap');segments++;
+    }
+  }
+  assert.ok(segments>10000,'checks contact through turns and jumps');
+});
+
+test('the surf wake has bright broken foam in its centre and along both sides of the V', () => {
+  const cls=new Uint8Array(W*H).fill(CLS.WATER), background=0xff603818, fb=new Uint32Array(W*H).fill(background);
+  const wake=[{x:128,y:100,age:60,group:1},{x:122,y:100,age:45,group:1},{x:116,y:100,age:30,group:1},{x:110,y:100,age:15,group:1},{x:104,y:100,age:1,group:1}];
+  surf.drawWake({fb,back:{cls,geom:{centre:[100,0]}},foamLut:surf.buildFoamLut()},wake);
+  let upper=0,lower=0,centre=0,marked=0;
+  for(let y=86;y<=114;y++)for(let x=116;x<=129;x++){
+    const p=fb[y*W+x],r=p&255,g=(p>>>8)&255,b=(p>>>16)&255;
+    if(r>195&&g>200&&b>200){if(y<97)upper++;else if(y>103)lower++;else centre++;}
+    if(p!==background)marked++;
+  }
+  assert.ok(centre>=6,`white turbulent centre (${centre})`);
+  assert.ok(upper>=4&&lower>=4,`both bright edges (${upper},${lower})`);
+  assert.ok(marked<360,'the wake remains broken water, not a solid white triangle');
 });

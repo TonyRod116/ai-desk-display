@@ -26,7 +26,7 @@ Open **http://127.0.0.1:18861/** on the computer. This is a local demo: its quot
 4. On the tablet, connected to the same trusted network, enter that complete address **including `https://`**. The certificate is generated on your computer, so the browser will not recognise its issuer. Compare its fingerprint with the setup page before trusting it; a warning alone does not establish that you reached the right computer. Sign in with the password you chose.
 5. Open the scene selector and try picture mode by tapping the clock. Swipe left or right to change scenes, or double-tap the picture to open the selector. The settings button controls language, rotation, night mode, motion and more.
 
-The computer and monitor must be running for fresh quota readings; the tablet cannot query the providers by itself. An unavailable or expired reading is displayed as unknown. Computer metrics depend on the operating system and sensors: Windows/WSL and an NVIDIA GPU are the reference setup, and CPU temperature is available only on supported hardware. Multiple fixed disks are listed separately. A virtual cloud-drive volume may show cache capacity instead of cloud quota.
+The computer and monitor must be running for fresh quota readings; the tablet cannot query the providers by itself. An unavailable or expired reading is displayed as unknown. When Codex's verified weekly allowance reaches zero, the dashboard and picture mode show its extra-credit balance instead of `0%`; the bar still represents the weekly allowance. If no verified balance is available, it shows a dash. Claude's spending cap is not treated as a prepaid credit balance. Computer metrics depend on the operating system and sensors: Windows/WSL and an NVIDIA GPU are the reference setup, and CPU temperature is available only on supported hardware. Multiple fixed disks are listed separately. On WSL, if the connection used by the sensor reader stops responding, the collector attempts a bounded recovery using another local Windows relay; unavailable readings stay unknown. A virtual cloud-drive volume may show cache capacity instead of cloud quota.
 
 ## Add some scenes
 
@@ -37,9 +37,10 @@ SCENES="$HOME/.local/share/ai-desk-display/tablet"
 python scripts/prepare_game_city_iso.py --out "$SCENES" --manifest
 python scripts/prepare_game_token_run.py --out "$SCENES" --manifest
 python scripts/prepare_game_fighting.py --out "$SCENES" --manifest
+python scripts/prepare_game_handheld.py --out "$SCENES"
 ```
 
-These commands run locally and can take a while. Reopen or reload the tablet page after they finish. The surf renderer can use a compatible locally prepared backdrop; the photo and cinematic tools likewise need images or footage you have permission to use. They are not generic one-click animation tools. See the scripts' `--help` for their inputs. My personal backgrounds, videos and game artwork are not distributed with the repository.
+These commands run locally and can take a while. The handheld demo uses simple original stand-in graphics and never requires a cartridge; its preparer refuses to overwrite an existing handheld scene. Reopen or reload the tablet page after they finish. The surf renderer can use a compatible locally prepared backdrop; the photo and cinematic tools likewise need images or footage you have permission to use. They are not generic one-click animation tools. See the scripts' `--help` for their inputs. My personal backgrounds, videos and game artwork are not distributed with the repository.
 
 You can also prepare a slideshow from your own pictures with `python scripts/prepare_tablet_photos.py --help`. Scene media and photos stay on the computer. The tablet's separate gallery only lists prepared scenes.
 

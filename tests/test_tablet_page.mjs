@@ -122,3 +122,16 @@ test('a weak GPU (the tablet has a Mali-T860) gets a plain dock, a modern one ke
   for (const name of ['ANGLE (ARM, Mali-T860, OpenGL ES 3.2)', 'ANGLE (ARM, Mali-T720)', 'Adreno (TM) 306', 'PowerVR Rogue']) assert.ok(weak.test(name), name);
   for (const name of ['ANGLE (ARM, Mali-G78 MC14, OpenGL ES 3.2)', 'Adreno (TM) 650', 'ANGLE (Apple, Apple M2)', 'Google SwiftShader']) assert.ok(!weak.test(name), name);
 });
+
+test('credits replace a verified exhausted weekly quota only and never invent an unknown balance', () => {
+  const source = app.match(/function creditBalance\(data, remaining\) \{[\s\S]*?\n  \}/);
+  assert.ok(source, 'the shared page credit selector exists');
+  const get = vm.runInNewContext('(' + source[0] + ')');
+  assert.equal(get({credits:'2468'},0),'2468');
+  assert.equal(get({credits:'0'},0),'0','a real zero balance remains zero');
+  assert.equal(get({credits:'?'},0),'?','a missing balance stays unknown');
+  assert.equal(get({credits:'<0.01'},0),'<0.01');
+  assert.equal(get({credits:'-2.35'},0),'-2.35');
+  for(const value of [null,undefined,'','NaN','1e6','12<script>','999999999999999999999']) assert.equal(get({credits:value},0),null,String(value));
+  for(const left of [null, 0.001, 1, 50, 100]) assert.equal(get({credits:'2468'},left),null,`weekly left ${left}`);
+});

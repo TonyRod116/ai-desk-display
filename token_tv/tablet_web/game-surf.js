@@ -21,7 +21,7 @@
 
   /* ---- constants */
   const W = 200, H = 320;                         // the picture, in art pixels (x3 on this tablet's CSS pixels, x4 on its panel)
-  const STEP = 1 / 30;
+  const STEP = 1 / 30, WAKE_LIFE = 72, WAKE_MAX = 72;
   const finite = (v) => typeof v === 'number' && Number.isFinite(v);
   const clamp = (v, lo, hi) => (v < lo ? lo : v > hi ? hi : v);
   const lerp = (a, b, t) => a + (b - a) * t;
@@ -502,7 +502,7 @@
   // Perspective: the nose comes toward the lower left of the viewer, while
   // the tail recedes to the upper right. The same projection is used for the
   // deck and for the rider's feet, so neither floats as the board pitches.
-  const DECK_X = .63, DECK_DEPTH = .50;
+  const DECK_X = .63, DECK_DEPTH = .50, RIDER_OX = 64, RIDER_OY = 84;
   const projectDeck = (x, y) => [DECK_X * x, y - DECK_DEPTH * x];
   // A point on the foreshortened board, in scene coordinates. Keep wake and
   // spray anchored to the same perspective and pitch as the drawn deck.
@@ -511,6 +511,10 @@
     const q = projectDeck(along * cp - across * sp, along * sp + across * cp);
     return [s.x + q[0], s.y + q[1]];
   }
+  const boardHalfWidth = (along) => {
+    const t = (along + BOARD_HALF) / (2 * BOARD_HALF);
+    return Math.sin(Math.PI * t) * (4.6 + 1.8 * (1 - t));
+  };
   const deckPitch = (pitch) => {
     const p = pitch * RAD;
     return Math.atan2(Math.sin(p) - DECK_DEPTH * Math.cos(p), DECK_X * Math.cos(p));
@@ -526,7 +530,7 @@
     const edge = (scale, offset = 0) => {
       const top = [], bottom = [];
       for (let s = -half; s <= half; s += 2) {
-        const t = (s + half) / (2 * half), width = Math.sin(Math.PI * t) * (4.6 + 1.8 * (1 - t)) * scale;
+        const width = boardHalfWidth(s) * scale;
         top.push(at(s, -width, offset)); bottom.unshift(at(s, width, offset));
       }
       return top.concat(bottom);
@@ -541,17 +545,18 @@
   }
   /** A leg: a thigh that tapers to the knee, a calf that swells a little behind the shin and tapers to the ankle, a lighter knee cap. `bendSide` is the way the knee points (the calf bulges the other way). */
   function leg(r, hip, knee, ankle, tone, w0, kneeCap) {
-    limb(r, hip, knee, w0, 4.9, tone);
+    const scale = w0 / 6.4;
+    limb(r, hip, knee, w0, 4.9 * scale, tone);
     const dx = ankle[0] - knee[0], dy = ankle[1] - knee[1], m = Math.hypot(dx, dy) || 1, nx = -dy / m, ny = dx / m, side = nx > 0 ? 1 : -1;       // the normal on the side of the heel (the right, toward the tail)
     const calf = [knee[0] + dx * 0.36 + nx * side * 0.7, knee[1] + dy * 0.36 + ny * side * 0.7];
-    limb(r, knee, ankle, 5.0, 3.3, tone); r.disc(Math.round(calf[0]), Math.round(calf[1]), 2, tone[0]);                          // the calf is a swelling on the shin
-    if (kneeCap) r.put(Math.round(knee[0] - 1.6), Math.round(knee[1]), tone[1]);
+    limb(r, knee, ankle, 5.0 * scale, 3.3 * scale, tone); r.disc(Math.round(calf[0]), Math.round(calf[1]), Math.round(2 * scale), tone[0]);
+    if (kneeCap) r.put(Math.round(knee[0] - 1.6 * scale), Math.round(knee[1]), tone[1]);
   }
-  /** A foot on the deck: a wedge from the heel to the toes along the board's pitch, `len` long (a foot turned across the board is short in this view), with a darker sole. */
-  function foot(r, ankle, pitchRad, len, tone) {
+  /** A foot aligned with the deck; prone toes point toward the tail. */
+  function foot(r, ankle, pitchRad, len, tone, scale = 1, direction = -1) {
     const cp = Math.cos(pitchRad), sp = Math.sin(pitchRad), x = ankle[0], y = ankle[1] + 0.6;
-    limb(r, [x + 0.6, y], [x - len * cp, y - len * sp + 0.6], 3, 2.2, [tone[0], tone[1], tone[2]]);
-    r.line(x + 0.6, y + 1.6, x - len * cp, y - len * sp + 1.9, tone[2], 1);
+    limb(r, [x + 0.6, y], [x + direction * len * cp, y + direction * len * sp + 0.6], 3 * scale, 2.2 * scale, [tone[0], tone[1], tone[2]]);
+    r.line(x + 0.6, y + 1.6, x + direction * len * cp, y + direction * len * sp + 1.9, tone[2], 1);
   }
   function standingJoints(ox, oy, pose, pitch) {
     const f = figure(pose, pitch), J = {};
@@ -575,13 +580,13 @@
     for (const key of ['sB', 'elbowB', 'handB']) J[key][0] += 1.4;
     return J;
   }
-  function drawBody(r, J, pitch, down) {
-    const wide = 1.12, face = -1, pr = deckPitch(pitch), shade = [S.skinShade, S.skin, S.skinShade];
+  function drawBody(r, J, pitch, down, wide = 1.12, legScale = 1, toeDirection = -1) {
+    const face = -1, pr = deckPitch(pitch), shade = [S.skinShade, S.skin, S.skinShade];
     // Layer the far arm and both legs behind the clothing. In particular the
     // near thigh must not paint over the shorts when the rider compresses.
-    leg(r, J.hip, J.kneeB, J.footB, shade, 6.4, false); foot(r, J.footB, pr, 3.4, shade);
+    leg(r, J.hip, J.kneeB, J.footB, shade, 6.4 * legScale, false); foot(r, J.footB, pr, 3.4 * legScale, shade, legScale, toeDirection);
     limb(r, J.sB, J.elbowB, 4, 3.4, [S.shirtShade, S.shirt, S.shirtShade]); limb(r, J.elbowB, J.handB, 3.4, 2.8, shade); r.disc(Math.round(J.handB[0]), Math.round(J.handB[1]), 2, S.skinShade);
-    leg(r, J.hip, J.kneeF, J.footF, TONES.skin, 6.4, true); foot(r, J.footF, pr, 5, TONES.skin);
+    leg(r, J.hip, J.kneeF, J.footF, TONES.skin, 6.4 * legScale, true); foot(r, J.footF, pr, 5 * legScale, TONES.skin, legScale, toeDirection);
     limb(r, J.hip, J.shoulder, 9.4 * wide, 11.8 * wide, TONES.shirt);
     limb(r, J.hip, [J.hip[0] + (J.kneeB[0] - J.hip[0]) * 0.63, J.hip[1] + (J.kneeB[1] - J.hip[1]) * 0.63], 9.0 * wide, 6.8, TONES.trunks);
     limb(r, J.hip, [J.hip[0] + (J.kneeF[0] - J.hip[0]) * 0.63, J.hip[1] + (J.kneeF[1] - J.hip[1]) * 0.63], 9.0 * wide, 6.8, TONES.trunks);
@@ -599,39 +604,62 @@
     drawBody(r, J, st.pitch, st.pose.lean + st.pose.head > 28);
     return J;
   }
-  /** Plant the hands, draw the knees underneath, then rise into the stance.
-   * All joints interpolate together; no prone-to-standing silhouette swap. */
-  function drawPopUp(r, ox, oy, pose, pitch, amount) {
-    const t = smooth(clamp(amount, 0, 1)), target = standingJoints(ox, oy, pose, pitch);
-    const start = {
-      hip: [10, -8], shoulder: [-8, -12], head: [-15, -19],
-      kneeF: [13, -5], kneeB: [16, -4], footF: [19, -2], footB: [23, -2],
-      sF: [-8, -11], sB: [-7, -12], elbowF: [-4, -5], elbowB: [-6, -6],
-      handF: [-3, -2], handB: [-1, -2],
+  /** A prone rider with an arched chest and alternating strokes. `plant` brings
+   *  both hands to the deck as the wave is caught. */
+  function paddlingJoints(ox, oy, pitch, phase, plant) {
+    const p = pitch * RAD, cp = Math.cos(p), sp = Math.sin(p), settle = smooth(clamp(plant || 0, 0, 1));
+    const at = (x, y) => { const q = projectDeck(x * cp - y * sp, x * sp + y * cp); return [ox + q[0], oy + q[1]]; };
+    const blend = (a, b, t) => [lerp(a[0], b[0], t), lerp(a[1], b[1], t)];
+    const hip = at(4, -6), shoulder = at(-6, -10), head = at(-11, -23);
+    // Each shoulder is on its own side of the chest. Hands reach past the
+    // rails into the water before they converge onto the deck to stand up.
+    const normal = projectDeck(-sp, cp), length = Math.hypot(...normal) || 1;
+    const sF = [shoulder[0] + 2.5 * normal[0] / length, shoulder[1] + 2.5 * normal[1] / length];
+    const sB = [shoulder[0] - 1.2 * normal[0] / length, shoulder[1] - 1.2 * normal[1] / length];
+    const c = Math.cos(phase), v = Math.sin(phase), reach = (UPPER + FORE) * 1.2 * 0.985;
+    const withinReach = (from, to) => {
+      const dx = to[0] - from[0], dy = to[1] - from[1], distance = Math.hypot(dx, dy);
+      return distance <= reach ? to : [from[0] + dx * reach / distance, from[1] + dy * reach / distance];
     };
-    const J = {};
-    for (const key of Object.keys(target)) {
-      const begin = projectDeck(...start[key]);
-      J[key] = [ox + begin[0] * (1 - t) + (target[key][0] - ox) * t, oy + begin[1] * (1 - t) + (target[key][1] - oy) * t];
+    const aF = -5 - 3 * c, aB = -5 + 3 * c;
+    const handF = withinReach(sF, blend(at(aF, boardHalfWidth(aF) + 5.5 + 0.4 * v), at(-4, -2.5), settle));
+    const handB = withinReach(sB, blend(at(aB, -boardHalfWidth(aB) - 5.5 - 0.4 * v), at(-1, -3.5), settle));
+    return { hip, shoulder, head, sF, sB,
+      elbowF: bend(...sF, ...handF, UPPER * 1.2, FORE * 1.2, -1), elbowB: bend(...sB, ...handB, UPPER * 1.2, FORE * 1.2, -1), handF, handB,
+      kneeF: at(12, -5.5), kneeB: at(11, -8), footF: at(20, -3), footB: at(19, -5) };
+  }
+  /** Push up from planted hands, sweep both feet underneath, then open the
+   *  arms into a low stance. The first pose is the last paddling pose. */
+  function drawPopUp(r, ox, oy, pose, pitch, amount, phase = 0) {
+    const t = clamp(amount, 0, 1), start = paddlingJoints(ox, oy, pitch, phase, 1), target = standingJoints(ox, oy, pose, pitch);
+    const push = smooth(t / 0.42), tuck = smooth((t - 0.10) / 0.78), settle = smooth((t - 0.66) / 0.34), release = smooth((t - 0.22) / 0.65);
+    const torso = 0.20 * push + 0.60 * tuck + 0.20 * settle, hips = 0.15 * push + 0.65 * tuck + 0.20 * settle;
+    const head = 0.32 * push + 0.48 * tuck + 0.20 * settle, mixPoint = (a, b, u) => [lerp(a[0], b[0], u), lerp(a[1], b[1], u)];
+    let J;
+    if (t === 0) J = start;
+    else if (t === 1) J = target;
+    else {
+      J = {};
+      for (const key of ['shoulder', 'sF', 'sB']) J[key] = mixPoint(start[key], target[key], torso);
+      J.head = mixPoint(start.head, target.head, head); J.hip = mixPoint(start.hip, target.hip, hips);
+      for (const key of ['footF', 'footB', 'kneeF', 'kneeB']) {
+        J[key] = mixPoint(start[key], target[key], tuck);
+        J[key][1] -= Math.sin(Math.PI * tuck) * (key.startsWith('foot') ? 2 : 3);
+      }
+      J.handF = mixPoint(start.handF, target.handF, release); J.handB = mixPoint(start.handB, target.handB, release);
+      const armScale = lerp(1.2, 1, smooth(t));
+      J.elbowF = bend(...J.sF, ...J.handF, UPPER * armScale, FORE * armScale, -1); J.elbowB = bend(...J.sB, ...J.handB, UPPER * armScale, FORE * armScale, -1);
     }
-    drawBoard(r, ox, oy, pitch * RAD, 1, pose.rail);
-    drawBody(r, J, pitch, false);
+    drawBoard(r, ox, oy, pitch * RAD, 1, pose.rail * smooth(t));
+    drawBody(r, J, pitch, false, lerp(0.78, 1.12, smooth(t)), lerp(0.62, 1, smooth(t)), lerp(1, -1, smooth((t - 0.1) / 0.7)));
     return J;
   }
-  /** Lying on the board and paddling (`phase` runs the arms' stroke); `rise` 0-1 lifts the chest for the pop-up: the hands plant on the deck and push. */
-  function drawPaddler(r, ox, oy, phase, rise) {
-    const k = SC, up = clamp(rise || 0, 0, 1);
-    drawBoard(r, ox, oy, -0.05, 1, 0);
-    const point = (x, y) => { const p = projectDeck(x * k, y * k); return [ox + p[0], oy + p[1]]; };
-    const s = Math.sin(phase), c = Math.cos(phase), sh = point(-6, -8 - 7 * up);
-    limb(r, point(17, -5), point(8, -6), 4, 4.4, [S.skinShade, S.skin, S.skinShade]);
-    limb(r, point(8, -7), sh, 8, 9 - 2 * up, TONES.shirt);
-    limb(r, point(8, -6), point(13, -6), 7, 6, TONES.trunks);
-    limb(r, sh, point(-9, -12 - 9 * up), 3.6, 3.4, TONES.skin);
-    const head = point(-11.5, -15 - 10 * up);
-    drawHead(r, Math.round(head[0]), Math.round(head[1]), -1, false);
-    if (up > 0.3) { const hand = point(-3, -2), elbow = point(-1, -7); limb(r, sh, elbow, 4, 3.6, TONES.shirt); limb(r, elbow, hand, 3.6, 3, TONES.skin); }
-    else { const hand = point(-6 - 7 * c + 4, -4 + 4 * s), elbow = point(-6 - 3 * c, -8 + 3 * s - 1); limb(r, sh, elbow, 4, 3.6, TONES.shirt); limb(r, elbow, hand, 3.6, 3, TONES.skin); }
+  /** Paddling and the pop-up share the same articulated body and board. */
+  function drawPaddler(r, ox, oy, phase, plant, pitch = 0) {
+    const J = paddlingJoints(ox, oy, pitch, phase, plant);
+    drawBoard(r, ox, oy, pitch * RAD, 1, 0);
+    drawBody(r, J, pitch, false, 0.78, 0.62, 1);
+    return J;
   }
   /** Only the head and one waving arm above the water (a swimmer after a wipeout). */
   function drawSwimmer(r, ox, oy, phase) {
@@ -678,18 +706,18 @@
   const U = (u, d) => ({ u, d });
   const START = U(0.55, 14);                                                                         // where every ride starts and ends: high on the face, standing
   const MOVES = {
-    drop: () => M('drop', 36, [U(0.5, 22), U(0.45, 29)], { pose: [[0, 'trim'], [0.2, 'anticipate'], [0.5, 'crouch'], [1, 'bottom']], ease: 0.6, snap: 1.5 }),
-    bottom: () => M('bottom', 34, [U(0.4, 33), U(0.385, 31), U(0.42, 27)], { pose: [[0, 'bottom'], [0.55, 'bottom'], [1, 'pumpUp']], events: [[4, 'spray'], [14, 'spray']] }),
-    pump: () => M('pump', 64, [U(0.45, 25), U(0.48, 21), U(0.51, 17)], { pose: [[0, 'pumpUp'], [0.14, 'pumpDown'], [0.34, 'pumpUp'], [0.54, 'pumpDown'], [0.76, 'pumpUp'], [1, 'trim']], events: [[20, 'spray'], [42, 'spray']] }),
-    snap: () => M('snap', 32, [U(0.58, 13), U(0.61, 10), U(0.57, 15)], { pose: [[0, 'trim'], [0.28, 'top'], [0.55, 'top'], [1, 'bottom']], events: [[11, 'bigspray']], snap: 1.5 }),
-    floater: () => M('floater', 38, [U(0.61, 11), U(0.58, 13)], { pose: [[0, 'top'], [0.25, 'floater'], [0.8, 'floater'], [1, 'trim']], events: [[6, 'spray'], [20, 'spray']] }),
+    drop: () => M('drop', 30, [U(0.5, 22), U(0.45, 29)], { pose: [[0, 'trim'], [0.2, 'anticipate'], [0.5, 'crouch'], [1, 'bottom']], ease: 0.6, snap: 1.5 }),
+    bottom: () => M('bottom', 24, [U(0.4, 33), U(0.385, 31), U(0.42, 27)], { pose: [[0, 'bottom'], [0.55, 'bottom'], [1, 'pumpUp']], events: [[3, 'spray'], [10, 'spray']] }),
+    pump: () => M('pump', 48, [U(0.45, 25), U(0.48, 21), U(0.51, 17)], { pose: [[0, 'pumpUp'], [0.14, 'pumpDown'], [0.34, 'pumpUp'], [0.54, 'pumpDown'], [0.76, 'pumpUp'], [1, 'trim']], events: [[15, 'spray'], [31, 'spray']] }),
+    snap: () => M('snap', 20, [U(0.58, 13), U(0.61, 10), U(0.57, 15)], { pose: [[0, 'trim'], [0.28, 'top'], [0.55, 'top'], [1, 'bottom']], events: [[7, 'bigspray']], snap: 1.5 }),
+    floater: () => M('floater', 28, [U(0.61, 11), U(0.58, 13)], { pose: [[0, 'top'], [0.25, 'floater'], [0.8, 'floater'], [1, 'trim']], events: [[4, 'spray'], [15, 'spray']] }),
     hang: () => M('hang', 66, [U(0.47, 24), U(0.43, 22)], { pose: [[0, 'trim'], [0.22, 'hangTen'], [0.8, 'hangTen'], [1, 'trim']], events: [[16, 'spray']] }),
-    carve: () => M('carve', 48, [U(0.52, 20), U(0.56, 15), U(0.51, 21), U(0.45, 26)], { pose: [[0, 'trim'], [0.2, 'cutback'], [0.5, 'cutback'], [0.78, 'bottom'], [1, 'pumpUp']], events: [[10, 'spray'], [24, 'bigspray'], [36, 'spray']] }),
-    airUp: () => M('airUp', 60, [{ dx: -1, dy: -6 }, { dx: -2, dy: -24 }, { dx: -3, dy: -31 }, { dx: -4, dy: -22 }, { dx: -5, dy: 0 }], { micro: 0.15, pose: [[0, 'anticipate'], [0.1, 'pop'], [0.3, 'airTuck'], [0.5, 'grab'], [0.68, 'extend'], [0.88, 'land'], [1, 'land']], events: [[1, 'spray'], [56, 'landing']], ease: 0.0, hang: 0.55, air: true, snap: 1.6 }),
-    tubeIn: () => M('tubeIn', 42, [U(0.55, 15), U(0.67, 12), U(0.74, 10)], { pose: [[0, 'trim'], [0.3, 'crouch'], [0.75, 'barrelSet'], [1, 'barrel']], events: [[4, 'veil']], micro: 0.8, ease: 0.7 }),
-    stall: () => M('stall', 54, [U(0.74, 10), U(0.77, 11), U(0.76, 10)], { pose: [[0, 'barrel'], [0.24, 'stall'], [0.48, 'barrelSet'], [0.72, 'stall'], [1, 'barrel']], hang: 0.8, micro: 0.65, events: [[22, 'spray']] }),
-    drag: () => M('drag', 56, [U(0.74, 10), U(0.62, 11), U(0.5, 12), U(0.42, 14)], { pose: [[0, 'barrel'], [0.15, 'barrelSet'], [0.35, 'drag'], [0.68, 'drag'], [0.87, 'barrelDeep'], [1, 'barrel']], tm: 'accel', ease: 0, micro: 0.75, events: [[12, 'spray'], [32, 'spray']] }),
-    pumpLow: () => M('pumpLow', 46, [U(0.42, 14), U(0.47, 12), U(0.53, 10), U(0.57, 10)], { pose: [[0, 'barrel'], [0.20, 'barrelUp'], [0.44, 'barrelDeep'], [0.68, 'barrelUp'], [0.88, 'barrelDeep'], [1, 'barrel']], micro: 0.55, events: [[10, 'spray'], [26, 'spray']] }),
+    carve: () => M('carve', 30, [U(0.52, 20), U(0.56, 15), U(0.51, 21), U(0.45, 26)], { pose: [[0, 'trim'], [0.2, 'cutback'], [0.5, 'cutback'], [0.78, 'bottom'], [1, 'pumpUp']], events: [[6, 'spray'], [15, 'bigspray'], [23, 'spray']] }),
+    airUp: () => M('airUp', 60, [{ dx: -1, dy: -4 }, { dx: -2, dy: -15 }, { dx: -3, dy: -20 }, { dx: -4, dy: -14 }, { dx: -5, dy: 0 }], { micro: 0.15, pose: [[0, 'anticipate'], [0.1, 'pop'], [0.3, 'airTuck'], [0.5, 'grab'], [0.68, 'extend'], [0.88, 'land'], [1, 'land']], events: [[1, 'spray'], [56, 'landing']], ease: 0.0, hang: 0.55, air: true, snap: 1.6 }),
+    tubeIn: () => M('tubeIn', 42, [U(0.53, 15), U(0.57, 13), U(0.60, 12)], { pose: [[0, 'trim'], [0.3, 'crouch'], [0.75, 'barrelSet'], [1, 'barrel']], events: [[4, 'veil']], micro: 0.8, ease: 0.7 }),
+    stall: () => M('stall', 54, [U(0.60, 12), U(0.62, 13), U(0.61, 12)], { pose: [[0, 'barrel'], [0.24, 'stall'], [0.48, 'barrelSet'], [0.72, 'stall'], [1, 'barrel']], hang: 0.8, micro: 0.65, events: [[22, 'spray']] }),
+    drag: () => M('drag', 42, [U(0.60, 12), U(0.55, 14), U(0.5, 19), U(0.42, 24)], { pose: [[0, 'barrel'], [0.15, 'barrelSet'], [0.35, 'drag'], [0.68, 'drag'], [0.87, 'barrelDeep'], [1, 'barrel']], tm: 'accel', ease: 0, micro: 0.75, events: [[9, 'spray'], [24, 'spray']] }),
+    pumpLow: () => M('pumpLow', 32, [U(0.42, 14), U(0.47, 12), U(0.53, 10), U(0.57, 10)], { pose: [[0, 'barrel'], [0.20, 'barrelUp'], [0.44, 'barrelDeep'], [0.68, 'barrelUp'], [0.88, 'barrelDeep'], [1, 'barrel']], micro: 0.55, events: [[7, 'spray'], [18, 'spray']] }),
     duck: () => M('duck', 40, [U(0.57, 10), U(0.58, 9), U(0.57, 10)], { pose: [[0, 'barrel'], [0.35, 'barrelDeep'], [0.65, 'duck'], [1, 'duck']], micro: 0.65, events: [[14, 'crash']] }),
     engulf: () => M('engulf', 30, [U(0.55, 14)], { kind: 'engulf', pose: [[0, 'exitTall']], events: [[1, 'engulf']] }),
     spit: () => M('spit', 18, [U(0.55, 14)], { pose: [[0, 'exitTall'], [0.55, 'exitTall'], [1, 'trim']], events: [[1, 'spit']] }),
@@ -901,10 +929,10 @@
    *  level while the torso moves; and the line asks something of him: at the bottom of a turn (the speed along the face changes sign) he is pressed into the board and compresses, while the
    *  line falls away he is a little lighter. `amp` is the move's share of all this, `flow` how fast he goes (0 to 1), `comp` the line's pressure (-1 to 1). Returns a new pose. */
   function dress(t, tt, amp, flow, comp) {
-    const o = Object.assign({}, t), breath = Math.sin(tt * 0.075), sway = Math.sin(tt * 0.047 + 1.3), chop = Math.sin(tt * 0.29) * Math.sin(tt * 0.113 + 0.7), fast = 0.5 + 0.9 * flow;
-    const lean = amp * (1.5 * sway + 0.8 * breath) + 4 * comp;
-    o.hy += FS * (amp * (0.3 * breath + 0.4 * fast * chop) + 0.5 * comp);
-    o.hx += FS * amp * 0.5 * sway;
+    const o = Object.assign({}, t), breath = Math.sin(tt * 0.075), sway = Math.sin(tt * 0.047 + 1.3), chop = Math.sin(tt * 0.40) * Math.sin(tt * 0.17 + 0.7), fast = 0.6 + 1.0 * flow;
+    const lean = amp * (1.5 * sway + 0.8 * breath + 1.4 * chop) + 4 * comp;
+    o.hy += FS * (amp * (0.3 * breath + 2.5 * fast * (0.5 + 0.5 * chop)) + 0.5 * comp);
+    o.hx += FS * amp * (0.5 * sway + 0.2 * chop);
     o.lean += lean; o.head -= lean * 0.75;
     o.fx += FS * amp * 0.8 * sway; o.fy += FS * amp * 0.6 * breath;
     o.bx -= FS * amp * 0.8 * sway; o.by += FS * amp * 0.6 * chop;
@@ -917,7 +945,7 @@
     const world = {
       rand, back, geom, surface, steps: 0, time: 0, columns: computeColumns(back), ride: createRide(surface, rand, o.first),
       surfer: { x: 0, y: 0, pose: Object.assign({}, POSES.trim), pitch: 0, pitchQ: 0, vx: 0, vy: 0, mode: 'stand', name: 'drop', hidden: false, hop: 0, u: 0, ax: 0, ay: 0 },
-      veil: { state: 'idle', t: 0 }, particles: [], foamItems: [], wake: [], ripples: [], gulls: [], birds: [], clouds: [], stars: [], sparkles: [], glints: [], boat: null, bubbles: [], events: [], paddle: 0, gold: [], twinkles: [], surge: 0, phase: 0, flow: 0, mist: [], shake: null, dolphin: { cur: null, next: 900 }, star: { t: -1, next: 520, x: 0, y: 0, vx: 0, vy: 0 }, flock: { on: false, next: 760, x: 0, y: 80, dir: 1, speed: 0.25, near: false },
+      veil: { state: 'idle', t: 0 }, particles: [], foamItems: [], wake: [], wakeTouch: false, wakeGroup: 0, ripples: [], gulls: [], birds: [], clouds: [], stars: [], sparkles: [], glints: [], boat: null, bubbles: [], events: [], paddle: 0, gold: [], twinkles: [], surge: 0, phase: 0, flow: 0, mist: [], shake: null, dolphin: { cur: null, next: 900 }, star: { t: -1, next: 520, x: 0, y: 0, vx: 0, vy: 0 }, flock: { on: false, next: 760, x: 0, y: 80, dir: 1, speed: 0.25, near: false },
     };
     world.surfer.x = world.ride.x; world.surfer.y = world.ride.y;
     // the sky: stars where the sky is dark, clouds that drift over the sky only, gulls, tiny far birds, a sailboat on the horizon
@@ -949,7 +977,7 @@
     };
     const handle = (name) => {
       const s = world.surfer, face = -1;                                                                               // the tail is behind him, on the right
-      const [tx, tailY] = boardPoint(s, 15, 1), ty = tailY + 1;
+      const [tx, tailY] = boardPoint(s, 15, boardHalfWidth(15) + 0.5), ty = tailY + 2;
       if (name === 'spray') spray(tx, ty, 10, 1.5, 1, -face);
       else if (name === 'bigspray') { spray(tx, ty - 2, 34, 2.5, 1.2, -face); puff('puff', tx, ty - 2, -face * 0.2, -0.1, 26, 'front', 0.7, 1); puff('puff', tx - face * 7, ty, -face * 0.25, -0.05, 24, 'front', 0.6, 0); }
       else if (name === 'landing') { world.shake = { t: 0, amp: 1.1 }; spray(s.x, s.y + 6, 18, 1.7); puff('puff', s.x, s.y + 8, 0, -0.08, 26, 'front'); world.ripples.push({ x: Math.round(s.x), y: Math.round(s.y + 10), age: 0 }); }
@@ -985,20 +1013,37 @@
       s.vx += ((s.x - px) - s.vx) * 0.25; s.vy += ((s.y - py) - s.vy) * 0.25;
       s.ay += ((s.vy - ovy) - s.ay) * 0.25;
       world.flow += ((s.hidden ? 0.3 : clamp(Math.hypot(s.vx, s.vy) / 1.3, 0, 1)) - world.flow) * 0.06;
-      if (s.mode === 'stand' || s.mode === 'popup') { s.pitch += (pitchFor(s.vx, s.vy, r.air || s.hop > 0 ? 16 : 30) - s.pitch) * 0.14; s.pitchQ = quantise(s.pitch, s.pitchQ); }
+      if (s.mode === 'paddle' || s.mode === 'popup') {
+        const targetPitch = s.mode === 'paddle' ? 0 : pitchFor(s.vx, s.vy, 12) * smooth(r.u);
+        s.pitch += (targetPitch - s.pitch) * 0.14; s.pitchQ = quantise(s.pitch, s.pitchQ);
+      } else if (s.mode === 'stand') { s.pitch += (pitchFor(s.vx, s.vy, r.air || s.hop > 0 ? 16 : 30) - s.pitch) * 0.14; s.pitchQ = quantise(s.pitch, s.pitchQ); }
       else if (s.mode === 'fall') { s.pitch += (0 - s.pitch) * 0.1; s.pitchQ = quantise(s.pitch, s.pitchQ); }
       for (const e of r.events) handle(e);
       if (s.mode === 'paddle') world.paddle += 0.34;
-      // spray off the tail while he carves, a foam trail on the water behind him
-      if (s.mode === 'stand' && !s.hidden) {
-        const [tx, tailY] = boardPoint(s, 17, 1), ty = tailY + 2, rail = s.pose.rail, rate = rail * 0.7 + Math.abs(s.vy) * 0.4;
-        if (rand() < rate && !r.air && !s.hop) spray(tx, ty, 1 + (rail > 0.6 ? 1 : 0), 0.8 + rail * 0.8, 1, 1);
-        if (!r.air && !s.hop) { world.wake.push({ x: tx, y: ty + 2, age: 0 }); if (world.wake.length > 76) world.wake.shift(); }
+      // A new contact starts a new trail; jumps must not connect two separate wakes.
+      const touching = !s.hidden && ['stand', 'paddle', 'popup'].includes(s.mode) && !boardAirborne(s);
+      if ((s.mode === 'stand' || s.mode === 'popup') && !s.hidden) {
+        const [tx, tailY] = boardPoint(s, 17, boardHalfWidth(17) + 0.5), ty = tailY + 2, rail = s.pose.rail, rate = rail * 0.7 + Math.abs(s.vy) * 0.4;
+        if (s.mode === 'stand' && rand() < rate && touching) spray(tx, ty, 1 + (rail > 0.6 ? 1 : 0), 0.8 + rail * 0.8, 1, 1);
       }
-      if (s.mode === 'paddle') { world.wake.push({ x: s.x + 16, y: s.y + 5, age: 0 }); if (world.wake.length > 76) world.wake.shift(); }
-      // With the surfer facing left, the disturbed water trails to the right.
-      for (const w of world.wake) { w.age++; w.x += 0.18; w.y += 0.13; }
-      world.wake = world.wake.filter((w) => w.age < 76);
+      if (touching) {
+        if (!world.wakeTouch) world.wakeGroup++;
+        // A sample each frame keeps the fast-moving water connected on turns.
+        const [x, y] = boardPoint(s, 17, boardHalfWidth(17) + 0.5);
+        world.wake.push({ x, y: y + 4, age: 0, group: world.wakeGroup, id: st });
+        if (world.wake.length > WAKE_MAX) world.wake.shift();
+      }
+      world.wakeTouch = touching;
+      // It first leaves the tail, then rides the wave's counter-clockwise flow.
+      const [wakeCx, wakeCy] = geom.centre, wakeSpeed = 2.75 + 0.25 * world.flow + 0.15 * world.surge;
+      for (const w of world.wake) {
+        w.age++;
+        const dx = w.x - wakeCx, dy = w.y - wakeCy, radius = Math.hypot(dx, dy) || 1;
+        const launch = 1 - smooth((w.age - 3) / 6);
+        w.x += 0.85 * launch + wakeSpeed * (dy / radius) * (1 - launch);
+        w.y -= 0.35 * launch + wakeSpeed * (dx / radius) * (1 - launch);
+      }
+      world.wake = world.wake.filter((w) => w.age < WAKE_LIFE);
       // A few short droplets peel off the breaking lip. The old long vertical
       // streaks crossed the entire opening and looked like a rain shower.
       const v = world.veil, c = world.columns;
@@ -1076,6 +1121,11 @@
     return world;
   }
   const HOP = [0, -3, -6, -8, -9, -8, -6, -3, -1, 0, -1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];                // a hop (with a grab) when he is touched
+  function boardAirborne(rider) {
+    if (rider.air) return true;
+    if (!rider.hop) return false;
+    return !Number.isInteger(rider.hop) || rider.hop < 0 || rider.hop > HOP.length || HOP[HOP.length - rider.hop] < 0;
+  }
 
   /* ---- things in the sky and on the far sea (software, whole pixels). They are drawn only where the backdrop is sky or sea: the wave hides what is behind it. */
   function makeCloud(noise, w, h, seed) {
@@ -1194,7 +1244,7 @@
   /** The surfer: drawn into a raster with his outline and blitted; the board is a second raster when it is not under his feet (thrown, floating). With `dry` nothing is drawn
    *  and the boxes (x0, y0, x1, y1 in picture pixels, outline included) of what would be are returned (the tests keep them out of the page's clock). */
   function drawSurferFrame(s, world, dry) {
-    const sf = world.surfer, r = s.raster, OX = 64, OY = 84, hop = sf.hop > 0 ? HOP[HOP.length - sf.hop] : 0, board = world.ride.board, boxes = [];
+    const sf = world.surfer, r = s.raster, OX = RIDER_OX, OY = RIDER_OY, hop = sf.hop > 0 ? HOP[HOP.length - sf.hop] : 0, board = world.ride.board, boxes = [];
     const emit = (x0, y0) => {
       if (dry) { let lo = r.w, hi = -1, top = r.h, bottom = -1; for (let y = 0; y < r.h; y++) for (let x = 0; x < r.w; x++) if (r.buf[y * r.w + x]) { if (x < lo) lo = x; if (x > hi) hi = x; if (y < top) top = y; if (y > bottom) bottom = y; } if (hi >= 0) boxes.push([x0 + lo - 1, y0 + top - 1, x0 + hi + 1, y0 + bottom + 1]); }
       else blitRaster(s.fb, r, x0, y0, s.spal, OUTLINE, s.rim);
@@ -1204,8 +1254,8 @@
     if (sf.hidden) return boxes;
     r.clear();
     if (sf.mode === 'swim') drawSwimmer(r, OX, OY, world.time * 4);
-    else if (sf.mode === 'paddle') drawPaddler(r, OX, OY, world.paddle, 0);
-    else if (sf.mode === 'popup') s.joints = drawPopUp(r, OX, OY, sf.pose, sf.pitchQ, sf.u);
+    else if (sf.mode === 'paddle') s.joints = drawPaddler(r, OX, OY, world.paddle, clamp((sf.u - 0.7) / 0.3, 0, 1), sf.pitchQ);
+    else if (sf.mode === 'popup') s.joints = drawPopUp(r, OX, OY, sf.pose, sf.pitchQ, sf.u, world.paddle);
     else if (sf.mode === 'fall') drawStanding(r, OX, OY, { pose: sf.pose, pitch: sf.pitchQ, board: false });
     else s.joints = drawStanding(r, OX, OY, { pose: sf.pose, pitch: sf.pitchQ, board: true });
     emit(Math.round(sf.x) - OX, Math.round(sf.y) + hop - OY);
@@ -1609,37 +1659,130 @@
       if (a > 0 && q.y - b.h < LIM) drawBrush(s.fb, b, Math.round(q.x - b.w / 2), Math.round(q.y - b.h / 2), a, flut, q.flip, q.clip ? s.back.cls : null, q.slant || 0);
     }
   }
-  /** A short, fading trail behind the board; it belongs to the wave, not the sky or distant sea. */
+  /** A broken fan of churned water opens behind the board. Its foamy threads
+   *  follow the same curved flow, with scattered water between the V edges. */
   function drawWake(s, wake) {
-    const { fb, back, foamLut } = s;
-    for (let i = 1; i < wake.length; i++) {
-      const a0 = wake[i - 1], b0 = wake[i], dx = b0.x - a0.x, dy = b0.y - a0.y, n = Math.ceil(Math.max(Math.abs(dx), Math.abs(dy)));
-      if (n > 9 || n < 1) continue;
-      const a = Math.round(256 * Math.max(0, 1 - b0.age / 76) * 0.8);
-      for (let k = 0; k <= n; k++) {
-        const x = Math.round(a0.x + dx * k / n), y = Math.round(a0.y + dy * k / n);
-        if (x < 0 || x >= W || y < 0 || y >= LIM) continue;
-        if (back.cls[y * W + x] === CLS.WATER) putA(fb, x, y, foamLut[28], a);
-        if (y + 1 < LIM && back.cls[(y + 1) * W + x] === CLS.WATER) putA(fb, x, y + 1, foamLut[20], a >> 1);
+    if (wake.length < 2) return;
+    const { fb, back, foamLut } = s, centre = back.geom && back.geom.centre || DEFAULT_GEOM.centre;
+    // A wave-class pixel may still be an orange sunset reflection: use the
+    // current warped plate so the wake stays only on genuinely blue water.
+    const plate = s.base || back.rgb;
+    const wet = (x, y, tone, alpha) => {
+      if (x < 0 || x >= W || y < 0 || y >= LIM) return;
+      const i = y * W + x;
+      if (back.cls[i] !== CLS.WATER) return;
+      if (plate) {
+        const p = plate[i], r = p & 255, g = (p >>> 8) & 255, b = (p >>> 16) & 255;
+        if (g <= r + 4 || b <= r + 2) return;
       }
+      putA(fb, x, y, foamLut[tone], alpha);
+    };
+    const offset = (point) => {
+      const dx = point.x - centre[0], dy = point.y - centre[1], radius = Math.hypot(dx, dy) || 1;
+      const spread = Math.min(15, Math.max(0, point.age - 3) * 0.24) * (1 + 0.06 * Math.sin(point.age * 0.13));
+      return [spread * dx / radius, spread * dy / radius];
+    };
+    let previous = offset(wake[0]);
+    for (let i = 1; i < wake.length; i++) {
+      const a = wake[i - 1], b = wake[i], next = offset(b);
+      if (a.group === b.group) {
+        const fade = b.age < 42 ? 1 - 0.18 * b.age / 42 : 0.82 * smooth((WAKE_LIFE - b.age) / 30);
+        const alpha = Math.round(250 * Math.max(0, fade));
+        const dx = b.x - a.x, dy = b.y - a.y;
+        const n = Math.ceil(Math.max(Math.abs(dx), Math.abs(dy)));
+        if (n <= 9 && alpha > 0) {
+          const steps = Math.max(1, n);
+          for (let k = 0; k <= steps; k++) {
+            const t = k / steps, x = a.x + dx * t, y = a.y + dy * t;
+            const ox = lerp(previous[0], next[0], t), oy = lerp(previous[1], next[1], t);
+            const spread = Math.hypot(ox, oy), nx = spread > 0.01 ? ox / spread : 0, ny = spread > 0.01 ? oy / spread : 1;
+            // Irregular translucent fragments, not a solid triangle or a pair
+            // of white lines. Their pattern moves with each piece of water.
+            const seed = (a.id === undefined ? i : a.id) * 17 + k * 11 + Math.floor(b.age / 5) * 3;
+            const width = Math.max(1, spread * 0.85);
+            for (let across = -width; across <= width; across += 1.5) {
+              const q = Math.round(across * 2), grain = ((seed + q * 13) % 19 + 19) % 19;
+              if (grain > 11) continue;
+              const edge = Math.abs(across) / (width + 1), gain = 0.56 + 0.34 * (1 - edge);
+              const px = Math.round(x + across * nx), py = Math.round(y + across * ny);
+              wet(px, py, grain < 3 ? 31 : grain < 7 ? 28 : 23, Math.round(alpha * gain));
+              if (grain < 3) wet(Math.round(px + dx / steps), Math.round(py + dy / steps), 29, Math.round(alpha * 0.54));
+            }
+            // Broken white turbulence down the centre, with gaps and smaller
+            // eddies so it reads as aerated water instead of a painted stripe.
+            const centreFleck = ((seed * 7 + 3) % 13 + 13) % 13;
+            if (centreFleck < 10) {
+              wet(Math.round(x), Math.round(y), 31, Math.round(alpha * (centreFleck < 5 ? 0.96 : 0.76)));
+              if (centreFleck < 6) wet(Math.round(x + nx), Math.round(y + ny), 29, Math.round(alpha * 0.65));
+            }
+            // Two textured crests open out into a V as the board pulls water
+            // back. Vary their brightness and thickness rather than drawing
+            // perfectly even outlines.
+            for (let side = -1; side <= 1; side += 2) {
+              const px = Math.round(x + side * ox), py = Math.round(y + side * oy);
+              const fleck = ((seed + side * 7) % 11 + 11) % 11;
+              if (fleck < 9) wet(px, py, fleck < 4 ? 31 : 28, Math.round(alpha * (fleck < 4 ? 0.96 : 0.78)));
+              if (fleck < 7) wet(Math.round(px - side * nx), Math.round(py - side * ny), 27, Math.round(alpha * 0.66));
+            }
+          }
+        }
+      }
+      previous = next;
     }
   }
 
-  /** Broken, moving water along the near rail, only while the board touches
-   *  the wave. It is painted before the rider so the board stays legible. */
+  /** A narrow, broken waterline over the immersed rail, with a tapered wake
+   *  behind the tail. Never paint the rider or foam over the sky and sea. */
   function drawBoardContact(s, world) {
     const rider = world.surfer;
-    if (rider.hidden || rider.air || rider.hop || !['stand', 'popup'].includes(rider.mode)) return;
-    const {fb, back, foamLut} = s, tm = world.steps;
-    for (let along = -BOARD_HALF + 2; along <= BOARD_HALF - 2; along += 1.3) {
-      const u = (along + BOARD_HALF) / (2 * BOARD_HALF);
-      const width = Math.sin(Math.PI * u) * (4.6 + 1.8 * (1 - u));
-      const [px, py] = boardPoint(rider, along, width + 1.4);
-      const x = Math.round(px), y = Math.round(py + 1.5);
-      const flicker = Math.sin(along * .6 - tm * .19) + Math.sin(along * .23 + tm * .11);
-      if (flicker < -.55 || x < 0 || x >= W || y < 0 || y >= LIM || back.cls[y * W + x] !== CLS.WATER) continue;
-      putA(fb, x, y, foamLut[27], 145 + Math.round(35 * Math.max(0, flicker)));
-      if (flicker > 1 && y + 1 < LIM && back.cls[(y + 1) * W + x] === CLS.WATER) putA(fb, x, y + 1, foamLut[21], 85);
+    if (rider.hidden || boardAirborne(rider) || !['stand', 'paddle', 'popup'].includes(rider.mode)) return;
+    const {fb, back, foamLut, raster} = s, tm = world.steps;
+    const ox = Math.round(rider.x) - RIDER_OX, oy = Math.round(rider.y) - RIDER_OY;
+    const rail = rider.mode === 'paddle' ? 0 : clamp(rider.pose && finite(rider.pose.rail) ? rider.pose.rail : 0, 0, 1);
+    // Only the back part of the board is immersed; pressure and the water vary it smoothly.
+    const immersed = clamp(0.2 + 0.10 * rail + 0.035 * Math.sin(tm * 0.12), 0.15, 0.45);
+    const start = BOARD_HALF - 2 * BOARD_HALF * immersed;
+    const wet = (x, y, tone, alpha, boardOnly = false) => {
+      if (x < 0 || x >= W || y < 0 || y >= LIM || back.cls[y * W + x] !== CLS.WATER) return;
+      let v = 0;
+      if (raster) {
+        const rx = x - ox, ry = y - oy;
+        v = rx >= 0 && rx < raster.w && ry >= 0 && ry < raster.h ? raster.buf[ry * raster.w + rx] : 0;
+      }
+      const boardPixel = v === S.board || v === S.boardLight || v === S.boardDark || v === S.cream || v === S.cap;
+      if ((v && !boardPixel) || (boardOnly && !boardPixel)) return;
+      putA(fb, x, y, foamLut[tone], alpha);
+    };
+    for (let along = start; along <= BOARD_HALF - 1; along += 0.8) {
+      const width = boardHalfWidth(along), depth = (along - start) / (BOARD_HALF - start);
+      // A translucent wash wraps just over the wet edge; the rest of the board remains visible.
+      for (let across = width * 0.48; across < width * 0.95; across += 1.4) {
+        const [bx, by] = boardPoint(rider, along, across);
+        wet(Math.round(bx), Math.round(by + 1), 12, Math.round((95 + 45 * rail) * depth), true);
+      }
+      const [px, py] = boardPoint(rider, along, width + 0.35);
+      const x = Math.round(px), y = Math.round(py + 1.5 + (rail > 0.5 ? 0.7 : 0));
+      const flow = Math.sin(along * 0.47 - tm * 0.78) + 0.45 * Math.sin(along * 0.9 + tm * 0.68);
+      if (flow > -0.8) {
+        wet(x, y, 30, 220 + Math.round(20 * Math.max(0, flow)));
+        wet(x, y + 1, 25, 185 + Math.round(25 * rail));
+        wet(x, y + 2, 19, 135 + Math.round(25 * rail));
+        wet(x, y + 3, 15, 90 + Math.round(20 * rail));
+        if (flow > 0.4) wet(x, y - 1, 31, 210);
+      }
+    }
+    // Ragged, tapered water fans off the immersed tail; no round foam puffs.
+    for (let d = 1; d <= 12; d += 1.1) {
+      const fade = 1 - d / 16, spread = 2 + d * 0.46;
+      for (let q = 0; q <= spread; q += 1.1) {
+        const flow = Math.sin(d * 0.8 + q * 1.7 - tm * 0.9);
+        if (flow < -0.55) continue;
+        const [px, py] = boardPoint(rider, 21 + d, boardHalfWidth(21) + 0.8 + q + 0.4 * flow);
+        const x = Math.round(px), y = Math.round(py + 2);
+        if (Math.hypot(x - rider.x, y - rider.y) >= 38) continue;
+        const alpha = Math.round((225 + rail * 25) * fade * (1 - q / (spread + 1.5)));
+        wet(x, y, flow > 0.4 ? 31 : 25, alpha);
+      }
     }
   }
 
@@ -1676,8 +1819,8 @@
     drawWake(s, world.wake);
     drawVeil(s, world);                                                                                          // the curtain falls behind him: his face is never behind a streak
     drawParticles(s, world, 1);                                                                                  // the curtain's streaks fall behind him
-    drawBoardContact(s, world);
     drawSurferFrame(s, world);
+    drawBoardContact(s, world);
     drawFoamItems(s, world, 'front');
     drawParticles(s, world, 0);
     drawMist(s, world);

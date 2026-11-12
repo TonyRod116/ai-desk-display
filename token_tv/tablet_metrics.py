@@ -23,6 +23,7 @@ import math
 import os
 from pathlib import Path
 import re
+import stat
 import subprocess
 import time
 
@@ -291,20 +292,83 @@ def _printed(raw):
     return raw.decode('utf-8-sig', 'replace') if isinstance(raw, bytes) and raw else None
 
 
-def _run(args, timeout, partial=False):
-    """Run a program and return its decoded stdout, or None on any failure.
+# A WSL session's inherited interop socket can outlive its Windows relay.
+# Cache a proven alternate only for this collector; never change global settings.
+_interop_override = None
+_WINDOWS_CMD = '/mnt/c/Windows/System32/cmd.exe'
 
-    With partial=True a timeout or a failing exit code still returns what was printed before it (the
-    script flushes its readings first), so one stuck or missing sensor cannot hide the others.
-    """
-    env = {key: os.environ[key] for key in _SAFE_ENV if key in os.environ}
+
+def _interop_candidates(current):
+    """Only root-owned sockets in the root-owned WSL runtime directory."""
+    root = Path('/run/WSL')
     try:
-        result = subprocess.run(args, capture_output=True, timeout=timeout, check=True, env=env)
-        return result.stdout.decode('utf-8-sig')
-    except (subprocess.TimeoutExpired, subprocess.CalledProcessError) as exc:
-        return _printed(exc.stdout) if partial else None
-    except (OSError, subprocess.SubprocessError, UnicodeError):
+        st = root.lstat()
+        if not stat.S_ISDIR(st.st_mode) or st.st_uid != 0 or st.st_mode & 0o022:
+            return []
+        candidates = []
+        for path in root.iterdir():
+            if not re.fullmatch(r'[0-9]+_interop', path.name) or str(path) == current:
+                continue
+            try:
+                info = path.lstat()
+            except OSError:     # a WSL session may close while we scan
+                continue
+            if stat.S_ISSOCK(info.st_mode) and info.st_uid == 0:
+                candidates.append(path)
+        return [str(path) for path in sorted(candidates, key=lambda p: int(p.name.split('_', 1)[0]))[:8]]
+    except OSError:
+        return []
+
+
+def _working_interop(env):
+    """Find a responsive relay with a harmless, bounded Windows command."""
+    if not os.path.isfile(_WINDOWS_CMD):
         return None
+    for candidate in _interop_candidates(env.get('WSL_INTEROP')):
+        probe_env = dict(env, WSL_INTEROP=candidate)
+        try:
+            # /d disables cmd.exe AutoRun; the probe runs no user commands.
+            subprocess.run([_WINDOWS_CMD, '/d', '/c', 'exit', '0'], capture_output=True,
+                           timeout=1.5, check=True, env=probe_env)
+            return candidate
+        except (OSError, subprocess.SubprocessError):
+            continue
+    return None
+
+
+def _run(args, timeout, partial=False):
+    """Run a sensor, retaining partial readings and recovering a dead WSL relay once."""
+    global _interop_override
+    env = {key: os.environ[key] for key in _SAFE_ENV if key in os.environ}
+    if _interop_override:
+        env['WSL_INTEROP'] = _interop_override
+
+    def invoke(selected_env):
+        try:
+            result = subprocess.run(args, capture_output=True, timeout=timeout, check=True, env=selected_env)
+            return result.stdout.decode('utf-8-sig'), False
+        except subprocess.TimeoutExpired as exc:
+            output = _printed(exc.stdout) if partial else None
+            return output, output is None
+        except subprocess.CalledProcessError as exc:
+            output = _printed(exc.stdout) if partial else None
+            error = exc.stderr.lower() if isinstance(exc.stderr, bytes) else b''
+            # WSL sometimes reports the dead relay immediately instead of
+            # timing out; a normal sensor/driver error must not trigger a scan.
+            broken_relay = not output and b'wsl (' in error and (b'vsock' in error or b'interop' in error)
+            return output, broken_relay
+        except (OSError, subprocess.SubprocessError, UnicodeError):
+            return None, False
+
+    output, timed_out = invoke(env)
+    if not timed_out or not args or not args[0].lower().endswith('.exe'):
+        return output
+    alternate = _working_interop(env)
+    if not alternate:
+        return None
+    _interop_override = alternate
+    env['WSL_INTEROP'] = alternate
+    return invoke(env)[0]
 
 
 def _split_output(output):
@@ -324,7 +388,9 @@ _rates = RateTracker()
 
 def reset_state():
     """Forget the previous readings; the next call has no rates. For tests and after a long pause."""
+    global _interop_override
     _rates.reset()
+    _interop_override = None
 
 
 def collect():

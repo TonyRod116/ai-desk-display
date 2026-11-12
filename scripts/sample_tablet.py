@@ -58,6 +58,8 @@ def readings(scenario, now):
         metrics['disks'] += [disk('G:', 2 * TB, 1.5 * TB, kind='google_drive', quota_source='manual', quota_at=int(now - 4 * 86400)),
                              disk('H:', 500 * GB, 49 * GB), disk('I:', 4 * TB, 3.9 * TB), disk('J:', 1 * TB, 30 * GB)]
         metrics['disks'][-4]['total'], metrics['disks'][-4]['free'] = 2 * 10 ** 12, int(1.4 * 10 ** 12)
+    elif scenario == 'credits':
+        codex.update(weekly=week(0, 20), credits='2468')  # fictional balance for the empty-week view
     elif scenario == 'critical':
         codex.update(weekly=week(4, 20), credits=None)
         claude.update(weekly=week(8.5, 9), session=week(0.6, .4))
@@ -130,7 +132,7 @@ class SampleHandler(tablet_server.Handler):
             return self._respond(303, extra=(('Location', '/'),))
         if self.path.startswith('/sample/'):
             name = self.path.split('/', 2)[2].split('?', 1)[0]
-            if name not in ('normal', 'unknown', 'many-disks', 'critical', 'aged'):
+            if name not in ('normal', 'unknown', 'many-disks', 'critical', 'aged', 'credits'):
                 return self._respond(404)
             self.server.feeds.scenario = name
             return self._respond(303, extra=(('Location', '/'),))
@@ -169,6 +171,10 @@ def prepare_photos(directory, count=6):
 def prepare_scenes(directory):
     manifest = {}
     for index, scene in enumerate(tablet_server.SCENES):
+        if scene == 'game-boy':
+            from scripts.prepare_game_handheld import prepare_assets
+            manifest[scene] = prepare_assets(directory)
+            continue
         pixel = scene in ('surf', 'token-run', 'city-iso', 'fighting')
         size = (320, 240) if pixel else (768, 960) if scene == 'paradise' else (960, 720)
         still = procedural(scene, size, index / 12)
@@ -194,7 +200,7 @@ def prepare_scenes(directory):
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('--port', type=int, default=18861)
-    parser.add_argument('--scenario', default='normal', choices=('normal', 'unknown', 'many-disks', 'critical', 'aged'))
+    parser.add_argument('--scenario', default='normal', choices=('normal', 'unknown', 'many-disks', 'critical', 'aged', 'credits'))
     parser.add_argument('--scenes', type=Path, help='use the scene files of this existing folder, read-only, instead of fictional ones')
     args = parser.parse_args()
     borrowed = args.scenes is not None

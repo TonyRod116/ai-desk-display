@@ -14,6 +14,7 @@
   <script src="/stage-game.js" defer></script>
   <script src="/game-token-run.js" defer></script>
   <script src="/game-city-iso.js" defer></script>
+  <script src="/game-game-boy.js" defer></script>
   <script src="/game-fighting.js" defer></script>
   <script src="/game-surf.js" defer></script>
   <script src="/stage-photo.js" defer></script>
@@ -56,12 +57,12 @@
           </div>
           <div class="picture-quota" id="picture-quota" aria-hidden="true">
             <div class="pq-week" data-pq="codex">
-              <div class="pq-heading"><b>CODEX</b><strong>—</strong></div>
+              <div class="pq-heading"><b>CODEX</b><span class="pq-value"><strong>—</strong><span class="pq-credit-label"></span></span></div>
               <i class="pq-meter"><em></em></i>
               <div class="pq-reset"><span data-i18n="reset_in">RESET IN</span><small>—</small></div>
             </div>
             <div class="pq-week" data-pq="claude">
-              <div class="pq-heading"><b>CLAUDE</b><strong>—</strong></div>
+              <div class="pq-heading"><b>CLAUDE</b><span class="pq-value"><strong>—</strong><span class="pq-credit-label"></span></span></div>
               <i class="pq-meter"><em></em></i>
               <div class="pq-reset"><span data-i18n="reset_in">RESET IN</span><small>—</small></div>
               <div class="pq-session" data-pq="session"><b>5H</b><i class="pq-meter"><em></em></i><strong>—</strong><small></small></div>
@@ -77,7 +78,6 @@
                 <div class="amount"><span class="amount-number">—</span><span class="amount-unit"></span></div>
                 <div class="meter" data-parts="7" role="img" aria-label="Remaining usage unavailable"><span></span></div>
                 <div class="card-bottom"><span class="caption" data-i18n="weekly_left">WEEKLY LEFT</span><span class="reset"><small data-i18n="reset_in">RESET IN</small><strong class="reset-time">—</strong></span></div>
-                <div class="credits" hidden><span data-i18n="credits">CREDITS</span><strong></strong></div>
               </article>
               <article class="quota-card claude" data-provider="claude">
                 <div class="card-top"><span class="provider"><span class="provider-icon" aria-hidden="true">✳</span>CLAUDE</span><span class="hearts" aria-label="Reset balance unavailable"><i>♥</i><i>♥</i><i>♥</i><span class="unknown-dot">•</span></span></div>

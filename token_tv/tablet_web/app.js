@@ -58,6 +58,7 @@
   const slot = $('#slot'), dock = $('#dock'), stageBox = $('#stage'), intro = $('#intro'), machine = $('#machine'), pager = $('#pager');
   const sceneNames = { city:['Cyberpunk City','Ciudad Cyberpunk'], paradise:['Paradise','Paraíso'], surf:['Tidal Rush','Tidal Rush'],
     'token-run':['Token Run','Token Run'], 'city-iso':['Isometric City','Ciudad isométrica'], fighting:['Versus','Versus'],
+    'game-boy':['Game Boy','Game Boy'],
     'neon-city':['Neon City','Neon City'], 'neon-district':['Cozy Mountain Home','Casa acogedora en la montaña'], 'violet-horizon':['Violet Horizon','Violet Horizon'],
     'infinite-express':['Infinite Express','El expreso infinito'], 'midnight-video-club':['Peaceful House','Casa tranquila'] };
   const sceneOpen = $('#scene-open'), sceneDialog = $('#scene-dialog'), sceneClose = $('#scene-close'), sceneGrid = $('#scene-grid');
@@ -501,15 +502,28 @@
   function meter(node, value) {
     if (node) node.style.width = (percent(value) ?? 0) + '%';
   }
+  // Credits are an absolute balance, only meaningful after the current week
+  // is exhausted. The server supplies '?' when a verified balance is absent.
+  function creditBalance(data, remaining) {
+    if (remaining !== 0 || !data || typeof data.credits !== 'string') return null;
+    return /^(?:\?|[-]?<0\.01|[-]?\d{1,10}(?:\.\d{1,2})?)$/.test(data.credits) ? data.credits : null;
+  }
+  function creditSize(value) {
+    return value.length > 10 ? 'tiny' : value.length > 7 ? 'small' : 'normal';
+  }
   function provider(name, data) {
     const card = $('[data-provider="' + name + '"]');
     data = data || {};
     const week = data.weekly && timeLeft(data.weekly.resets_at) !== '—' ? data.weekly : null;
     const raw = week && valid(week.remaining) && week.remaining >= 0 && week.remaining <= 100 ? week.remaining : null;
     const left = raw === null ? null : raw > 0 && raw < 1 ? '<1' : String(Math.floor(raw));
+    const credit = raw === 0 ? (creditBalance(data, raw) ?? '?') : null, value = credit === '?' ? '—' : credit;
     card.dataset.level = raw === null ? 'unknown' : quotaLevel(raw);
-    $('.amount-number',card).textContent = left === null ? '—' : left;
-    $('.amount-unit',card).textContent = raw === null ? '' : '%';
+    card.dataset.mode = credit === null ? 'quota' : 'credits';
+    card.dataset.creditSize = credit === null ? 'normal' : creditSize(value);
+    $('.amount-number',card).textContent = credit === null ? (left === null ? '—' : left) : value;
+    $('.amount-unit',card).textContent = credit === null && raw !== null ? '%' : '';
+    $('.card-bottom .caption',card).textContent = words[language][credit === null ? 'weekly_left' : 'credits'];
     $('.reset-time',card).textContent = week ? timeLeft(week.resets_at) : '—';
     meter($('.meter span',card),raw);
     $('.meter',card).setAttribute('aria-label',left === null ? words[language].unavailable : left + '% ' + words[language].remaining);
@@ -533,10 +547,6 @@
       $('.session-time',band).textContent = known ? timeLeft(session.resets_at) : '';
       meter($('.meter span',band),known ? session.remaining : null);
       $('.meter',band).setAttribute('aria-label',known ? showPercent(session.remaining) + ' ' + words[language].remaining : words[language].unavailable);
-    } else {
-      const credit = $('.credits',card);
-      credit.hidden = !(week && raw === 0 && typeof data.credits === 'string');
-      $('strong',credit).textContent = credit.hidden ? '' : data.credits;
     }
   }
   function size(bytes) {
@@ -784,8 +794,12 @@
       const data = latest?.providers?.[name === 'session' ? 'claude' : name] || {}, part = data[which];
       const live = part && timeLeft(part.resets_at) !== '—' ? part : null;
       const raw = live && valid(live.remaining) && live.remaining >= 0 && live.remaining <= 100 ? live.remaining : null;
+      const credit = name === 'session' || raw !== 0 ? null : (creditBalance(data, raw) ?? '?'), value = credit === '?' ? '—' : credit;
       box.dataset.level = raw === null ? 'unknown' : quotaLevel(raw);
-      $('strong', box).textContent = raw === null ? '—' : name === 'session' ? showPercent(raw) : raw > 0 && raw < 1 ? '<1%' : Math.floor(raw) + '%';
+      box.dataset.mode = credit === null ? 'quota' : 'credits';
+      box.dataset.creditSize = credit === null ? 'normal' : creditSize(value);
+      $('strong', box).textContent = credit !== null ? value : raw === null ? '—' : name === 'session' ? showPercent(raw) : raw > 0 && raw < 1 ? '<1%' : Math.floor(raw) + '%';
+      const label = $('.pq-credit-label', box); if (label) label.textContent = credit === null ? '' : words[language].credits;
       $('em', box).style.width = (raw === null ? 0 : percent(raw)) + '%';
       $('small', box).textContent = raw === null ? (name === 'session' ? '' : '—') : timeLeft(live.resets_at);
     }

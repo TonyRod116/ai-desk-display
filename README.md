@@ -29,7 +29,7 @@ Use one, or use both — you don't need to collect them all. In each setup, a co
 ## What does it show?
 
 - **Claude and Codex:** weekly usage remaining and when it resets, plus Claude's five-hour limit when available.
-- **Saved resets:** up to three hearts when the provider reports a balance. Codex extra credits appear when the weekly allowance is exhausted and a verified balance is available.
+- **Saved resets and credits:** up to three hearts when the provider reports them. When Codex's week runs out, verified extra credits replace the percentage. If the balance is unavailable, it stays unknown — we're not inventing free tokens for you.
 - **Your computer, on the tablet:** CPU and GPU usage and temperatures, memory, multiple drives, time and date. There's optional weather and alerts for low quota, renewed limits and low disk space.
 
 Some readings depend on your plan, clients and hardware. If something is missing or stale, the display says so instead of inventing a reassuring number. Claude's saved-reset balance needs an [optional local browser extension](docs/claude-bank-local.md).
@@ -49,19 +49,19 @@ There's also [Hyrule Quest](docs/board-quest.md), older designs and more in the 
 
 ## An old tablet gets a new job
 
-Got an old Android tablet? Use it as your display, with no NerdMiner needed. It shows your AI limits, computer stats and animated scenes in portrait. Tap the clock for **picture mode**, swipe between scenes, or double-tap to pick one. Weekly bars have seven divisions; Claude's five-hour bar has five.
+Got an old Android tablet? Use it as your display, with no NerdMiner needed. It shows your AI limits, computer stats and animated scenes in portrait. Tap the clock for **picture mode**, swipe between scenes, or double-tap to pick one. Weekly bars have seven divisions; Claude's five-hour bar has five. When Codex's week runs out, its credit balance takes centre stage; the empty bar still refers to the weekly allowance.
 
 It can rotate scenes by time of day and show your photos. If you also have the little display, the tablet can control it remotely; their scene settings remain separate.
 
 | Tablet dashboard | Picture mode |
 |:---:|:---:|
 | **Isometric City**<br><img src="docs/images/tablet-dashboard.png" width="260" alt="Isometric city above the tablet dashboard with fictional usage and computer readings"> | **Isometric City**<br><img src="docs/images/tablet-picture-mode.png" width="260" alt="Isometric city in picture mode with compact fictional usage bars"> |
-| **Tidal Rush**<br><img src="docs/images/tablet-tidal-rush.png" width="260" alt="Tidal Rush tablet dashboard with a surfer and fictional readings"> | **Tidal Rush · animated**<br><img src="docs/images/tablet-picture-tidal-rush.gif" width="260" alt="Animated picture mode with a surfer riding a wave"> |
+| **Tidal Rush · credits**<br><img src="docs/images/tablet-tidal-rush.png?v=credits-surf" width="260" alt="Tidal Rush dashboard with a surfer and a fictional Codex credit balance"> | **Tidal Rush · animated**<br><img src="docs/images/tablet-picture-tidal-rush.gif?v=credits-surf" width="260" alt="Animated picture mode with a surfer, foamy wake and fictional credits"> |
 | **Token Run**<br><img src="docs/images/tablet-token-run.png" width="260" alt="Token Run tablet dashboard with a coastal drive and fictional readings"> | **Token Run · animated**<br><img src="docs/images/tablet-picture-token-run.gif" width="260" alt="Animated picture mode with a car on a coastal road"> |
 | **Infinite Express**<br><img src="docs/images/tablet-infinite-express.png" width="260" alt="Infinite Express tablet dashboard looking out of a train window"> | **Infinite Express · animated**<br><img src="docs/images/tablet-picture-infinite-express.gif" width="260" alt="Animated picture mode with scenery moving past a train window"> |
 | **Versus**<br><img src="docs/images/tablet-versus.png" width="260" alt="Versus tablet dashboard with Codex and Claude characters"> | **Versus · animated**<br><img src="docs/images/tablet-picture-versus.gif" width="260" alt="Animated picture mode with Codex and Claude fighting"> |
 
-*Fictional readings, real animations. Tidal Rush and Infinite Express use optional custom artwork; Versus shows the bundled original stage.* [See the four-scene tour](docs/images/tablet-picture-mode-scenes.gif) · [Tablet setup](docs/tablet.md).
+*Fictional readings and credits, real animations. Tidal Rush and Infinite Express use optional custom artwork; Versus shows the bundled original stage.* [See the four-scene tour](docs/images/tablet-picture-mode-scenes.gif) · [Tablet setup](docs/tablet.md).
 
 ## A screen library, not just eight slots
 

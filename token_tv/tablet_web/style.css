@@ -131,6 +131,12 @@ body.glass .dock {
 .hearts .unknown-dot { color: #9babb0; font-size: max(11px, calc(var(--u) * 13)); }
 .amount { display: flex; align-items: baseline; gap: calc(var(--u) * 4); margin: calc(var(--u) * 4) 0 calc(var(--u) * 8); color: var(--level); font-size: calc(var(--u) * 100); font-weight: 650; line-height: .98; letter-spacing: -.045em; font-variant-numeric: tabular-nums; text-shadow: 0 2px 14px rgba(0, 0, 0, .35); }
 .amount .amount-unit { font-size: .42em; font-weight: 550; letter-spacing: 0; }
+/* A balance has no natural percentage scale: keep the weekly bar red/empty,
+   while its absolute number is neutral and fits even long balances. */
+.quota-card[data-mode="credits"] .amount { color: #f1f8f6; font-size: calc(var(--u) * 70); white-space: nowrap; }
+.quota-card[data-mode="credits"][data-credit-size="small"] .amount { font-size: calc(var(--u) * 46); }
+.quota-card[data-mode="credits"][data-credit-size="tiny"] .amount { font-size: calc(var(--u) * 29); }
+
 .meter { position: relative; height: calc(var(--u) * 18); overflow: hidden; border-radius: 999px; background: var(--track); box-shadow: inset 0 1px 3px rgba(0, 0, 0, .35); }
 .meter span { display: block; width: 0; height: 100%; border-radius: inherit; background: var(--level); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .38); transition: width .6s ease; }
 .meter::after { content: ""; position: absolute; inset: 0; pointer-events: none;
@@ -151,9 +157,6 @@ body.glass .dock {
 .session-band .meter { height: calc(var(--u) * 16); }
 .session-value { color: var(--level); font-size: calc(var(--u) * 30); font-weight: 650; letter-spacing: -.03em; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .session-time { min-width: calc(var(--u) * 78); color: #fff; font-size: calc(var(--u) * 21); font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; text-align: right; }
-.credits { display: flex; align-items: baseline; justify-content: space-between; gap: calc(var(--u) * 8); margin-top: calc(var(--u) * 13); padding-top: calc(var(--u) * 12); border-top: 1px solid rgba(190, 215, 225, .16); color: var(--muted); font-size: max(11px, calc(var(--u) * 12)); font-weight: 700; }
-.credits[hidden] { display: none; }
-.credits strong { color: #fff; font-size: calc(var(--u) * 21); }
 
 .system-section { margin-top: calc(var(--u) * 12); }
 .machine { border: 1px solid var(--card-line); border-radius: calc(var(--u) * 20); background: var(--card); padding: calc(var(--u) * 12) 0 calc(var(--u) * 13); }
@@ -339,6 +342,12 @@ body.picture .picture-quota { display: grid; grid-template-columns: minmax(0, 1f
 .pq-heading { display: flex; align-items: baseline; justify-content: space-between; gap: calc(var(--u) * 8); }
 .pq-heading b { color: #eaf2f3; font-size: max(12px, calc(var(--u) * 18)); font-weight: 800; letter-spacing: .1em; }
 .pq-heading strong { color: var(--level); font-size: max(18px, calc(var(--u) * 30)); line-height: 1; font-variant-numeric: tabular-nums; }
+.pq-value { display: flex; align-items: baseline; gap: calc(var(--u) * 5); min-width: 0; white-space: nowrap; }
+.pq-credit-label { color: #d4e2e3; font-size: max(10px, calc(var(--u) * 12)); font-weight: 700; }
+.pq-week[data-mode="credits"] .pq-heading strong { color: #f1f8f6; font-size: max(17px, calc(var(--u) * 25)); }
+.pq-week[data-mode="credits"][data-credit-size="small"] .pq-heading strong { font-size: max(13px, calc(var(--u) * 19)); }
+.pq-week[data-mode="credits"][data-credit-size="tiny"] .pq-heading strong { font-size: max(10px, calc(var(--u) * 13)); }
+
 .pq-meter { --parts: 7; position: relative; display: block; height: calc(var(--u) * 11); margin: calc(var(--u) * 7) 0 calc(var(--u) * 5);
   overflow: hidden; border-radius: calc(var(--u) * 4); background: rgba(219, 239, 239, .22); }
 .pq-meter::after { content: ''; position: absolute; inset: 0; pointer-events: none; background-image: linear-gradient(to right, transparent calc(100% - 2px), rgba(5, 15, 22, .9) calc(100% - 2px)); background-size: calc(100% / var(--parts)) 100%; }
