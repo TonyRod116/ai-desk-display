@@ -14,7 +14,7 @@ final class Guard {
     /** The longest buzz the page may ask for, in milliseconds. */
     static final double MAX_VIBRATION_MS = 500.0;
 
-    /** The largest app update the shell will download, in bytes (the real file is about 25 KiB). */
+    /** The largest app update the shell will download; UI files are bundled, large media are saved separately. */
     static final int MAX_UPDATE_BYTES = 2 * 1024 * 1024;
 
     private Guard() {

@@ -26,7 +26,9 @@ Open **http://127.0.0.1:18861/** on the computer. This is a local demo: its quot
 4. On the tablet, connected to the same trusted network, enter that complete address **including `https://`**. The certificate is generated on your computer, so the browser will not recognise its issuer. Compare its fingerprint with the setup page before trusting it; a warning alone does not establish that you reached the right computer. Sign in with the password you chose.
 5. Open the scene selector and try picture mode by tapping the clock. Swipe left or right to change scenes, or double-tap the picture to open the selector. The settings button controls language, rotation, night mode, motion and more.
 
-The computer and monitor must be running for fresh quota readings; the tablet cannot query the providers by itself. An unavailable or expired reading is displayed as unknown. When Codex's verified weekly allowance reaches zero, the dashboard and picture mode show its extra-credit balance instead of `0%`; the bar still represents the weekly allowance. If no verified balance is available, it shows a dash. Claude's spending cap is not treated as a prepaid credit balance. Computer metrics depend on the operating system and sensors: Windows/WSL and an NVIDIA GPU are the reference setup, and CPU temperature is available only on supported hardware. Multiple fixed disks are listed separately. On WSL, if the connection used by the sensor reader stops responding, the collector attempts a bounded recovery using another local Windows relay; unavailable readings stay unknown. A virtual cloud-drive volume may show cache capacity instead of cloud quota.
+The computer and monitor must be running for fresh quota readings; the tablet cannot query the providers by itself. An unavailable or expired reading is displayed as unknown. Codex's extra credits replace the percentage only when its verified week is exactly exhausted and its confirmed balance is positive. Missing, zero or negative balances keep the quota display; any positive quota remainder stays quota. The bar always represents the weekly allowance. Claude's spending cap is not a prepaid credit balance.
+
+Computer metrics depend on the operating system and sensors: Windows/WSL and an NVIDIA GPU are the reference setup. Multiple fixed disks are listed separately. CPU temperature needs a supported sensor; the optional MSI helper and manually triggered memory trim have their own [computer-controls guide](tablet-host-controls.md). On WSL, the collector can recover a stale local Windows relay; unavailable readings stay unknown. A virtual cloud-drive volume may show cache capacity instead of cloud quota.
 
 ## Add some scenes
 
@@ -42,11 +44,11 @@ python scripts/prepare_game_handheld.py --out "$SCENES"
 
 These commands run locally and can take a while. The handheld demo uses simple original stand-in graphics and never requires a cartridge; its preparer refuses to overwrite an existing handheld scene. Reopen or reload the tablet page after they finish. The surf renderer can use a compatible locally prepared backdrop; the photo and cinematic tools likewise need images or footage you have permission to use. They are not generic one-click animation tools. See the scripts' `--help` for their inputs. My personal backgrounds, videos and game artwork are not distributed with the repository.
 
-You can also prepare a slideshow from your own pictures with `python scripts/prepare_tablet_photos.py --help`. Scene media and photos stay on the computer. The tablet's separate gallery only lists prepared scenes.
+You can also prepare a slideshow from your own pictures with `python scripts/prepare_tablet_photos.py --help`. Source media stays on the computer; the Android app can save the prepared resources privately on the tablet. Its gallery only lists prepared scenes. [Offline operation and resource updates](tablet-offline.md).
 
 ## Make it feel like an appliance
 
-A browser can enter full screen and request that the screen stays awake, although Android may still restrict that. The optional [Android app](tablet-app.md) keeps the display awake while open, pins the computer's certificate and restores full screen after a reload. You build it for your own computer; there is no preconfigured APK or signing key in this repository.
+A browser can enter full screen and request that the screen stays awake, although Android may still restrict that. The [Android app](tablet-app.md) adds a bundled interface and persistent saved scenes, keeps the display awake while open, pins the computer's certificate and restores full screen after a reload. Wait for **Settings → APP → Ready offline** before testing with the tablet's Wi-Fi off. You build it for your own computer; no preconfigured APK or signing key is distributed here.
 
 The repository does not automatically start the monitor or tablet service when the computer boots. Arrange startup for your own system if desired. If the computer's local address or certificate changes, follow the Android guide to rebuild the app; reserving the computer's address in your router can help.
 
@@ -54,5 +56,6 @@ The repository does not automatically start the monitor or tablet service when t
 
 - The setup page is local to the computer. The tablet service is password-protected and listens on the selected private network interface; do not expose it to the Internet or configure port forwarding.
 - The tablet receives filtered usage and computer readings. Its optional small-screen remote can send a limited set of commands to the local board control room; it is not an administrative proxy.
+- Live readings are not saved in the Android resource cache. Offline scene choices and display settings are saved locally and synchronize as preferences only; controls that need the PC are not replayed later. Remote screen buttons show dimmed previews read from the monitor's existing cache, without asking the physical board to render new images.
 - The account readers still contact their official providers. The optional weather feature is **off by default**; enabling it sends a rounded location to Open-Meteo. Set your location in the tablet settings first.
 - Password hashes, sessions, certificates, keys, local configuration, your artwork and actual readings stay outside the repository. Avoid sharing screenshots with real quotas or personal information.

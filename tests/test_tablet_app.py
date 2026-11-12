@@ -34,7 +34,7 @@ FICTIONAL_URL = 'https://192.0.2.10:8667'          # TEST-NET-1: never a real ad
 FICTIONAL_PIN = 'ab' * 32
 FICTIONAL_PIN_COLONS = ':'.join(f'{b:02X}' for b in bytes.fromhex(FICTIONAL_PIN))
 CONTRACT = [('String', 'version', ''), ('void', 'setBrightness', 'double'), ('void', 'keepAwake', 'boolean'), ('void', 'reload', ''),
-            ('void', 'vibrate', 'double'), ('String', 'battery', ''), ('double', 'light', ''), ('String', 'installUpdate', 'String'), ('String', 'fingerprint', '')]
+            ('void', 'vibrate', 'double'), ('String', 'battery', ''), ('double', 'light', ''), ('String', 'installUpdate', 'String'), ('String', 'fingerprint', ''), ('String', 'offlineStatus', ''), ('String', 'syncOffline', '')]
 
 
 def tools_or_none():

@@ -1046,6 +1046,22 @@ class RealRoutesTests(unittest.TestCase):
         for slot in slots:
             self.scenes.confirm_slot(slot, self.scenes.ids[slot])
 
+    def test_preview_uses_the_monitors_cached_frame_without_contacting_the_board(self):
+        from PIL import Image
+        from token_tv.board_pages import rgb565_frame
+        from token_tv.live import handler
+        from token_tv.state import UsageStore
+        control = BoardControl(self.board, self.scenes, self.night)
+        control.update_frames([rgb565_frame(Image.new('RGB', (320, 240), '#31678b'))])
+        self.serve(control, handler, UsageStore([]))
+        before = list(self.board.calls)
+        data = self.remote.preview(0)
+        self.assertIsNotNone(data)
+        with Image.open(io.BytesIO(data)) as image:
+            self.assertEqual(image.size, (320, 240))
+        self.assertIsNone(self.remote.preview(1))
+        self.assertEqual(self.board.calls, before, 'a preview must never poll or send to the physical board')
+
     def test_the_status_is_the_fixed_shape_with_the_real_names_of_the_screens(self):
         self.assertEqual(self.remote.status(), expected_status(page=0, rotation=0, speed=100))
 

@@ -75,7 +75,7 @@
     return { full: count === null ? 0 : Math.min(3, count), plus: count !== null && count > 3, dot: count === null || !known || !!(resets && resets.old) };
   }
   const creditBalance = (row, remaining) => remaining === 0 && typeof row.credits === 'string'
-    && /^(?:\?|[-]?<0\.01|[-]?\d{1,10}(?:\.\d{1,2})?)$/.test(row.credits) ? row.credits : null;
+    && (row.credits === '<0.01' || (/^\d{1,10}(?:\.\d{1,2})?$/.test(row.credits) && Number(row.credits) > 0)) ? row.credits : null;
   const emptyProvider = () => ({ known: false, text: '--', fill: null, hearts: { full: 0, plus: false, dot: true }, reset: '--' });
   /** What the HUD shows for the page's latest readings. `ageMs` is how long ago the page last renewed them (older than 45 s: unknown). A week is known only with a percentage left and a
    *  reset still ahead; Claude's five hours only with both too (nothing at all otherwise). */
@@ -88,7 +88,7 @@
         if (!row || typeof row !== 'object') continue;
         const week = row.weekly;
         const known = !!week && typeof week === 'object' && isPercent(week.remaining) && future(week.resets_at, nowMs);
-        const credit = known && week.remaining === 0 ? (creditBalance(row, week.remaining) ?? '?') : null;
+        const credit = known ? creditBalance(row, week.remaining) : null;
         out[name] = {
           known, text: credit !== null ? 'CR ' + credit : known ? percentText(week.remaining) : '--', fill: known ? clamp(week.remaining, 0, 100) / 100 : null,
           hearts: heartsModel(row.resets, true), reset: known ? resetText(week.resets_at, nowMs) || '--' : '--',

@@ -13,7 +13,8 @@ collect() returns, besides the original cpu_percent, cpu_temp_c, memory, disks a
               byte counters since the previous call; None values on the first call; None if unread.
   battery    {'percent', 'charging', 'minutes', 'plugged'} or None (no battery).
   uptime_s   whole seconds since Windows booted (the number Task Manager shows), or None.
-One PowerShell process per call reads all of it; an MSI-only temperature rides on the same process.
+One PowerShell process per call reads all of it. MSI temperature rides on that process
+unless the separately approved Windows sensor task exports it without elevating the tablet.
 """
 import base64
 import csv
@@ -29,6 +30,7 @@ import time
 
 from token_tv.tablet_history import MetricsHistory  # noqa: F401  (the tablet service imports it from here)
 from token_tv.tablet_rates import RateTracker
+from token_tv import tablet_cpu_sensor
 
 
 # ONE PowerShell process per call. It prints a single line of JSON and flushes it, and only then reads
@@ -394,7 +396,9 @@ def reset_state():
 
 
 def collect():
-    command = base64.b64encode(_QUERY.encode('utf-16le')).decode('ascii')
+    managed_sensor = tablet_cpu_sensor.installed()
+    query = _WINDOWS_QUERY + 'exit 0\n' if managed_sensor else _QUERY
+    command = base64.b64encode(query.encode('utf-16le')).decode('ascii')
     # User services often have a minimal PATH without Windows executables.
     windows_powershell = '/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe'
     powershell = windows_powershell if os.path.isfile(windows_powershell) else 'powershell.exe'
@@ -414,6 +418,6 @@ def collect():
     output = _run([smi, '--query-gpu=name,temperature.gpu,utilization.gpu,memory.used,memory.total',
                    '--format=csv,noheader,nounits'], 8)
     system['gpus'] = normalize_nvidia(output) if output is not None else []
-    # The sensor rides on the same process; a missing line leaves the temperature unknown.
-    system['cpu_temp_c'] = normalize_cpu_temperature(temperature)
+    # An installed helper owns the sensor: never query it twice or reuse an old export.
+    system['cpu_temp_c'] = tablet_cpu_sensor.read() if managed_sensor else normalize_cpu_temperature(temperature)
     return system

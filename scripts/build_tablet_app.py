@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build the AI Desk tablet app: a thin Android shell around the tablet page, without Gradle or Android Studio.
+"""Build the AI Desk tablet app with its local UI, without Gradle or Android Studio.
 
     python -B scripts/build_tablet_app.py                 # asks the tablet service on this computer for its address and certificate
     python -B scripts/build_tablet_app.py --url https://192.0.2.10:8667 --fingerprint AB:CD:...   # (a documentation address)
@@ -54,7 +54,7 @@ COUNTER_NAME = 'build-counter.txt'
 BRIDGE_CONTRACT = 1             # first part of the version name; goes up only when `window.AiDeskApp` changes incompatibly
 MIN_SDK, TARGET_SDK = 26, 35    # as in AndroidManifest.xml (the build checks the finished APK against them)
 KEY_ALIAS = 'aidesk'
-BRIDGE_METHODS = ('battery', 'fingerprint', 'installUpdate', 'keepAwake', 'light', 'reload', 'setBrightness', 'version', 'vibrate')   # window.AiDeskApp, nothing else
+BRIDGE_METHODS = ('battery', 'fingerprint', 'installUpdate', 'keepAwake', 'light', 'offlineStatus', 'reload', 'setBrightness', 'syncOffline', 'version', 'vibrate')   # window.AiDeskApp, nothing else
 PERMISSIONS = ('android.permission.ACCESS_NETWORK_STATE', 'android.permission.INTERNET', 'android.permission.REQUEST_INSTALL_PACKAGES', 'android.permission.VIBRATE')
 SETUP_LIMIT = 64 * 1024
 
@@ -398,6 +398,15 @@ def build_apk(tools: Toolchain, work: Path, *, origin: str, fingerprint: str, ve
         raise BuildError('d8 produced no classes.dex')
     with zipfile.ZipFile(base, 'a') as archive:
         archive.write(dex / 'classes.dex', 'classes.dex', compress_type=zipfile.ZIP_DEFLATED)
+        # Executable UI ships in the signed APK. Private photos, films and atlases
+        # are transferred separately to this app's own storage, never embedded here.
+        web = ROOT / 'token_tv/tablet_web'
+        for asset in sorted(web.iterdir()):
+            if asset.is_symlink() or not asset.is_file():
+                continue
+            if asset.name == 'index.html' or (re.fullmatch(r'[a-z0-9-]{1,40}\.(js|css)', asset.name)
+                                            and asset.name not in ('setup.js', 'login.js', 'access.css')):
+                archive.write(asset, 'assets/web/' + asset.name, compress_type=zipfile.ZIP_DEFLATED)
     aligned, signed = work / 'aligned.apk', work / 'signed.apk'
     call(tools.zipalign, '-f', '-p', '4', base, aligned, label='zipalign', cwd=work)
     java_jar(tools, tools.apksigner_jar, 'sign', '--ks', keystore, '--ks-key-alias', KEY_ALIAS,

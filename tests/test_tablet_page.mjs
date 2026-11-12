@@ -128,10 +128,21 @@ test('credits replace a verified exhausted weekly quota only and never invent an
   assert.ok(source, 'the shared page credit selector exists');
   const get = vm.runInNewContext('(' + source[0] + ')');
   assert.equal(get({credits:'2468'},0),'2468');
-  assert.equal(get({credits:'0'},0),'0','a real zero balance remains zero');
-  assert.equal(get({credits:'?'},0),'?','a missing balance stays unknown');
+  assert.equal(get({credits:'0'},0),null,'no credit display without positive credit');
+  assert.equal(get({credits:'?'},0),null,'a missing balance never enables credit mode');
   assert.equal(get({credits:'<0.01'},0),'<0.01');
-  assert.equal(get({credits:'-2.35'},0),'-2.35');
+  assert.equal(get({credits:'-2.35'},0),null);
+  for(const balance of ['0.00','-<0.01']) assert.equal(get({credits:balance},0),null);
   for(const value of [null,undefined,'','NaN','1e6','12<script>','999999999999999999999']) assert.equal(get({credits:value},0),null,String(value));
   for(const left of [null, 0.001, 1, 50, 100]) assert.equal(get({credits:'2468'},left),null,`weekly left ${left}`);
+});
+
+test('memory action reports observed free memory with enough precision to see small changes', () => {
+  const panels = read('panels.js');
+  const source = panels.match(/function availableSize\(bytes\) \{[\s\S]*?\n  \}/);
+  assert.ok(source);
+  const format = vm.runInNewContext('(' + source[0] + ')');
+  assert.equal(format(22.2 * 1024 ** 3), '22.2 GB');
+  assert.equal(format(22.4 * 1024 ** 3), '22.4 GB');
+  assert.equal(format(400 * 1024 ** 2), '400 MB');
 });

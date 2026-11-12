@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  AI Desk, the tablet shell: one full-screen WebView around the page the PC serves (docs/tablet-app.md).
+  AI Desk: a bundled full-screen interface, saved scene resources and live PC data (docs/tablet-app.md).
   The version name and code are not written here: scripts/build_tablet_app.py passes them to aapt2 on every build.
 -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"

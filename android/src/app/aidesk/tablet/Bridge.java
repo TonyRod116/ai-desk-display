@@ -3,7 +3,7 @@ package app.aidesk.tablet;
 import android.webkit.JavascriptInterface;
 
 /**
- * {@code window.AiDeskApp}: the only door from the page into the app. Exactly these nine methods are visible to JavaScript
+ * {@code window.AiDeskApp}: the only door from the page into the app. Exactly these eleven methods are visible to JavaScript
  * (only methods marked {@code @JavascriptInterface} are), the object is handed to pages of the PC's origin alone (the shell
  * blocks every other address), and each method checks what it is given and does nothing on bad input.
  * Android calls them on a background thread; the activity moves anything that touches views to the main thread.
@@ -72,4 +72,12 @@ final class Bridge {
     public String fingerprint() {
         return Config.FINGERPRINT;
     }
+
+    /** Progress and readiness of local artwork; never includes paths, cookies, credentials or quota readings. */
+    @JavascriptInterface
+    public String offlineStatus() { return app.offlineStatus(); }
+
+    /** Refresh fixed scene resources from the pinned, authenticated PC. Never accepts URLs or commands. */
+    @JavascriptInterface
+    public String syncOffline() { return app.syncOffline(); }
 }

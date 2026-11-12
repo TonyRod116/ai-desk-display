@@ -2,7 +2,7 @@
   'use strict';
   const words = {
     en: { connecting:'CONNECTING', online:'LOCAL · LIVE', partial:'PARTIAL DATA', offline:'RECONNECTING', scene:'SCENE', choose_scene:'Choose a background', close:'Close',
-      usage:'YOUR AI USAGE · WEEKLY REMAINING', weekly_left:'WEEKLY LEFT', left:'left', reset_in:'RESET IN', five_hour:'5-HOUR LIMIT', credits:'CREDITS', computer:'YOUR COMPUTER',
+      usage:'YOUR AI USAGE · WEEKLY REMAINING', weekly_left:'WEEKLY LEFT', left:'left', reset_in:'RESET IN', five_hour:'5-HOUR LIMIT', credits:'CREDITS', computer:'YOUR COMPUTER', memory_touch:'TOUCH TO FREE MEMORY', memory_scope:'Only idle Slack / OneDrive', memory_working:'Checking idle apps…', memory_done:'Optimized', memory_nothing:'No eligible idle apps found', memory_unavailable:'Unavailable; no changes made', memory_unknown:'Result unknown; wait before retrying', memory_busy:'Already checking…', memory_cooldown:'Please wait before retrying', memory_available:'Available',
       memory:'MEMORY', free:'free', of:'of', cloud_unavailable:'Cloud quota unavailable', manual:'Manual', full_screen:'Enter full screen', exit_full_screen:'Exit full screen',
       full_screen_failed:'Full screen is not available in this browser.', unavailable:'Unavailable', remaining:'remaining', resets:'saved resets', old:'last known',
       awake_on:'SCREEN ON', awake_blocked:'MAY SLEEP', awake_unsupported:'MAY SLEEP',
@@ -23,10 +23,10 @@
       settings_sound:'SOUND AND ALERTS', sound_on:'Sounds', sound_volume:'Volume', sound_night:'Sound at night', alert_quota:'Alert under (% left)', alert_disk:'Disk alert under (% free)',
       alert_resets:'Alert on resets', sound_test:'Test sound', settings_motion:'MOTION', motion_auto:'Follow Android', motion_on:'Always', motion_off:'Still',
       settings_place:'PLACE (SUNRISE, SUNSET AND WEATHER)', weather_on:'Weather beside the clock', latitude:'Latitude', longitude:'Longitude', settings_app:'APP', app_install:'Install the app', app_version:'App version',
-      app_none:'Running in the browser', settings_about:'ABOUT', language:'Language',
+      app_none:'Running in the browser', local_scenes:'Scenes on this tablet', local_ready:'Ready offline', local_saving:'Saving…', local_waiting:'Waiting for the PC', local_storage:'Not enough space', local_sign_in:'Sign in to save scenes', local_save:'Save / update scenes', local_files:'files', local_note:'Scenes, clock and display settings work offline. Live quotas, weather and PC controls need the PC.', memory_pc:'PC CONNECTION REQUIRED', settings_about:'ABOUT', language:'Language',
       alert_week:'week', alert_five:'5 h', alert_renewed:'renewed', alert_full:'almost full', alert_sound_hint:'Tap once anywhere to enable sound.' },
     es: { connecting:'CONECTANDO', online:'LOCAL · EN VIVO', partial:'DATOS PARCIALES', offline:'RECONECTANDO', scene:'ESCENA', choose_scene:'Elige un fondo', close:'Cerrar',
-      usage:'TUS IA · RESTANTE SEMANAL', weekly_left:'RESTANTE SEMANAL', left:'restante', reset_in:'SE RENUEVA EN', five_hour:'LÍMITE DE 5 HORAS', credits:'CRÉDITOS', computer:'TU ORDENADOR',
+      usage:'TUS IA · RESTANTE SEMANAL', weekly_left:'RESTANTE SEMANAL', left:'restante', reset_in:'SE RENUEVA EN', five_hour:'LÍMITE DE 5 HORAS', credits:'CRÉDITOS', computer:'TU ORDENADOR', memory_touch:'TOCA PARA LIBERAR MEMORIA', memory_scope:'Solo Slack / OneDrive inactivos', memory_working:'Comprobando aplicaciones…', memory_done:'Optimizados', memory_nothing:'No hay apps aptas e inactivas', memory_unavailable:'No disponible; no se ha cambiado nada', memory_unknown:'Resultado desconocido; espera antes de reintentar', memory_busy:'Ya se está comprobando…', memory_cooldown:'Espera antes de volver a intentarlo', memory_available:'Disponible',
       memory:'MEMORIA', free:'libres', of:'de', cloud_unavailable:'Cuota de nube no disponible', manual:'Manual', full_screen:'Entrar en pantalla completa', exit_full_screen:'Salir de pantalla completa',
       full_screen_failed:'La pantalla completa no está disponible en este navegador.', unavailable:'No disponible', remaining:'restante', resets:'resets guardados', old:'último dato conocido',
       awake_on:'PANTALLA ENCENDIDA', awake_blocked:'PUEDE APAGARSE', awake_unsupported:'PUEDE APAGARSE',
@@ -47,7 +47,7 @@
       settings_sound:'SONIDO Y AVISOS', sound_on:'Sonidos', sound_volume:'Volumen', sound_night:'Sonido de noche', alert_quota:'Avisar por debajo de (% restante)', alert_disk:'Avisar disco por debajo de (% libre)',
       alert_resets:'Avisar de renovaciones', sound_test:'Probar sonido', settings_motion:'MOVIMIENTO', motion_auto:'Como Android', motion_on:'Siempre', motion_off:'Quieto',
       settings_place:'LUGAR (AMANECER, ATARDECER Y TIEMPO)', weather_on:'Tiempo junto a la hora', latitude:'Latitud', longitude:'Longitud', settings_app:'APP', app_install:'Instalar la app', app_version:'Versión de la app',
-      app_none:'Usando el navegador', settings_about:'ACERCA DE', language:'Idioma',
+      app_none:'Usando el navegador', local_scenes:'Escenas en esta tablet', local_ready:'Listas sin conexión', local_saving:'Guardando…', local_waiting:'Esperando al ordenador', local_storage:'No hay espacio suficiente', local_sign_in:'Inicia sesión para guardar', local_save:'Guardar / actualizar escenas', local_files:'archivos', local_note:'Escenas, reloj y ajustes funcionan sin conexión. Las cuotas actuales, el tiempo y los controles del PC necesitan el ordenador.', memory_pc:'REQUIERE CONEXIÓN AL PC', settings_about:'ACERCA DE', language:'Idioma',
       alert_week:'semana', alert_five:'5 h', alert_renewed:'renovada', alert_full:'casi lleno', alert_sound_hint:'Toca una vez en cualquier sitio para activar el sonido.' }
   };
   const $ = (selector, root = document) => root.querySelector(selector);
@@ -90,14 +90,58 @@
      certificate pinned. Without it everything below still works; each call is guarded. */
   const bridge = window.AiDeskApp && typeof window.AiDeskApp.version === 'function' ? window.AiDeskApp : null;
   const native = (name, ...args) => { try { return bridge && typeof bridge[name] === 'function' ? bridge[name](...args) : undefined; } catch (_) { return undefined; } };
+  const localApp = Boolean(bridge && typeof bridge.offlineStatus === 'function');
+  function offlineInfo() {
+    if (!localApp) return null;
+    try {
+      const value = JSON.parse(native('offlineStatus') || '{}');
+      return { state: ['ready','saving','waiting','storage','sign_in'].includes(value.state) ? value.state : 'waiting',
+        ready: value.ready === true, busy: value.busy === true, revision: typeof value.revision === 'string' && /^[a-f0-9]{64}$/.test(value.revision) ? value.revision : '',
+        done: Number.isInteger(value.done) && value.done >= 0 && value.done <= 256 ? value.done : 0,
+        count: Number.isInteger(value.count) && value.count >= 0 && value.count <= 256 ? value.count : 0,
+        bytes: valid(value.bytes) && value.bytes >= 0 && value.bytes <= 2 * 1024 ** 3 ? value.bytes : 0,
+        total: valid(value.total) && value.total >= 0 && value.total <= 2 * 1024 ** 3 ? value.total : 0 };
+    } catch (_) { return { state:'waiting', ready:false, busy:false }; }
+  }
 
   /* The tablet's OWN settings, kept on the PC (the small screen has its own, in its own control room). These are the defaults until they arrive. */
   const DEFAULT_SETTINGS = { scene: 'auto', motion: 'auto', auto: { mode: 'daypart', minutes: 20, rotate: [], parts: { dawn: [], day: [], dusk: [], night: [] } }, night: { enabled: true, start: '23:00', end: '07:30', level: 25, clock_only: false },
     sound: { enabled: true, volume: 60, at_night: false }, alerts: { quota: 10, disk: 5, resets: true }, photos: { seconds: 20 }, place: { lat: 41.39, lon: 2.17 }, weather: { enabled: false } };
-  let settings = JSON.parse(JSON.stringify(DEFAULT_SETTINGS)), settingsLoaded = false, pendingPatch = {}, patchTimer = 0;
+  function cleanSettings(value, schema = DEFAULT_SETTINGS, prefix = '') {
+    const out = {};
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return out;
+    const limits = {'auto.minutes':[5,240], 'night.level':[5,100], 'sound.volume':[0,100], 'alerts.quota':[5,30], 'alerts.disk':[2,15], 'photos.seconds':[5,300], 'place.lat':[-90,90], 'place.lon':[-180,180]};
+    for (const [key, item] of Object.entries(value)) {
+      if (!Object.hasOwn(schema, key)) continue;
+      const expected = schema[key], path = prefix ? prefix + '.' + key : key;
+      if (Array.isArray(expected)) {
+        if (Array.isArray(item) && item.length <= 40 && item.every(x => typeof x === 'string' && /^[a-z0-9-]{1,40}$/.test(x))) out[key] = [...new Set(item)];
+      } else if (expected && typeof expected === 'object') {
+        const nested = cleanSettings(item, expected, path); if (Object.keys(nested).length) out[key] = nested;
+      } else if (typeof item === typeof expected) {
+        if (typeof item === 'number' && (!Number.isFinite(item) || (limits[path] && (item < limits[path][0] || item > limits[path][1])))) continue;
+        if (typeof item === 'string' && (item.length > 64 || ((path === 'night.start' || path === 'night.end') && !/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(item)))) continue;
+        if (path === 'motion' && !['auto','on','off'].includes(item)) continue;
+        if (path === 'auto.mode' && !['daypart','rotate'].includes(item)) continue;
+        if (path === 'scene' && !/^(?:auto|photos|[a-z0-9-]{1,40})$/.test(item)) continue;
+        out[key] = item;
+      }
+    }
+    return out;
+  }
+  function storedSettings(key) {
+    try { const raw = getStored(key); return raw && raw.length <= 20000 ? cleanSettings(JSON.parse(raw)) : {}; } catch (_) { return {}; }
+  }
+  let settings = mergeSettings(JSON.parse(JSON.stringify(DEFAULT_SETTINGS)), storedSettings('tablet-settings-v1')), settingsLoaded = false,
+    pendingPatch = storedSettings('tablet-settings-pending-v1'), patchTimer = 0, sendingSettings = false, settingsInFlight = {}, settingsRevision = 0;
+  function keepSettings() {
+    setStored('tablet-settings-v1', JSON.stringify(settings));
+    setStored('tablet-settings-pending-v1', JSON.stringify(assignDeep(JSON.parse(JSON.stringify(settingsInFlight)), pendingPatch)));
+  }
   function mergeSettings(base, incoming) {
     for (const [key, value] of Object.entries(incoming || {})) {
-      if (value && typeof value === 'object' && !Array.isArray(value) && base[key] && typeof base[key] === 'object') mergeSettings(base[key], value); else if (key in base) base[key] = value;
+      if (!Object.hasOwn(base, key)) continue;
+      if (value && typeof value === 'object' && !Array.isArray(value) && base[key] && typeof base[key] === 'object') mergeSettings(base[key], value); else base[key] = value;
     }
     return base;
   }
@@ -114,20 +158,39 @@
       if (i === keys.length - 1) { into[key] = value; out[key] = value; } else { into = into[key]; out[key] = out[key] || {}; out = out[key]; }
     });
     assignDeep(pendingPatch, patch);
+    settingsRevision++;
+    keepSettings();
     clearTimeout(patchTimer);
     patchTimer = setTimeout(sendSettings, 350);
     settingsChanged(path);
   }
   async function sendSettings() {
-    const patch = pendingPatch; pendingPatch = {};
-    try { await fetch('/api/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(patch), cache: 'no-store' }); } catch (_) { /* kept locally; the next change tries again */ }
+    if (sendingSettings || !Object.keys(pendingPatch).length) return;
+    sendingSettings = true;
+    const patch = pendingPatch; settingsInFlight = patch; pendingPatch = {}; keepSettings();
+    const controller = new AbortController(), timer = setTimeout(() => controller.abort(), 4000);
+    try {
+      const response = await fetch('/api/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(patch), cache: 'no-store', signal: controller.signal });
+      if (!response.ok) throw new Error('settings unavailable');
+    } catch (_) { pendingPatch = assignDeep(patch, pendingPatch); } // a newer local choice always wins
+    finally { clearTimeout(timer); sendingSettings = false; settingsInFlight = {}; keepSettings(); }
   }
   async function loadSettings() {
+    const requestedRevision = settingsRevision;
+    const dirtyWhenRequested = assignDeep(JSON.parse(JSON.stringify(settingsInFlight)), pendingPatch);
     try {
       const response = await fetch('/api/settings', { cache: 'no-store' });
       if (response.status === 401) { window.location.replace('/login'); return; }
-      if (response.ok) { settings = mergeSettings(JSON.parse(JSON.stringify(DEFAULT_SETTINGS)), (await response.json()).settings); settingsLoaded = true; settingsChanged('*'); }
-    } catch (_) { /* the defaults stay */ }
+      if (response.ok) {
+        const incoming = cleanSettings((await response.json()).settings);
+        if (requestedRevision === settingsRevision) {
+          settings = mergeSettings(JSON.parse(JSON.stringify(DEFAULT_SETTINGS)), incoming);
+          mergeSettings(settings, dirtyWhenRequested);
+          mergeSettings(settings, assignDeep(JSON.parse(JSON.stringify(settingsInFlight)), pendingPatch));
+        }
+        keepSettings(); settingsLoaded = true; settingsChanged('*'); sendSettings();
+      }
+    } catch (_) { /* the tablet's last display settings stay */ }
   }
   function settingsChanged(path) {
     if (path === '*' || path === 'motion') applyMotion();
@@ -283,6 +346,8 @@
       ua: (navigator.userAgent.match(/Android [\d.]+|Chrome\/[\d.]+|Firefox\/[\d.]+|SamsungBrowser\/[\d.]+|Edg\/[\d.]+/g) || []).join(' '),
       cores: navigator.hardwareConcurrency || 0, mem: navigator.deviceMemory || 0, plat: platInfo };
     if (bridge) { out.app = String(native('version') || ''); out.bat = String(native('battery') || ''); const lux = Number(native('light')); if (Number.isFinite(lux)) out.lux = lux; }
+    const local = offlineInfo();
+    if (local) Object.assign(out, {offline_state:local.state, offline_ready:local.ready, offline_done:local.done, offline_count:local.count, offline_bytes:local.bytes, offline_total:local.total});
     if (window.visualViewport) out.vvs = window.visualViewport.scale;
     if (status) {
       Object.assign(out, { renderer: status.renderer, tier: status.tier, level: status.level, scale: status.scale, fps: status.fps, dropped: status.dropped, motion: status.motion,
@@ -503,10 +568,11 @@
     if (node) node.style.width = (percent(value) ?? 0) + '%';
   }
   // Credits are an absolute balance, only meaningful after the current week
-  // is exhausted. The server supplies '?' when a verified balance is absent.
+  // is exactly exhausted, and only a confirmed positive balance enables the switch.
   function creditBalance(data, remaining) {
     if (remaining !== 0 || !data || typeof data.credits !== 'string') return null;
-    return /^(?:\?|[-]?<0\.01|[-]?\d{1,10}(?:\.\d{1,2})?)$/.test(data.credits) ? data.credits : null;
+    if (data.credits === '<0.01') return data.credits;
+    return /^\d{1,10}(?:\.\d{1,2})?$/.test(data.credits) && Number(data.credits) > 0 ? data.credits : null;
   }
   function creditSize(value) {
     return value.length > 10 ? 'tiny' : value.length > 7 ? 'small' : 'normal';
@@ -517,7 +583,7 @@
     const week = data.weekly && timeLeft(data.weekly.resets_at) !== '—' ? data.weekly : null;
     const raw = week && valid(week.remaining) && week.remaining >= 0 && week.remaining <= 100 ? week.remaining : null;
     const left = raw === null ? null : raw > 0 && raw < 1 ? '<1' : String(Math.floor(raw));
-    const credit = raw === 0 ? (creditBalance(data, raw) ?? '?') : null, value = credit === '?' ? '—' : credit;
+    const credit = creditBalance(data, raw), value = credit;
     card.dataset.level = raw === null ? 'unknown' : quotaLevel(raw);
     card.dataset.mode = credit === null ? 'quota' : 'credits';
     card.dataset.creditSize = credit === null ? 'normal' : creditSize(value);
@@ -694,6 +760,7 @@
   function pictureLabel() { intro.setAttribute('aria-label', words[language][pictureMode ? 'picture_off' : 'picture_on']); intro.setAttribute('aria-pressed', String(pictureMode)); }
   function setPicture(on) {
     pictureMode = on; resetPictureTouches(); document.body.classList.toggle('picture', on); pictureLabel();
+    setStored('tablet-picture-mode', on ? '1' : '0');
     if (on) goPage('home'); fit();
   }
 
@@ -794,7 +861,7 @@
       const data = latest?.providers?.[name === 'session' ? 'claude' : name] || {}, part = data[which];
       const live = part && timeLeft(part.resets_at) !== '—' ? part : null;
       const raw = live && valid(live.remaining) && live.remaining >= 0 && live.remaining <= 100 ? live.remaining : null;
-      const credit = name === 'session' || raw !== 0 ? null : (creditBalance(data, raw) ?? '?'), value = credit === '?' ? '—' : credit;
+      const credit = name === 'session' ? null : creditBalance(data, raw), value = credit;
       box.dataset.level = raw === null ? 'unknown' : quotaLevel(raw);
       box.dataset.mode = credit === null ? 'quota' : 'credits';
       box.dataset.creditSize = credit === null ? 'normal' : creditSize(value);
@@ -812,23 +879,31 @@
     if (window.TabletPanels) TabletPanels.renderComputer();
     fit();
   }
-  let pageBuild = null, updateReady = false;
+  let pageBuild = null, updateReady = false, refreshAfter = 0, refreshFailures = 0;
   async function refresh() {
-    if (inflight) return; inflight = true;
+    if (inflight || Date.now() < refreshAfter) return; inflight = true;
     const controller = new AbortController(), timeout = setTimeout(() => controller.abort(),4000);
     try {
       const response = await fetch('/api/status',{cache:'no-store',signal:controller.signal});
-      if (response.status === 401) { window.location.replace('/login'); return; }
+      if (response.status === 401) { latest = null; if (stage && stage.setReadings) stage.setReadings(null); window.location.replace('/login'); return; }
       if (!response.ok) throw new Error('unavailable');
       latest = await response.json(); connection = latest.quota_connected ? 'online' : 'partial';
+      refreshFailures = 0; refreshAfter = 0;
+      if (Object.keys(pendingPatch).length) sendSettings();
       if (stage && stage.setReadings) stage.setReadings(latest);
       renderAppUpdate();
       if (typeof latest.build === 'string') {
         if (pageBuild === null) pageBuild = latest.build;
-        else if (latest.build !== pageBuild && !updateReady) { updateReady = true; updateChip.hidden = false; fit(); if (bridge) setTimeout(() => native('reload'), 6000); }
+        else if (latest.build !== pageBuild && !updateReady) {
+          if (localApp) { pageBuild = latest.build; native('syncOffline'); }
+          else { updateReady = true; updateChip.hidden = false; fit(); if (bridge) setTimeout(() => native('reload'), 6000); }
+        }
       }
       if (alerts && latest.quota_connected) raise(alerts.feed(latest, settings.alerts, Date.now()));
-    } catch (_) { latest = null; connection = 'offline'; if (stage && stage.setReadings) stage.setReadings(null); }      // a scene must not keep showing a reading that stopped arriving
+    } catch (_) {
+      latest = null; connection = 'offline'; refreshFailures++; refreshAfter = Date.now() + Math.min(30000, 5000 * 2 ** Math.min(3, refreshFailures - 1));
+      if (stage && stage.setReadings) stage.setReadings(null);
+    }      // a scene must not keep showing a reading that stopped arriving
     finally { clearTimeout(timeout); inflight = false; render(); }
   }
 
@@ -886,7 +961,7 @@
   document.addEventListener('visibilitychange',() => {
     if (document.hidden) { resetPictureTouches(); if (stage) stage.pause(); return; }
     if (stage) stage.resume();
-    updateTime(); refresh(); loadWeather(); keepAwake(); tickNight();
+    updateTime(); refreshAfter = 0; refresh(); loadWeather(); keepAwake(); tickNight();
   });
   if (reducedMotion.addEventListener) reducedMotion.addEventListener('change', applyMotion);
   window.addEventListener('resize', () => { fit(); report('resize', 2500); });
@@ -897,16 +972,32 @@
   if (window.TabletPanels) {
     TabletPanels.init({
       words: wordsNow, language: () => language, setLanguage, settings: () => settings, setSetting, latest: () => latest, size, diskItem,
-      appInfo: () => ({ installed: Boolean(bridge), version: bridge ? String(native('version') || '') : '', apk: Boolean(latest && latest.app), update: appUpdate() }),
+      appInfo: () => ({ installed: Boolean(bridge), version: bridge ? String(native('version') || '') : '', apk: Boolean(latest && latest.app), update: appUpdate(), offline: offlineInfo() }),
       startAppUpdate, choosePool, poolSummary,
+      saveOffline: () => native('syncOffline'),
       action: (name, button) => { if (name === 'sound_test' && sound) { sound.unlock(); const ok = sound.play('warning', settings.sound.volume); button.textContent = words[language].sound_test + (ok ? ' ✓' : ' …'); } },
       aboutText: () => 'build ' + (pageBuild || '?') + ' · ' + innerWidth + '×' + innerHeight + ' · fit ' + fitScale.toFixed(2) + (alertLog.length ? '\n' + alertLog.join('\n') : ''),
     });
   }
   createStage();
+  settingsChanged('*');
   fit();
   if (bridge) keepAwake();
   setLanguage(getStored('tablet-preview-language')); loadSettings(); loadScenes(); loadPhotos(); refresh(); loadWeather();
+  if (getStored('tablet-picture-mode') === '1') setPicture(true);
+  let offlineRevision = offlineInfo()?.revision || '';
+  let offlinePhase = '';
+  function checkOffline() {
+    const value = offlineInfo();
+    if (value && value.state !== offlinePhase) { offlinePhase = value.state; report('tick', 750); }
+    if (value && value.ready && value.revision && value.revision !== offlineRevision) {
+      offlineRevision = value.revision; loadScenes(); loadPhotos();
+    }
+    if (window.TabletPanels && TabletPanels.updateOffline) TabletPanels.updateOffline();
+  }
+  window.aiDeskOfflineChanged = checkOffline;
+  if (localApp) setInterval(checkOffline, 2000);
+  window.addEventListener('online', () => { refreshAfter = 0; refresh(); if (localApp) native('syncOffline'); });
   if (document.fonts && document.fonts.ready) document.fonts.ready.then(fit);
   setInterval(() => { updateTime(); render(); tickNight(); renderWeather(); },10000);
   setInterval(() => { if (settings.scene === 'auto' || ['infinite-express', 'midnight-video-club', 'neon-district'].includes(selectedScene)) resolveScene(); }, 30000);

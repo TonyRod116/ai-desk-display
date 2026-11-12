@@ -28,6 +28,7 @@ from token_tv.tablet_history import MetricsHistory
 from token_tv.tablet_metrics import collect
 from token_tv.tablet_settings import Settings
 from token_tv.tablet_snapshot import tablet_snapshot
+from token_tv.tablet_offline import OfflineBundle, OfflineUnavailable
 
 WEB = Path(__file__).with_name('tablet_web')
 PRIVATE = Path.home() / '.local/share/ai-desk-display/tablet'
@@ -376,11 +377,12 @@ class Auth:
 # What the tablet's own page may tell this server about itself: sizes, flags and fixed words, never free text from the page's data.
 _REPORT_WORDS = {'why': ('load', 'fullscreen', 'scene', 'resize', 'tick'), 'renderer': ('webgl', 'css', 'plain'),
                  'tier': ('high', 'medium', 'light', 'low', 'css', 'plain'), 'look': ('crt', 'lcd', 'photo', 'plain'),
-                 'wake': ('on', 'blocked', 'unsupported', 'off', 'none')}
+                 'wake': ('on', 'blocked', 'unsupported', 'off', 'none'), 'offline_state': ('ready', 'saving', 'waiting', 'storage', 'sign_in')}
 _REPORT_NUMBERS = {'vw': (0, 20000), 'vh': (0, 20000), 'sw': (0, 20000), 'sh': (0, 20000), 'dpr': (.25, 8), 'fit': (.05, 2), 'u': (0, 20),
                    'ovh': (-20000, 20000), 'ovw': (-20000, 20000), 'ovh0': (-20000, 20000), 'fps': (0, 1000), 'dropped': (0, 10 ** 7),
-                   'level': (0, 20), 'scale': (0, 8), 'vvs': (0, 20), 'mem': (0, 1024), 'cores': (0, 1024), 'age': (0, 10 ** 7), 'lux': (-1, 200000)}
-_REPORT_FLAGS = ('fs', 'rm', 'motion', 'paused', 'video', 'ready', 'blocked', 'secure', 'hidden', 'glass')
+                   'level': (0, 20), 'scale': (0, 8), 'vvs': (0, 20), 'mem': (0, 1024), 'cores': (0, 1024), 'age': (0, 10 ** 7), 'lux': (-1, 200000),
+                   'offline_done': (0, 256), 'offline_count': (0, 256), 'offline_bytes': (0, 2 * 1024 ** 3), 'offline_total': (0, 2 * 1024 ** 3)}
+_REPORT_FLAGS = ('fs', 'rm', 'motion', 'paused', 'video', 'ready', 'blocked', 'secure', 'hidden', 'glass', 'offline_ready')
 _REPORT_TEXT = {'gpu': 90, 'ua': 140, 'error': 120, 'plat': 60, 'app': 20, 'bat': 40}
 _REPORT_BOXES = ('topbar', 'slot', 'intro', 'dock', 'quota', 'band', 'machine', 'disks')
 
@@ -398,6 +400,8 @@ def clean_report(data):
         if key != 'why' and data.get(key) in words:
             out[key] = data[key]
     for key, (low, high) in _REPORT_NUMBERS.items():
+        if key.startswith('offline_') and type(data.get(key)) is not int:
+            continue
         if _number(data.get(key), low, high):
             out[key] = round(float(data[key]), 3)
     for key in _REPORT_FLAGS:
@@ -539,13 +543,15 @@ class TabletServer(ThreadingHTTPServer):
     daemon_threads = True
     allow_reuse_address = True
 
-    def __init__(self, address, handler, *, mode, auth, feeds, private, lan, lan_port, fingerprint, reports=None, settings=None, board=None, weather=None):
+    def __init__(self, address, handler, *, mode, auth, feeds, private, lan, lan_port, fingerprint, reports=None, settings=None, board=None, weather=None, memory=None):
         super().__init__(address, handler)
         self.mode, self.auth, self.feeds, self.private = mode, auth, feeds, Path(private)
         self.reports = reports if reports is not None else Reports(self.private / REPORTS_FILE)
         self.settings = settings if settings is not None else Settings(self.private / SETTINGS_FILE, SCENES)
         self.board = board                      # a BoardRemote (the small screen's remote) or None
         self.weather = weather                  # a tablet_weather.Weather (the outside reading) or None: then /api/weather says unknown
+        self.memory = memory                    # bounded, manually triggered host action or None
+        self.offline = OfflineBundle(self.private, _STATIC)
         self.refused, self.refused_at = 0, time.monotonic()
         self.lan, self.lan_port, self.fingerprint = lan, lan_port, fingerprint
         self.tls_context = None
@@ -735,13 +741,22 @@ class Handler(BaseHTTPRequestHandler):
         if path in _PUBLIC and path in _STATIC:
             return self._file(*_STATIC[path])
         if not self.server.auth.allowed(self.headers.get('Cookie')):
-            if path in ('/api/status', '/api/scenes', '/api/settings', '/api/photos', '/api/board', '/api/weather'):
+            if path in ('/api/status', '/api/scenes', '/api/settings', '/api/photos', '/api/board', '/api/weather', '/api/offline') or path.startswith('/api/board/preview/'):
                 return self._json(401, {'error': 'sign_in'})
             return self._respond(303, extra=(('Location', '/login'),))
         if path == '/':
             return self._file('index.html', 'text/html; charset=utf-8')
         if path == '/api/status':
             return self._json(200, {**self.server.feeds.status(), 'build': build_id(self.server.private), 'app': apk_info(self.server.private)})
+        if path == '/api/offline':
+            origin = self.headers.get('Origin')
+            if self.headers.get('Sec-Fetch-Site') == 'cross-site' or (origin and not self._origin_ok()):
+                return self._respond(403)
+            try:
+                manifest = self.server.offline.manifest(scene_catalog(self.server.private), photo_catalog(self.server.private))
+            except (OfflineUnavailable, OSError, ValueError):
+                return self._json(503, {'state': 'unavailable'})
+            return self._json(200, manifest)
         if path == '/api/settings':
             return self._json(200, {'settings': self.server.settings.get()})
         if path == '/api/photos':
@@ -752,6 +767,14 @@ class Handler(BaseHTTPRequestHandler):
         if path == '/api/board':
             board = self.server.board
             return self._json(200, {'board': board.status() if board else {'state': 'unavailable'}})
+        match = re.fullmatch(r'/api/board/preview/([0-7])\.png', path)
+        if match:
+            origin = self.headers.get('Origin')
+            if self.headers.get('Sec-Fetch-Site') == 'cross-site' or (origin and not self._origin_ok()):
+                return self._respond(403)
+            board = self.server.board
+            data = board.preview(int(match.group(1))) if board else None
+            return self._respond(200, data, 'image/png') if data is not None else self._respond(404)
         if path == '/app/' + APK_NAME:
             return self._stream(self.server.private / 'app' / APK_NAME, 'application/vnd.android.package-archive',
                                 (('Content-Disposition', f'attachment; filename="{APK_NAME}"'),))
@@ -767,6 +790,22 @@ class Handler(BaseHTTPRequestHandler):
         data = self._read(4096 if self.path == '/api/report' else 2048)
         if data is None:
             return self._respond(403)
+        if self.server.mode == 'lan' and self.path == '/api/memory/release':
+            if not self.server.auth.allowed(self.headers.get('Cookie')):
+                return self._json(401, {'state': 'unavailable'})
+            if data != {}:
+                return self._json(400, {'state': 'invalid'})
+            memory = self.server.memory
+            if memory is None:
+                return self._json(503, {'state': 'unavailable'})
+            try:
+                result = memory.release()
+            except Exception:
+                result = {'state': 'unknown'}  # the action may have started: never retry here
+            if not isinstance(result, dict) or result.get('state') not in ('done', 'nothing', 'busy', 'cooldown', 'unavailable', 'unknown'):
+                result = {'state': 'unknown'}
+            status = {'done': 200, 'nothing': 200, 'busy': 409, 'cooldown': 429, 'unavailable': 503, 'unknown': 502}[result['state']]
+            return self._json(status, result)
         if self.server.mode == 'lan' and self.path == '/api/board/command':
             if not self.server.auth.allowed(self.headers.get('Cookie')):
                 return self._json(401, {'ok': False})
@@ -861,8 +900,10 @@ def main():
         board = BoardRemote()
     except ImportError:
         board = None
+    from token_tv.tablet_memory import MemoryRelief
+    memory = MemoryRelief()
     kwargs = dict(auth=auth, feeds=feeds, private=PRIVATE, lan=address, lan_port=args.port, fingerprint=fingerprint,
-                  reports=Reports(PRIVATE / REPORTS_FILE), settings=settings, board=board, weather=weather)
+                  reports=Reports(PRIVATE / REPORTS_FILE), settings=settings, board=board, weather=weather, memory=memory)
     local = TabletServer(('127.0.0.1', args.setup_port), Handler, mode='setup', **kwargs)
     public = TabletServer((address, args.port), Handler, mode='lan', **kwargs)
     context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)

@@ -259,6 +259,13 @@ body.glass .sheet { background: rgba(7, 16, 24, .72); -webkit-backdrop-filter: b
 .gauge-title b { color: var(--level); font-size: max(14px, calc(var(--u) * 22)); letter-spacing: 0; font-variant-numeric: tabular-nums; }
 .gauge-value { margin: calc(var(--u) * 4) 0 calc(var(--u) * 8); font-size: calc(var(--u) * 50); font-weight: 600; line-height: 1.05; letter-spacing: -.03em; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .gauge-value small { margin-left: calc(var(--u) * 6); color: #bed0d6; font-size: .38em; font-weight: 500; letter-spacing: 0; }
+.gauge-action { cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.gauge-action .spark { height: calc(var(--u) * 45); }
+.gauge-action:focus-visible { outline: 2px solid #bcefe6; outline-offset: 3px; }
+.gauge-action[aria-disabled="true"] { cursor: wait; }
+.memory-action-row { display: flex; flex-wrap: wrap; align-items: baseline; gap: calc(var(--u) * 3) calc(var(--u) * 12); margin-top: calc(var(--u) * 6); }
+.memory-action-hint { color: #c7f3e8; font-size: max(11px, calc(var(--u) * 14)); font-weight: 800; letter-spacing: .04em; line-height: 1.25; }
+.memory-action-scope { color: #aac1c7; font-size: max(10px, calc(var(--u) * 12)); line-height: 1.25; }
 .gauge .system-meter span { background: var(--level); }
 .spark { display: block; width: 100%; height: calc(var(--u) * 62); margin-top: calc(var(--u) * 8); }
 .spark polyline { fill: none; stroke: var(--level, #82cbd0); stroke-width: 2; vector-effect: non-scaling-stroke; stroke-linejoin: round; }
@@ -279,6 +286,11 @@ body.glass .sheet { background: rgba(7, 16, 24, .72); -webkit-backdrop-filter: b
 .hint { margin: 0; color: var(--muted); font-size: max(11px, calc(var(--u) * 14)); line-height: 1.35; }
 .slots { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: calc(var(--u) * 10); }
 .slot-button { display: grid; align-content: center; justify-items: center; gap: calc(var(--u) * 4); min-height: max(72px, calc(var(--u) * 120)); padding: calc(var(--u) * 8); border: 1px solid var(--card-line); border-radius: calc(var(--u) * 16); background: var(--card); color: #eef5f7; }
+.slot-button { position: relative; overflow: hidden; isolation: isolate; }
+.slot-button .slot-preview { position: absolute; z-index: 0; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: .68; pointer-events: none; }
+.slot-button .slot-preview[hidden] { display: none; }
+.slot-button::after { content: ''; position: absolute; z-index: 1; inset: 0; pointer-events: none; background: linear-gradient(180deg, rgba(3, 12, 18, .36), rgba(3, 12, 18, .74)); }
+.slot-button > i, .slot-button > span { position: relative; z-index: 2; text-shadow: 0 1px 4px #000, 0 1px 9px #000; }
 .slot-button i { color: var(--muted); font-size: max(11px, calc(var(--u) * 13)); font-style: normal; font-weight: 800; }
 .slot-button span { font-size: max(13px, calc(var(--u) * 20)); font-weight: 650; text-align: center; }
 .slot-button[aria-pressed="true"] { border-color: #a9e0d3; background: rgba(169, 224, 211, .16); }
@@ -293,10 +305,11 @@ body.glass .sheet { background: rgba(7, 16, 24, .72); -webkit-backdrop-filter: b
 
 /* The settings sheet (a dialog: plain pixels, it has its own scroll). */
 .scene-dialog.settings { width: min(760px, calc(100% - 24px)); }
-.settings-body { display: grid; gap: 12px; max-height: calc(100dvh - 190px); overflow: auto; padding-right: 2px; }
-.settings-card { padding: 12px 16px 6px; border: 1px solid #2e4450; border-radius: 14px; background: #102430; }
+.settings-body { display: grid; gap: 12px; max-height: calc(100dvh - 190px); overflow: auto; overflow-x: hidden; min-width: 0; padding-right: 2px; }
+.settings-card { min-width: 0; padding: 12px 16px 6px; border: 1px solid #2e4450; border-radius: 14px; background: #102430; }
 .settings-card h3 { margin: 0 0 4px; color: #97b3bf; font-size: 12px; font-weight: 800; letter-spacing: .12em; }
-.settings-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 54px; border-top: 1px solid rgba(255, 255, 255, .07); }
+.settings-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; min-height: 54px; padding: 6px 0; border-top: 1px solid rgba(255, 255, 255, .07); }
+.settings-row > .segmented { max-width: 100%; flex-wrap: wrap; }
 .settings-row label { color: #e9f3f5; font-size: 16px; }
 .settings-row .value { color: #cfe1e7; font-size: 15px; }
 .settings .hint { padding: 8px 0 10px; font-size: 13px; }

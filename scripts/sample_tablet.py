@@ -13,6 +13,7 @@ exercised without any of Tony's private art.
 """
 import argparse
 import json
+import io
 import math
 import shutil
 import sys
@@ -80,6 +81,15 @@ class FictionalFeeds:
         return readings(self.scenario, time.time())
 
 
+class FictionalMemory:
+    """A harmless stand-in: no host process is touched in the demo."""
+    def __init__(self): self.calls = 0
+    def release(self):
+        self.calls += 1
+        if self.calls > 1: return {'state':'cooldown','seconds':120}
+        return {'state':'done','apps':['Slack'],'before':int(22.2 * GB),'after':int(22.4 * GB)}
+
+
 class FictionalBoard:
     """Stands in for the small screen's remote: the same shape as tablet_board.BoardRemote, nothing is ever sent anywhere."""
     NAMES = ('Game Boy', 'Paradise', 'Neon City', 'Tidal Rush', 'Token Run', 'Versus', 'Platform', 'City')
@@ -88,6 +98,19 @@ class FictionalBoard:
         self.state = {'state': 'ok', 'page': 1, 'controls': True, 'rotation': 30, 'speed': 100, 'firmware': '44',
                       'night': {'enabled': True, 'start': '23:00', 'end': '07:30', 'level': 25}}
         self.sent = []
+        self.previews = {}
+
+    def preview(self, index):
+        if type(index) is not int or not 0 <= index < 8:
+            return None
+        if index not in self.previews:
+            image = Image.new('RGB', (320, 240), ['#31637a', '#536d58', '#693e62', '#206e7f', '#895c48', '#594c7a', '#735644', '#586b79'][index])
+            draw = ImageDraw.Draw(image)
+            draw.ellipse((215, 25, 285, 95), fill='#e9c17f')
+            draw.polygon([(0, 200), (65, 100), (135, 190), (210, 120), (320, 210), (320, 240), (0, 240)], fill='#183b4d')
+            draw.rectangle((0, 205, 320, 240), fill='#214d58')
+            out = io.BytesIO(); image.save(out, format='PNG'); self.previews[index] = out.getvalue()
+        return self.previews[index]
 
     def status(self):
         return {**self.state, 'slots': [{'index': i, 'name': name} for i, name in enumerate(self.NAMES)]}
@@ -217,7 +240,7 @@ def main():
                                         lan_port=args.port, fingerprint='FICTIONAL',
                                         reports=tablet_server.Reports(),      # in memory: a lent real folder is never written to
                                         settings=tablet_server.Settings(None, tablet_server.SCENES), board=FictionalBoard(),
-                                        weather=FictionalWeather())
+                                        weather=FictionalWeather(), memory=FictionalMemory())
     print(f'Fictional tablet at http://127.0.0.1:{args.port}/  (scenes in {directory})', flush=True)
     try:
         server.serve_forever()

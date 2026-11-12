@@ -472,6 +472,9 @@ def forbid_real_commands(case):
                     side_effect=AssertionError('a unit test tried to run a real command'))
     patcher.start()
     case.addCleanup(patcher.stop)
+    helper = patch('token_tv.tablet_metrics.tablet_cpu_sensor.installed', return_value=False)
+    helper.start()
+    case.addCleanup(helper.stop)
 
 
 class CollectTests(unittest.TestCase):

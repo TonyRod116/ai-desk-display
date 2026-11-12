@@ -39,6 +39,40 @@
   };
   const level = (percent) => percent >= 90 ? 'critical' : percent >= 75 ? 'low' : percent >= 55 ? 'warning' : 'healthy';   // a busy machine goes from green to red
 
+  const memoryAction = { busy: false, result: null, timer: 0 };
+  function availableSize(bytes) {
+    const gb = bytes / (1024 ** 3);
+    if (gb < 1) return Math.round(bytes / (1024 ** 2)) + ' MB';
+    if (gb >= 1024) return (gb / 1024).toFixed(1) + ' TB';
+    return gb.toFixed(1) + ' GB';
+  }
+  function memoryHint() {
+    if (memoryAction.busy) return t('memory_working');
+    const result = memoryAction.result;
+    if (!result) return t('memory_touch');
+    if (result.state === 'done') {
+      const names = Array.isArray(result.apps) ? result.apps.filter((x) => x === 'Slack' || x === 'OneDrive').join(' + ') : '';
+      const observed = valid(result.before) && valid(result.after) ? ' · ' + t('memory_available') + ' ' + availableSize(result.before) + ' → ' + availableSize(result.after) : '';
+      return t('memory_done') + (names ? ': ' + names : '') + observed;
+    }
+    const word = { nothing: 'memory_nothing', unavailable: 'memory_unavailable', unknown: 'memory_unknown', busy: 'memory_busy', cooldown: 'memory_cooldown' }[result.state] || 'memory_unknown';
+    return t(word);
+  }
+  async function releaseMemory() {
+    if (memoryAction.busy) return;
+    clearTimeout(memoryAction.timer); memoryAction.busy = true; memoryAction.result = null; renderComputer();
+    const controller = new AbortController(), timer = setTimeout(() => controller.abort(), 45000);
+    try {
+      const response = await fetch('/api/memory/release', { method:'POST', headers:{'Content-Type':'application/json'}, body:'{}', cache:'no-store', signal:controller.signal });
+      const result = await response.json();
+      memoryAction.result = result && typeof result === 'object' ? result : {state:'unknown'};
+    } catch (_) { memoryAction.result = {state:'unknown'}; }
+    finally {
+      clearTimeout(timer); memoryAction.busy = false; renderComputer();
+      memoryAction.timer = setTimeout(() => { if (!memoryAction.busy) { memoryAction.result = null; renderComputer(); } }, 12000);
+    }
+  }
+
   /* ---- the Computer page */
   function gauge(title, big, unit, percent, history, extra) {
     const card = el('article', 'gauge'); if (valid(percent)) card.dataset.level = level(percent);
@@ -66,6 +100,7 @@
   function renderComputer() {
     const root = $('#computer'); if (!root || !ctx) return;
     const latest = ctx.latest(), m = latest && latest.metrics || {}, history = m.history || {};
+    const restoreMemoryFocus = document.activeElement?.dataset.memoryAction === 'true';
     root.replaceChildren();
     const head = el('div', 'sheet-head'); head.append(el('h2', '', t('computer')));
     const facts = el('div', 'facts');
@@ -76,11 +111,24 @@
     const gpu = Array.isArray(m.gpus) ? m.gpus[0] || {} : {};
     const used = m.memory && valid(m.memory.total) && m.memory.total > 0 && valid(m.memory.free) ? m.memory.total - m.memory.free : null;
     const grid = el('div', 'gauges');
+    const memoryCard = gauge(t('memory'), used === null ? '—' : ctx.size(used).replace(/ (GB|TB)$/, ''), used === null ? '' : ctx.size(used).slice(-2) + ' / ' + ctx.size(m.memory.total), used === null ? null : 100 * used / m.memory.total, history.memory);
+    memoryCard.classList.add('gauge-action'); memoryCard.dataset.memoryAction = 'true';
+    memoryCard.setAttribute('role', 'button'); memoryCard.setAttribute('tabindex', '0');
+    memoryCard.setAttribute('aria-label', t('memory_touch') + '. ' + t('memory_scope'));
+    const pcAvailable = Boolean(latest && m.memory);
+    if (!pcAvailable) memoryCard.setAttribute('aria-label', t('memory_pc'));
+    memoryCard.setAttribute('aria-disabled', String(memoryAction.busy || !pcAvailable));
+    const hint = el('div', 'memory-action-hint', pcAvailable ? memoryHint() : t('memory_pc')); hint.setAttribute('aria-live', 'polite');
+    const actionRow = el('div', 'memory-action-row'); actionRow.append(hint, el('div', 'memory-action-scope', t('memory_scope')));
+    memoryCard.append(actionRow);
+    memoryCard.addEventListener('click', () => { if (pcAvailable) releaseMemory(); });
+    memoryCard.addEventListener('keydown', (event) => { if (pcAvailable && !event.repeat && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); releaseMemory(); } });
     grid.append(
       gauge('CPU', valid(m.cpu_temp_c) ? String(Math.round(m.cpu_temp_c)) : '—', '°C', m.cpu_percent, history.cpu),
       gauge('GPU', valid(gpu.temp_c) ? String(Math.round(gpu.temp_c)) : '—', '°C', gpu.percent, history.gpu),
-      gauge(t('memory'), used === null ? '—' : ctx.size(used).replace(/ (GB|TB)$/, ''), used === null ? '' : ctx.size(used).slice(-2) + ' / ' + ctx.size(m.memory.total), used === null ? null : 100 * used / m.memory.total, history.memory));
+      memoryCard);
     root.append(grid);
+    if (restoreMemoryFocus) memoryCard.focus({ preventScroll: true });
 
     const procs = m.processes;
     if (procs && (Array.isArray(procs.cpu) || Array.isArray(procs.memory))) {
@@ -110,6 +158,32 @@
 
   /* ---- the Small screen page (a remote; the board keeps its own settings in its own control room) */
   const remote = { status: null, loaded: false, busy: false, note: '', noteTimer: 0 };
+  const remotePreviews = new Map(), previewQueue = [];
+  let previewsLoading = 0;
+  const remoteVisible = () => !document.hidden && document.querySelector('#dots [aria-current]')?.dataset.page === 'remote';
+  function pumpPreviews() {
+    if (!remoteVisible()) return;
+    while (previewsLoading < 2 && previewQueue.length) {
+      const { index, node } = previewQueue.shift();
+      if (!node.isConnected || remotePreviews.get(index)?.node !== node) continue;
+      previewsLoading++;
+      let finished = false;
+      const done = () => { if (!finished) { finished = true; previewsLoading--; pumpPreviews(); } };
+      node.addEventListener('load', done, { once: true });
+      node.addEventListener('error', () => { node.hidden = true; done(); }, { once: true });
+      node.src = '/api/board/preview/' + index + '.png';
+    }
+  }
+  function slotPreview(slot) {
+    if (!Number.isInteger(slot.index) || slot.index < 0 || slot.index > 7 || !slot.name) return null;
+    const cached = remotePreviews.get(slot.index), now = Date.now();
+    if (cached && cached.name === slot.name && now - cached.at < 60000) return cached.node;
+    const image = el('img', 'slot-preview');
+    image.alt = ''; image.setAttribute('aria-hidden', 'true'); image.draggable = false;
+    remotePreviews.set(slot.index, { name: slot.name, at: now, node: image });
+    previewQueue.push({ index: slot.index, node: image });
+    return image;
+  }
   async function loadRemote() {
     try {
       const response = await fetch('/api/board', { cache: 'no-store' });
@@ -159,10 +233,12 @@
     const list = s && Array.isArray(s.slots) && s.slots.length ? s.slots : Array.from({ length: 8 }, (_, i) => ({ index: i, name: String(i + 1) }));
     list.slice(0, 8).forEach((slot) => {
       const b = el('button', 'slot-button'); b.type = 'button'; b.disabled = off; b.setAttribute('aria-pressed', String(s && s.page === slot.index));
+      const preview = usable && remoteVisible() ? slotPreview(slot) : null; if (preview) b.append(preview);
       b.append(el('i', '', String(slot.index + 1)), el('span', '', slot.name || String(slot.index + 1)));
       b.addEventListener('click', () => sendRemote('page', slot.index)); grid.append(b);
     });
     slots.append(grid); root.append(slots);
+    pumpPreviews();  // at most two local reads; never request pictures on another page
 
     const rows = el('section', 'remote-block');
     const row = (label, control) => { const r = el('div', 'remote-row'); r.append(el('span', 'remote-label', label), control); return r; };
@@ -262,12 +338,21 @@
     const info = ctx.appInfo();
     const line = el('div', 'settings-row'); line.append(el('label', '', info.installed ? t('app_version') : t('app_none')), el('b', 'value', info.version || ''));
     app.append(line);
+    if (info.offline) {
+      const row = el('div', 'settings-row'), status = el('b', 'value'); status.id = 'offline-status'; status.setAttribute('role', 'status');
+      row.append(el('label', '', t('local_scenes')), status); app.append(row);
+      const details = el('p', 'hint'); details.id = 'offline-details'; app.append(details);
+      app.append(el('p', 'hint', t('local_note')));
+      const save = el('button', 'action', t('local_save')); save.type = 'button'; save.id = 'offline-save';
+      save.addEventListener('click', () => { ctx.saveOffline(); updateOffline(); }); app.append(save);
+    }
     if (info.installed && info.update) {
       const row = el('div', 'settings-row'); const b = el('button', 'action', t('app_update_button')); b.type = 'button'; b.addEventListener('click', () => ctx.startAppUpdate());
       row.append(el('label', '', t('app_update_ready') + ' · 1.' + info.update.from + ' → 1.' + info.update.to), b); app.append(row);
     } else if (info.installed && info.apk) { app.append(Object.assign(el('p', 'hint', t('app_up_to_date')))); }
     if (info.apk && !info.installed) { const row = el('div', 'settings-row'); const a = el('a', 'action', t('app_install')); a.href = '/app/ai-desk-tablet.apk'; a.setAttribute('download', ''); row.append(el('label', '', ''), a); app.append(row); }
     body.append(app);
+    updateOffline();
     const about = el('section', 'settings-card'); about.append(el('h3', '', t('settings_about')));
     const lang = el('div', 'settings-row'); lang.append(el('label', '', t('language')), segmented([['en', 'English'], ['es', 'Español']], ctx.language(), (v) => ctx.setLanguage(v), false)); about.append(lang);
     about.append(el('p', 'hint', ctx.aboutText())); body.append(about);
@@ -275,7 +360,16 @@
   }
 
   function init(context) { ctx = context; }
-  const api = { init, renderComputer, renderRemote, renderSettings, loadRemote, sparkline, rate, duration, level };
+  function updateOffline() {
+    const status = $('#offline-status'); if (!status || !ctx) return;
+    const info = ctx.appInfo().offline; if (!info) return;
+    const key = info.busy ? 'local_saving' : info.state === 'storage' ? 'local_storage' : info.state === 'sign_in' ? 'local_sign_in' : info.ready ? 'local_ready' : 'local_waiting';
+    status.textContent = t(key);
+    const details = $('#offline-details');
+    if (details) details.textContent = info.count ? info.done + '/' + info.count + ' ' + t('local_files') + ' · ' + availableSize(info.bytes) + ' / ' + availableSize(info.total) : '';
+    const save = $('#offline-save'); if (save) save.disabled = Boolean(info.busy);
+  }
+  const api = { init, renderComputer, renderRemote, renderSettings, updateOffline, loadRemote, sparkline, rate, duration, level };
   global.TabletPanels = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })(typeof window !== 'undefined' ? window : globalThis);

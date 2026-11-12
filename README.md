@@ -24,12 +24,12 @@ Now it tells me when I'm running out of AI. Still no Bitcoin, but at least somet
 - **A tablet:** use the portrait dashboard on its own. No NerdMiner or small board required.
 - **Something else:** start with whichever version is closer and ask an AI coding assistant to help adapt it to your screen. That mysterious display in your drawer may finally have a purpose.
 
-Use one, or use both — you don't need to collect them all. In each setup, a computer runs the readers and supplies fresh data. Other hardware may need a driver, firmware changes and testing.
+Use one, or use both — you don't need to collect them all. A computer supplies fresh readings; the Android app can keep its saved scenery running without it. Other hardware may need a driver, firmware changes and testing.
 
 ## What does it show?
 
 - **Claude and Codex:** weekly usage remaining and when it resets, plus Claude's five-hour limit when available.
-- **Saved resets and credits:** up to three hearts when the provider reports them. When Codex's week runs out, verified extra credits replace the percentage. If the balance is unavailable, it stays unknown — we're not inventing free tokens for you.
+- **Saved resets and credits:** up to three hearts when the provider reports them. Credits replace the percentage only when the week is completely exhausted **and** a positive balance is confirmed. Even a sliver of quota stays quota. No mystery credits pulled out of a hat.
 - **Your computer, on the tablet:** CPU and GPU usage and temperatures, memory, multiple drives, time and date. There's optional weather and alerts for low quota, renewed limits and low disk space.
 
 Some readings depend on your plan, clients and hardware. If something is missing or stale, the display says so instead of inventing a reassuring number. Claude's saved-reset balance needs an [optional local browser extension](docs/claude-bank-local.md).
@@ -49,9 +49,11 @@ There's also [Hyrule Quest](docs/board-quest.md), older designs and more in the 
 
 ## An old tablet gets a new job
 
-Got an old Android tablet? Use it as your display, with no NerdMiner needed. It shows your AI limits, computer stats and animated scenes in portrait. Tap the clock for **picture mode**, swipe between scenes, or double-tap to pick one. Weekly bars have seven divisions; Claude's five-hour bar has five. When Codex's week runs out, its credit balance takes centre stage; the empty bar still refers to the weekly allowance.
+Got an old Android tablet? Use it as your display, with no NerdMiner needed. It shows your AI limits, computer stats and animated scenes in portrait. Tap the clock for **picture mode**, swipe between scenes, or double-tap to pick one. Weekly bars have seven divisions; Claude's five-hour bar has five. Confirmed positive credits appear after the week runs out; the empty bar still means an exhausted week.
 
 It can rotate scenes by time of day and show your photos. If you also have the little display, the tablet can control it remotely; their scene settings remain separate.
+
+**PC off. Scenery on.** The [Android app](docs/tablet-app.md) now carries its interface inside the APK and saves prepared scenes, videos and photos on the tablet. Wait for **Settings → APP → Ready offline**, then its clock, animations, picture mode and display settings can keep going without the computer. Fresh quotas, weather updates, computer readings and PC/board controls still need it. The sunset gets to work from home.
 
 | Tablet dashboard | Picture mode |
 |:---:|:---:|
@@ -62,6 +64,14 @@ It can rotate scenes by time of day and show your photos. If you also have the l
 | **Versus**<br><img src="docs/images/tablet-versus.png" width="260" alt="Versus tablet dashboard with Codex and Claude characters"> | **Versus · animated**<br><img src="docs/images/tablet-picture-versus.gif" width="260" alt="Animated picture mode with Codex and Claude fighting"> |
 
 *Fictional readings and credits, real animations. Tidal Rush and Infinite Express use optional custom artwork; Versus shows the bundled original stage.* [See the four-scene tour](docs/images/tablet-picture-mode-scenes.gif) · [Tablet setup](docs/tablet.md).
+
+| Saved on the tablet | A tiny control room |
+|:---:|:---:|
+| <img src="docs/images/tablet-offline-ready.png" width="260" alt="Android app settings showing saved scenes ready offline, with synthetic demo data"> | <img src="docs/images/tablet-screen-previews.png" width="260" alt="Small-screen remote with dimmed synthetic scene previews behind each name"> |
+
+The latest extras: picture mode and scene choices survive a restart; the small-screen remote has previews; and an optional Windows memory button trims only idle Slack/OneDrive processes. It closes nothing, and the gain may be temporary. RAM still refuses to grow on trees. [Computer controls](docs/tablet-host-controls.md).
+
+Using your own **Peaceful House** artwork? Its preparer now adds broken gold/silver reflections aligned with the sunset and moon, and faster water in all four dayparts while keeping the bird's visit at its original pace. Your tropical daydream can stay tropical. [Scene and offline notes](docs/tablet-offline.md).
 
 ## A screen library, not just eight slots
 
@@ -104,7 +114,7 @@ On Windows, use `py -m venv .venv` and `.venv\Scripts\Activate.ps1`. The full re
 First, install the project as above, sign in to the official Claude Code and/or Codex CLI clients you use, and run `ai-desk-display setup`. Start the monitor and readers using the [setup guide](docs/setup.md), then pick your screen:
 
 - **NerdMiner-style touchscreen:** the reference is the 2.8-inch **ESP32-2432S028R / Cheap Yellow Display**, used by many NerdMiner V2 boards. Check your exact model: flashing replaces the mining app. Follow the [hardware](docs/hardware.md), [firmware](firmware/board/README.md) and [board pairing](docs/setup.md#2-connect-the-touchscreen-board) guides, then open **http://127.0.0.1:8787**.
-- **Tablet:** follow the [tablet guide](docs/tablet.md) to start its service and connect over Wi-Fi using HTTPS and a password. You can skip the board pairing and firmware steps entirely. A browser works; the [optional Android app](docs/tablet-app.md) adds screen-on behaviour and certificate pinning. Compare the certificate fingerprint before trusting it.
+- **Tablet:** follow the [tablet guide](docs/tablet.md) to connect over Wi-Fi using HTTPS and a password. Skip board pairing and firmware entirely. A browser works; the [Android app](docs/tablet-app.md) adds saved offline scenes, screen-on behaviour and certificate pinning. Build it for your own computer and compare the certificate fingerprint before trusting the connection.
 - **Another display:** start from the tablet or small-screen version and [adapt it with AI](#make-it-yours-with-or-without-ai).
 
 **Got a GeekMagic SmallTV Ultra?** That's a different integration, not the touchscreen firmware. See the [SmallTV guide](docs/smalltv-ultra.md).
@@ -117,6 +127,7 @@ If you use the small touchscreen, reserve its IP address in your router (a **DHC
 
 - Rendering and the computer dashboard are local. Enabled readers still contact the **official providers**; optional weather contacts Open-Meteo when enabled.
 - The computer and monitor must be running for fresh readings. A compatible small board can keep animating stored scenes, but old data becomes unavailable.
+- The Android app saves artwork and display preferences, **not live quotas, balances or computer readings**. Its offline scene cache stays in private app storage; interrupted downloads keep the last complete pack. [How it works](docs/tablet-offline.md).
 - The small board uses unencrypted HTTP on your local network. Use a trusted network and don't expose its ports to the Internet. Automatic rediscovery can send the pairing token to devices on the saved subnet; [read the details](docs/setup.md#troubleshooting).
 - Your accounts, credentials, pairing files and optional source artwork are yours. They aren't included in the repository.
 

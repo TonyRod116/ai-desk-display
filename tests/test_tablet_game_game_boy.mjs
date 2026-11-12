@@ -96,7 +96,7 @@ test('a known week: number, ten-part gauge fraction, countdown, hearts; zero and
   assert.ok(Math.abs(m.codex.fill - 0.876) < 1e-9);
   assert.deepEqual([m.claude.text, m.claude.reset, m.claude.hearts.full, m.claude.hearts.dot], ['64%', '1.5D', 3, true]);
   const zero = gb.hudModel({providers: {codex: provider(week(0, 5)), claude: provider(week(100, 5))}}, NOW, 0);
-  assert.deepEqual([zero.codex.known, zero.codex.text, zero.codex.fill], [true, 'CR ?', 0]);
+  assert.deepEqual([zero.codex.known, zero.codex.text, zero.codex.fill], [true, '0%', 0]);
   assert.deepEqual([zero.claude.known, zero.claude.text, zero.claude.fill], [true, '100%', 1]);
   assert.notEqual(zero.codex.fill, gb.hudModel(null, NOW, 0).codex.fill, 'a real zero differs from unknown');
   // a week is known only with a percentage and a reset still ahead
@@ -666,9 +666,10 @@ test('the Game Boy replaces each exhausted week with its supplied credit balance
   assert.equal(model.claude.text,'CR 12.5');
   assert.equal(model.codex.fill,0,'the weekly meter still truthfully shows the empty week');
   assert.notEqual(model.key,gb.hudModel({providers:{codex:{...codex,credits:'2467'},claude}},NOW,0).key,'credit changes repaint the HUD');
-  assert.equal(gb.hudModel({providers:{codex:{...codex,credits:'?'}}},NOW,0).codex.text,'CR ?');
-  assert.equal(gb.hudModel({providers:{claude:{...claude,credits:null}}},NOW,0).claude.text,'CR ?','an unavailable Claude balance is unknown, never zero');
-  assert.equal(gb.hudModel({providers:{codex:{...codex,credits:'12<script>'}}},NOW,0).codex.text,'CR ?');
+  for (const credits of ['?',null,'0','0.00','-2.35','-<0.01','12<script>']) {
+    assert.equal(gb.hudModel({providers:{claude:{...claude,credits}}},NOW,0).claude.text,'0%','no credit mode without positive confirmed credit');
+  }
+  assert.equal(gb.hudModel({providers:{claude:{...claude,weekly:week(0.2),credits:'12.5'}}},NOW,0).claude.text,'1%');
   assert.equal(gb.hudModel({providers:{codex:{...codex,weekly:week(1)}}},NOW,0).codex.text,'1%');
   assert.equal(gb.hudModel({providers:{codex:{...codex,weekly:week(0,-1)}}},NOW,0).codex.text,'--');
   assert.equal(gb.hudModel({providers:{codex}},NOW,46000).codex.text,'--','old data never displays a balance');

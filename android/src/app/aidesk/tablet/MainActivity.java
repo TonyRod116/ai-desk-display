@@ -56,8 +56,8 @@ import java.security.cert.X509Certificate;
 import java.util.HashMap;
 
 /**
- * AI Desk on the tablet: a full-screen WebView around the page the PC serves, nothing more. The page stays the user interface
- * (one code base); the app adds what a browser tab cannot: the real backlight, a screen that stays on, full screen that
+ * AI Desk on the tablet: a bundled full-screen interface with verified scene resources saved in private app storage. The PC
+ * supplies live readings and controls. The page stays one code base; the app adds the real backlight, a screen that stays on, full screen that
  * survives a reload, a pinned certificate instead of a warning, sounds without a first tap, battery and light readings.
  *
  * <p>Trust is narrow on purpose: the only address ever loaded is {@link Config#ORIGIN}; a certificate that is not the pinned
@@ -74,6 +74,13 @@ public final class MainActivity extends Activity {
     private TextView overlayTitle;
     private TextView overlayHint;
     private Loader loader;                // decides when to load, wait and retry (plain Java, tested on a desktop JVM)
+    private OfflineStore offline;
+    private final Runnable offlineTick = new Runnable() {
+        @Override public void run() {
+            if (offline != null) offline.sync(false);
+            handler.postDelayed(this, 60000);
+        }
+    };
     private final Updater updater = new Updater(new Updater.Host() {   // the update of this app from the PC, on the user's tap
         @Override
         public android.content.Context context() {
@@ -142,6 +149,12 @@ public final class MainActivity extends Activity {
             getWindow().setAttributes(params);
         }
         sensors = (SensorManager) getSystemService(SENSOR_SERVICE);
+        offline = new OfflineStore(this, new OfflineStore.Host() {
+            @Override public String cookie() { return CookieManager.getInstance().getCookie(Config.ORIGIN); }
+            @Override public void changed() {
+                runOnUiThread(() -> { if (web != null) web.evaluateJavascript("window.aiDeskOfflineChanged && window.aiDeskOfflineChanged()", null); });
+            }
+        });
 
         root = new FrameLayout(this);
         root.setBackgroundColor(Color.BLACK);
@@ -170,6 +183,8 @@ public final class MainActivity extends Activity {
     protected void onStart() {
         super.onStart();
         watchNetwork();
+        offline.resume();
+        handler.postDelayed(offlineTick, 60000);
         loader.resume();   // a page that is not showing starts again; one that shows is left alone
     }
 
@@ -198,6 +213,8 @@ public final class MainActivity extends Activity {
     @Override
     protected void onStop() {
         loader.pause();   // no retry timers while the app is away
+        offline.pause();
+        handler.removeCallbacks(offlineTick);
         unwatchNetwork();
         super.onStop();
     }
@@ -205,6 +222,7 @@ public final class MainActivity extends Activity {
     @Override
     protected void onDestroy() {
         updater.release();
+        if (offline != null) offline.pause();
         handler.removeCallbacksAndMessages(null);
         if (web != null) {
             root.removeView(web);
@@ -357,6 +375,10 @@ public final class MainActivity extends Activity {
                 return new WebResourceResponse("text/plain", "utf-8", 403, "Blocked",
                         new HashMap<String, String>(), new ByteArrayInputStream(new byte[0]));
             }
+            if (network && offline != null) {
+                WebResourceResponse saved = offline.serve(request);
+                if (saved != null) return saved;
+            }
             return null;
         }
 
@@ -370,7 +392,7 @@ public final class MainActivity extends Activity {
                 return;
             }
             handler.cancel();
-            if (ours && view == web) {
+            if (ours && view == web && !OfflineStore.localPage(view.getUrl())) {
                 loader.fail(true);
             }
         }
@@ -422,6 +444,7 @@ public final class MainActivity extends Activity {
             CookieManager.getInstance().flush();
             if (view == web && Guard.sameOrigin(Config.ORIGIN, url)) {
                 loader.loaded();
+                if (OfflineStore.localPage(url)) offline.sync(false);
             }
         }
 
@@ -537,6 +560,7 @@ public final class MainActivity extends Activity {
                         public void run() {
                             if (web != null) {
                                 loader.networkAvailable();
+                                if (offline != null) offline.sync(false);
                             }
                         }
                     });
@@ -652,6 +676,10 @@ public final class MainActivity extends Activity {
             }
         });
     }
+
+    String offlineStatus() { return offline == null ? "{}" : offline.status(); }
+
+    String syncOffline() { return offline == null ? "waiting" : offline.sync(true); }
 
     void reloadPage() {
         runOnUiThread(new Runnable() {

@@ -6,6 +6,11 @@ from token_tv import tablet_metrics
 
 
 class TabletMetricsTests(unittest.TestCase):
+    def setUp(self):
+        installed = patch('token_tv.tablet_metrics.tablet_cpu_sensor.installed', return_value=False)
+        installed.start()
+        self.addCleanup(installed.stop)
+
     def test_windows_metrics_keep_each_disk_and_real_zero(self):
         data = {
             'cpu': [{'LoadPercentage': 40, 'NumberOfLogicalProcessors': 8}],

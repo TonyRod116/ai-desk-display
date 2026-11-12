@@ -2,7 +2,7 @@
 
 Tony asked for the two displays to stay apart ("different configuration and screens, so there is less mess"): the tablet never reads
 or writes the board's settings, files or token and never talks to the board. This module is the ONLY bridge. It asks the monitor's
-control room (the same routes its own page, `/board`, uses, on 127.0.0.1) to do four things and nothing else:
+control room (the same routes its own page, `/board`, uses, on 127.0.0.1) for four controls and cached page previews:
 
     page      0..7                           show a stored page
     rotation  0 | 30 | 60                    change pages by themselves, in minutes (0 = stay on one page)
@@ -10,10 +10,10 @@ control room (the same routes its own page, `/board`, uses, on 127.0.0.1) to do 
     night     {enabled, start, end, level}   the board's night schedule, kept and applied by the monitor
 
 Every value is checked here exactly as `board_control.BoardControl.execute` checks it (tests/test_tablet_board.py runs both side by
-side), and a refused value never causes a request. The only reachable routes are `GET /board/status` and the four `POST /board/<name>`
+side), and a refused value never causes a request. The only reachable routes are `GET /board/status`, `GET /board/preview/0..7.png` and the four `POST /board/<name>`
 paths above, written out below; nothing is built from the caller's text. No token, cookie or Origin header is ever sent, redirects and
-proxies are not followed, and at most 64 KiB of an answer is read. What leaves this module is a fixed shape and fixed words: never the
-monitor's body, an exception's text, an address or a token.
+proxies are not followed. JSON answers are limited to 64 KiB; the eight existing page previews are validated PNGs limited to 512 KiB.
+Status and command answers use a fixed shape and fixed words: never an error body, exception text, address or token.
 
 `BoardRemote.status()` returns these keys, always (unknown is None, never a made-up value):
 
@@ -50,7 +50,8 @@ import urllib.request
 
 DEFAULT_BASE = 'http://127.0.0.1:8787'
 STATUS_SECONDS = 15          # one real status request at most this often: the board is probed gently, and the monitor polls it too
-RESPONSE_LIMIT = 64 * 1024   # bytes of an answer ever read
+RESPONSE_LIMIT = 64 * 1024   # bytes of a JSON answer ever read
+PREVIEW_LIMIT = 512 * 1024  # maximum size of one already-rendered PNG
 PAGES = 8
 ROTATIONS = (0, 30, 60)
 SPEEDS = (75, 100, 125)
@@ -207,6 +208,7 @@ class BoardRemote:
         self._clock = clock
         self._fetch = threading.Lock()      # one real status request at a time; the others then find it cached
         self._command = threading.Lock()    # one command at a time; held for the whole request
+        self._preview = threading.BoundedSemaphore(2)  # keep eight tablet images from loading the monitor at once
         self._state = threading.Lock()      # guards the cache and its epoch only; never held while waiting for the monitor
         self._cache = None                  # (when, status)
         self._epoch = 0                     # +1 whenever a command has been tried: a status fetched across it is not kept
@@ -227,6 +229,32 @@ class BoardRemote:
                 if epoch == self._epoch:    # a command ended while this was in flight: it may predate the change
                     self._cache = (self._clock(), result)
             return _copy(result)
+
+    def preview(self, index):
+        """One cached PNG of an existing page, or None. No device request or redirects."""
+        if type(index) is not int or not 0 <= index < PAGES:
+            return None
+        if not self._preview.acquire(timeout=2):
+            return None
+        try:
+            route = '/board/preview/' + str(index) + '.png'
+            request = urllib.request.Request(self._base + route, headers={'Host': self._host}, method='GET')
+            try:
+                with self._opener.open(request, timeout=min(self._timeout, 3)) as response:
+                    if (response.headers.get('Content-Type', '').split(';', 1)[0].strip().lower() != 'image/png'):
+                        return None
+                    data = self._read(response, PREVIEW_LIMIT)
+            except urllib.error.HTTPError as error:
+                error.close()
+                return None
+            except (OSError, http.client.HTTPException, ValueError, _Failed):
+                return None
+            if (len(data) < 24 or data[:8] != b'\x89PNG\r\n\x1a\n' or data[8:16] != b'\x00\x00\x00\rIHDR'):
+                return None
+            width, height = int.from_bytes(data[16:20], 'big'), int.from_bytes(data[20:24], 'big')
+            return data if 16 <= width <= 1024 and 16 <= height <= 1024 else None
+        finally:
+            self._preview.release()
 
     def command(self, name, value):
         """Ask the control room for one allowed change. One at a time, `min_gap` apart; never raises, never queues."""
@@ -275,26 +303,26 @@ class BoardRemote:
             raise _Failed('unavailable')
         return parsed
 
-    def _read(self, response):
-        """The whole answer, at most RESPONSE_LIMIT bytes and `timeout` seconds in total (a slow trickle does not hold the lock)."""
+    def _read(self, response, limit=RESPONSE_LIMIT):
+        """The whole bounded answer, with a deadline even if bytes arrive slowly."""
         if getattr(response, 'status', None) != 200:
             raise _Failed('unavailable')
         try:
             declared = int((getattr(response, 'headers', None) or {}).get('Content-Length', ''))
         except (TypeError, ValueError):
             declared = 0
-        if declared > RESPONSE_LIMIT:
+        if declared > limit:
             raise _Failed('unavailable')
         read = getattr(response, 'read1', response.read)
         deadline = time.monotonic() + self._timeout
         chunks, size = [], 0
         while True:
-            chunk = read(min(8192, RESPONSE_LIMIT + 1 - size))
+            chunk = read(min(8192, limit + 1 - size))
             if not chunk:
                 return b''.join(chunks)
             chunks.append(chunk)
             size += len(chunk)
-            if size > RESPONSE_LIMIT:
+            if size > limit:
                 raise _Failed('unavailable')
             if time.monotonic() > deadline:
                 raise _Failed('timeout')

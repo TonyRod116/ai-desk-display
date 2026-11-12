@@ -5,7 +5,7 @@ import tempfile
 import threading
 import unittest
 
-from token_tv.tablet_server import Auth, Feeds, Handler, TabletServer
+from token_tv.tablet_server import Auth, Feeds, Handler, TabletServer, clean_report
 
 
 class FakeFeeds:
@@ -14,6 +14,14 @@ class FakeFeeds:
 
 
 class FeedTests(unittest.TestCase):
+    def test_offline_diagnostics_keep_only_bounded_progress_not_readings_or_paths(self):
+        result = clean_report({'why':'tick', 'offline_state':'ready', 'offline_ready':True, 'offline_done':79,
+                               'offline_count':79, 'offline_bytes':1000, 'offline_total':1000,
+                               'providers':{'claude':{'credits':123}}, 'path':'private', 'cookie':'private'})
+        self.assertEqual(set(result), {'why','offline_state','offline_ready','offline_done','offline_count','offline_bytes','offline_total'})
+        self.assertEqual(clean_report({'why':'tick', 'offline_count':True, 'offline_done':2.5,
+                                       'offline_total':2**40, 'offline_state':'unknown-private'}), {'why':'tick'})
+
     def test_old_or_unavailable_sources_do_not_stay_visible(self):
         feeds = Feeds()
         feeds.quota = {'providers': {'codex': {'weekly': {'remaining': 42}}}}
@@ -90,6 +98,67 @@ class TabletServerTests(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertIn('Secure; HttpOnly; SameSite=Strict', headers['Set-Cookie'])
         return headers['Set-Cookie'].split(';', 1)[0]
+
+    def test_offline_inventory_is_authenticated_same_origin_and_never_contains_readings(self):
+        self.assertEqual(self.request('GET', '/api/offline')[0], 401)
+        headers = {'Cookie': self.login()}
+        self.assertEqual(self.request('GET', '/api/offline', headers={**headers, 'Origin':'https://evil.invalid'})[0], 403)
+        self.assertEqual(self.request('GET', '/api/offline', headers={**headers, 'Sec-Fetch-Site':'cross-site'})[0], 403)
+        status, _, raw = self.request('GET', '/api/offline', headers=headers)
+        self.assertEqual(status, 200)
+        data = json.loads(raw)
+        self.assertEqual({x['path'] for x in data['files']}, {'/api/scenes', '/api/photos'})
+        for private in (b'providers', b'metrics', b'Cookie', b'password'):
+            self.assertNotIn(private, raw)
+
+    def test_memory_action_requires_login_origin_and_an_empty_body(self):
+        class Memory:
+            calls = 0
+            def release(self): self.calls += 1; return {'state':'nothing','apps':[],'before':None,'after':None}
+        memory=Memory();self.server.memory=memory
+        origin={'Origin':'https://127.0.0.1:'+str(self.port)}
+        self.assertEqual(self.request('POST','/api/memory/release',{},origin)[0],401)
+        cookie=self.login();headers={**origin,'Cookie':cookie}
+        self.assertEqual(self.request('POST','/api/memory/release',{'pid':123},headers)[0],400)
+        self.assertEqual(self.request('POST','/api/memory/release',{}, {**headers,'Origin':'https://evil.invalid'})[0],403)
+        self.assertEqual(memory.calls,0)
+        status,_,body=self.request('POST','/api/memory/release',{},headers)
+        self.assertEqual(status,200);self.assertEqual(json.loads(body)['state'],'nothing');self.assertEqual(memory.calls,1)
+
+    def test_memory_action_reports_busy_and_uncertain_results_without_leaking_errors(self):
+        class Memory:
+            value = {'state':'cooldown','seconds':120}
+            def release(self):
+                if self.value == 'raise': raise RuntimeError('PRIVATE ERROR')
+                return self.value
+        memory=Memory();self.server.memory=memory
+        headers={'Cookie':self.login(),'Origin':'https://127.0.0.1:'+str(self.port)}
+        self.assertEqual(self.request('POST','/api/memory/release',{},headers)[0],429)
+        memory.value={'state':'busy'}
+        self.assertEqual(self.request('POST','/api/memory/release',{},headers)[0],409)
+        memory.value='raise'
+        status,_,body=self.request('POST','/api/memory/release',{},headers)
+        self.assertEqual(status,502);self.assertEqual(json.loads(body),{'state':'unknown'});self.assertNotIn(b'PRIVATE',body)
+
+    def test_board_preview_requires_login_and_same_origin(self):
+        class Board:
+            calls = []
+            def preview(self, index):
+                self.calls.append(index)
+                return b'fictional-png' if index == 3 else None
+        board = Board(); self.server.board = board
+        self.assertEqual(self.request('GET', '/api/board/preview/3.png')[0], 401)
+        self.assertEqual(board.calls, [])
+        cookie = self.login()
+        headers = {'Cookie': cookie}
+        status, response, body = self.request('GET', '/api/board/preview/3.png', headers=headers)
+        self.assertEqual((status, response['Content-Type'], body), (200, 'image/png', b'fictional-png'))
+        self.assertEqual(response['Cache-Control'], 'no-store')
+        self.assertEqual(board.calls, [3])
+        self.assertEqual(self.request('GET', '/api/board/preview/8.png', headers=headers)[0], 404)
+        self.assertEqual(self.request('GET', '/api/board/preview/3.png', headers={**headers, 'Sec-Fetch-Site':'cross-site'})[0], 403)
+        self.assertEqual(self.request('GET', '/api/board/preview/3.png', headers={**headers, 'Origin':'https://attacker.invalid'})[0], 403)
+        self.assertEqual(board.calls, [3])
 
     def test_public_access_never_exposes_data(self):
         status, _, body = self.request('GET', '/api/status')
