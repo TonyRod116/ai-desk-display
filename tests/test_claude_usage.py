@@ -291,10 +291,15 @@ class ClaudeUsageTests(unittest.TestCase):
         now = time.time() if now is None else now
         data = self.cache()
         when = int(now) + 7200
-        data['cachedUsageUtilization'].update(fetchedAtMs=(now - age) * 1000)
+        # A cache must exist before it is read, and the client uses whole milliseconds.
+        data['cachedUsageUtilization'].update(fetchedAtMs=int((now - age) * 1000) - 1)
         data['cachedUsageUtilization']['utilization'] = {'five_hour': {'utilization': 5, 'resets_at': when},
                                                          'seven_day': {'utilization': 66, 'resets_at': when + 86400}}
         return native_record(data, '/tmp/demo-claude', since=now - age - 5, now=now)
+
+    def test_a_synthetic_fresh_cache_was_written_before_it_is_read(self):
+        # This timestamp used to round slightly into the future after ms conversion.
+        self.assertIsNotNone(self.fresh_record(now=1000.000036))
 
     def test_one_failed_poll_keeps_a_reading_younger_than_the_hold_but_not_an_older_one(self):
         collector = self.load_collector('claude_collector_hold')
