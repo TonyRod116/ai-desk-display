@@ -115,6 +115,8 @@ class HouseTests(unittest.TestCase):
                 self.assertIsNone(ImageChops.difference(first, film.frame(1)).getbbox())
                 self.assertIsNotNone(ImageChops.difference(first, later).getbbox())
                 allowed = ImageChops.lighter(film.ocean_mask, film.sky)
+                if film.reflection is not None:
+                    allowed = ImageChops.lighter(allowed, film.reflection.mask)
                 outside = allowed.point(lambda value: 255 if value == 0 else 0)
                 self.assertIsNone(ImageChops.multiply(ImageChops.difference(first, later).convert('L'), outside).getbbox())
 
@@ -122,6 +124,28 @@ class HouseTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             with self.assertRaises(ValueError):
                 scene.PhotographicOcean(directory)
+
+    def test_reflection_paths_use_the_actual_light_positions_and_only_visible_sea(self):
+        for part in ('dusk','night'):
+            effect = scene.SeaReflection(part)
+            self.assertEqual(effect.point, scene.HOUSE_LIGHTS[part]['point'])
+            field = Image.new('RGB', scene.SIZE, (30,65,90))
+            first, later = effect.layer(field,0), effect.layer(field,.23)
+            self.assertIsNotNone(ImageChops.difference(first,later).getbbox())
+            self.assertIsNone(ImageChops.difference(first,effect.layer(field,1)).getbbox())
+            outside = scene.water_mask().point(lambda v:255 if v==0 else 0)
+            self.assertIsNone(ImageChops.multiply(first.getchannel('A'),outside).getbbox())
+            alpha=first.getchannel('A'); lo,hi=round(.42*scene.SIZE[1]),round(.61*scene.SIZE[1])
+            sums=[ImageStat.Stat(alpha.crop((x,lo,x+1,hi))).sum[0] for x in range(scene.SIZE[0])]
+            centroid=sum(x*v for x,v in enumerate(sums))/sum(sums)
+            self.assertAlmostEqual(centroid,scene.HOUSE_LIGHTS[part]['point'][0]*scene.SIZE[0],delta=10)
+
+    def test_water_can_run_faster_without_speeding_up_distant_birds(self):
+        film=scene.PeacefulHouse(self.image,'dusk')
+        first=film.frame(.1,atmosphere_phase=.2)
+        later=film.frame(.4,atmosphere_phase=.2)
+        outside=film.mask.point(lambda v:255 if v==0 else 0)
+        self.assertIsNone(ImageChops.multiply(ImageChops.difference(first,later).convert('L'),outside).getbbox())
 
     def test_recorded_ocean_does_not_repeat_frames_from_float_rounding(self):
         # Each frame is a different shade, so a duplicate reveals a missed

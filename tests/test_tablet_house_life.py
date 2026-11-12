@@ -7,15 +7,15 @@ from scripts import prepare_tablet_house_life as life
 
 
 class HouseLifeTests(unittest.TestCase):
-    def test_recorded_water_repeats_four_times_without_speeding_up_wildlife(self):
-        # 15 seconds per water cycle instead of the old 20-second slow motion;
-        # the bird still gets its complete 60-second visit.
+    def test_recorded_water_repeats_eight_times_without_speeding_up_wildlife(self):
+        # Faster water, but the bird keeps its complete 60-second visit.
         fps = life.FPS
         self.assertEqual(life.recorded_water_phase(0), 0)
-        self.assertAlmostEqual(life.recorded_water_phase(fps * 7.5), .5)
-        for seconds in (15, 30, 45, 60):
+        self.assertAlmostEqual(life.recorded_water_phase(fps * 3.75), .5)
+        for seconds in (7.5, 15, 30, 45, 60):
             self.assertEqual(life.recorded_water_phase(fps * seconds), 0)
-        self.assertGreater(life.recorded_water_phase(fps * 15 - 1), .99)
+        self.assertGreater(life.recorded_water_phase(fps * 7.5 - 1), .99)
+        self.assertEqual(life.RECORDED_SECONDS, 60)
 
     def test_visit_lands_and_leaves_with_no_loop_seam(self):
         self.assertIsNone(life.bird_state(0))

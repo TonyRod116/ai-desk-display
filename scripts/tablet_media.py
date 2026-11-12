@@ -48,7 +48,7 @@ def _write_atomically(path, writer, limit):
     return path
 
 
-def encode_webm(frames, fps, destination, *, scale=1, crf=8, max_kbps=10000, speed=1, qmax=40, rate_cap_kbps=None):
+def encode_webm(frames, fps, destination, *, scale=1, crf=8, max_kbps=10000, speed=1, qmax=40, rate_cap_kbps=None, threads=None):
     """Encode same-sized PIL frames into a looping-ready VP8 WebM. `scale` upscales with nearest neighbour first.
 
     Returns (width, height, frame_count). Raises RuntimeError without an encoder or when ffmpeg fails."""
@@ -56,6 +56,8 @@ def encode_webm(frames, fps, destination, *, scale=1, crf=8, max_kbps=10000, spe
     if ffmpeg is None:
         raise RuntimeError('No ffmpeg: install one or run `playwright install` for the one it bundles')
     count, size = 0, None
+    if threads is not None and (type(threads) is not int or not 1 <= threads <= 4):
+        raise ValueError('Encoder threads must be between one and four')
 
     def run(target):
         nonlocal count, size
@@ -65,6 +67,8 @@ def encode_webm(frames, fps, destination, *, scale=1, crf=8, max_kbps=10000, spe
                    '-cpu-used', str(speed), '-g', '90']
         if rate_cap_kbps is not None:
             command.extend(['-maxrate', f'{rate_cap_kbps}k', '-bufsize', f'{2 * rate_cap_kbps}k'])
+        if threads is not None:
+            command.extend(['-threads', str(threads)])
         command.extend(['-f', 'webm', str(target)])
         process = subprocess.Popen(command, stdin=subprocess.PIPE, stderr=subprocess.PIPE)
         try:

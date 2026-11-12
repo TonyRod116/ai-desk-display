@@ -1,7 +1,8 @@
 """Add occasional photographic wildlife to the existing private house films.
 
-The supplied sprite pictures and the films stay local. The original 18-second
-water film is repeated unchanged underneath a longer, loopable wildlife visit.
+The supplied sprite pictures and the films stay local. Recorded water completes
+eight 7.5-second cycles during the unchanged 60-second wildlife visit; the older
+18-second-film overlay path is retained separately.
 """
 import argparse
 import json
@@ -24,11 +25,12 @@ FPS = 24
 LOOPS = 3
 SECONDS = 54
 RECORDED_SECONDS = 60
-RECORDED_WAVE_SECONDS = 15
+RECORDED_WAVE_SECONDS = 7.5
+ATMOSPHERE_SECONDS = 15
 
 
 def recorded_water_phase(frame):
-    """Four water cycles per visit, with wildlife on its original 60-second clock."""
+    """Eight water cycles per visit, with wildlife on its original 60-second clock."""
     cycle = FPS * RECORDED_WAVE_SECONDS
     return (frame % cycle) / cycle
 
@@ -198,18 +200,18 @@ def prepare_recorded_house(source, ocean_frames, sprites, out, *, parts=PARTS):
         still = sea.frame(0)
         media.save_image(still, out / f'scene-{name}.jpg', quality=92)
         media.save_thumbnail(still, out / f'thumb-{name}.webp')
-        # Keep wildlife at its natural pace while the sea completes four
-        # 15-second cycles, returning cleanly at the end of the visit.
+        # Keep wildlife at its existing pace while the sea runs twice as fast.
         loop_seconds = RECORDED_SECONDS
         count = FPS * loop_seconds
 
         def frames():
             for index in range(count):
-                water = sea.frame(recorded_water_phase(index)).convert('RGBA')
+                air = (index % (FPS*ATMOSPHERE_SECONDS))/(FPS*ATMOSPHERE_SECONDS)
+                water = sea.frame(recorded_water_phase(index),atmosphere_phase=air).convert('RGBA')
                 yield Image.alpha_composite(water, life.frame(index / count)).convert('RGB')
 
         video = out / f'scene-{name}.webm'
-        width, height, written = media.encode_webm(frames(), FPS, video, crf=18, max_kbps=2200, speed=4)
+        width, height, written = media.encode_webm(frames(), FPS, video, crf=18, max_kbps=2200, speed=4, threads=1)
         if (width, height, written) != (*SIZE, count):
             raise RuntimeError('Incomplete house animation')
         media.update_manifest(name, media.scene_entry('photo', video.name, 'video', *SIZE, fps=FPS,

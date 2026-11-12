@@ -19,6 +19,10 @@ SIZE = (672, 1008)
 PARTS = ('dawn', 'day', 'dusk', 'night')
 SCENES = {'house': 'midnight-video-club', 'mountain': 'neon-district'}  # keep existing tablet selections
 TAU = 2 * math.pi
+HOUSE_LIGHTS = {
+    'dusk': {'point': (.55, .416), 'colour': (255, 202, 130), 'strength': .94},
+    'night': {'point': (.405, .275), 'colour': (211, 231, 245), 'strength': 1.25},
+}
 
 
 def sunset_layer(original):
@@ -72,7 +76,8 @@ def sunset_layer(original):
     # painted over the window frame, trees, sea or the little sailboat.
     glow = Image.new('L', SIZE)
     p = glow.load()
-    cx, cy = round(.55 * w), round(.416 * h)
+    lx, ly = HOUSE_LIGHTS['dusk']['point']
+    cx, cy = round(lx * w), round(ly * h)
     for y in range(max(0, cy - 65), min(h, cy + 24)):
         for x in range(max(0, cx - 70), min(w, cx + 71)):
             d = math.hypot(x - cx, (y - cy) * 1.1)
@@ -266,7 +271,8 @@ def night_house(original):
     result.alpha_composite(lamps)
 
     # The moon is restricted to the original sky, so it stays behind leaves.
-    cx, cy = round(.405 * w), round(.275 * h)
+    lx, ly = HOUSE_LIGHTS['night']['point']
+    cx, cy = round(lx * w), round(ly * h)
     halo = Image.new('L', SIZE)
     ImageDraw.Draw(halo).ellipse((cx - 24, cy - 24, cx + 24, cy + 24), fill=150)
     halo = ImageChops.multiply(halo.filter(ImageFilter.GaussianBlur(17)), sky)
@@ -350,6 +356,70 @@ def sky_mask():
     ImageDraw.Draw(mask).rectangle((round(.236 * SIZE[0]), round(.205 * SIZE[1]),
                                     round(.808 * SIZE[0]), round(.405 * SIZE[1])), fill=255)
     return mask
+
+
+class SeaReflection:
+    """Broken specular light under the actual sky source, following the water's fine crests.
+
+    This is a photographic compositing approximation, not a fluid simulation.
+    Only the alpha varies: room, shore and sky never move with this layer.
+    """
+    def __init__(self, part):
+        light = HOUSE_LIGHTS[part]
+        self.point, self.colour, self.strength = light['point'], light['colour'], light['strength']
+        w, h = SIZE
+        self.box = (round(.235*w), round(.420*h), round(.811*w), round(.610*h))
+        x0, y0, x1, y1 = self.box
+        width, height = x1-x0, y1-y0
+        self.mask = water_mask()
+        self.limit = self.mask.crop(self.box)
+        self.envelope = Image.new('L', (width,height))
+        pixels = self.envelope.load()
+        # Reflect the source vertically about the photographed horizon. The
+        # higher moon concentrates nearer the viewer; the low sun near the horizon.
+        mirror_y = 2*.420*h - self.point[1]*h
+        for row in range(height):
+            depth = row / max(1,height-1)
+            spread = (5 + 45*depth) if part == 'dusk' else (4 + 30*depth)
+            vertical = .25 + .75*math.exp(-((y0+row-mirror_y)/(115 if part=='dusk' else 65))**2)
+            for col in range(width):
+                cross = math.exp(-((x0+col-self.point[0]*w)/spread)**2)
+                pixels[col,row] = round(255*cross*vertical)
+        rng = random.Random(52651)
+        tile = Image.frombytes('L', (max(1,width//4),32), bytes(rng.randrange(256) for _ in range(max(1,width//4)*32)))
+        tile = tile.resize((width,32), Image.Resampling.BILINEAR).point(lambda v:max(0,min(255,round((v-116)*2.5))))
+        self.texture = Image.new('L', (width,height))
+        for y in range(0,height,32): self.texture.paste(tile,(0,y))
+
+    def layer(self, water, phase):
+        phase %= 1
+        width,height = self.envelope.size
+        shift = phase*32
+        offset = math.floor(shift)
+        texture = ImageChops.offset(self.texture,0,offset)
+        if shift-offset:
+            texture = Image.blend(texture,ImageChops.offset(texture,0,1),shift-offset)
+        # Fine bright ridges in the current photographic wave modulate the
+        # highlight. Troughs stay dark instead of acquiring an opaque light stripe.
+        luma = water.crop(self.box).convert('L')
+        crests = ImageChops.subtract(luma,luma.filter(ImageFilter.GaussianBlur(1.15)),offset=128)
+        crests = crests.point(lambda v:max(0,min(255,90+12*(v-128))))
+        mesh=[]
+        for y in range(0,height,12):
+            end=min(height,y+12)
+            def drift(row): return (1+3*row/height)*math.sin(TAU*(2*phase+row/68))
+            a,b=drift(y),drift(end)
+            mesh.append(((0,y,width,end),(a,y,b,end,width+b,end,width+a,y)))
+        envelope = self.envelope.transform(self.envelope.size,Image.Transform.MESH,mesh,Image.Resampling.BILINEAR)
+        alpha = ImageChops.multiply(envelope,ImageChops.multiply(crests,texture))
+        alpha = alpha.point(lambda v:min(255,round(v*self.strength)))
+        alpha = ImageChops.add(alpha,envelope.point(lambda v:round(v*.045)))
+        alpha = ImageChops.multiply(alpha,self.limit)
+        patch = Image.new('RGBA', self.envelope.size,self.colour+(0,))
+        patch.putalpha(alpha)
+        layer = Image.new('RGBA',SIZE)
+        layer.paste(patch,self.box[:2])
+        return layer
 
 
 def shore_wave_state(phase):
@@ -492,17 +562,11 @@ class PeacefulHouse:
         rng = random.Random(8614)
         ranges = (.25, .79, .43, .59) if kind == 'house' else (.01, .57, .66, .79)
         self.glints = [(rng.uniform(ranges[0], ranges[1]), rng.uniform(ranges[2], ranges[3]), rng.uniform(0, TAU), rng.randrange(1, 5)) for _ in range(100)]
-        self.moon_glints = [(rng.uniform(.427, .603), rng.uniform(-1, 1), rng.uniform(0, TAU), rng.uniform(.4, 1)) for _ in range(65)]
-        self.moon_path = Image.new('L', SIZE)
-        pen = ImageDraw.Draw(self.moon_path)
-        for y in range(round(.427 * SIZE[1]), round(.603 * SIZE[1])):
-            depth = (y / SIZE[1] - .427) / (.603 - .427)
-            half = round(7 + 36 * depth)
-            pen.line((round(.405 * SIZE[0]) - half, y, round(.405 * SIZE[0]) + half, y), fill=130)
-        self.moon_path = self.moon_path.filter(ImageFilter.GaussianBlur(9))
+        self.reflection = SeaReflection(part) if kind=='house' and part in HOUSE_LIGHTS else None
 
-    def frame(self, phase):
+    def frame(self, phase, *, atmosphere_phase=None):
         phase %= 1
+        atmosphere_phase = phase if atmosphere_phase is None else atmosphere_phase % 1
         w, h = SIZE
         water = self.water_base.copy()
         if self.ocean is not None:
@@ -560,34 +624,18 @@ class PeacefulHouse:
             draw.line((px, py, px + length, py), fill=(236, 247, 249, round(100 * t * intensity)), width=1)
         shine.putalpha(ImageChops.multiply(shine.getchannel('A'), self.mask))
         frame.alpha_composite(shine)
-        if self.kind == 'house' and self.part == 'night':
-            # Broken, gently changing moonlight follows the photographed waves.
-            shimmer = Image.new('RGBA', SIZE)
-            brightness = frame.convert('L').point(lambda value: max(0, min(255, (value - 24) * 4)))
-            reflected = ImageChops.multiply(self.moon_path, brightness)
-            shimmer.paste((179, 209, 230, 255), (0, 0, w, h))
-            shimmer.putalpha(reflected)
-            pen = ImageDraw.Draw(shimmer)
-            for y, offset, seed, gain in self.moon_glints:
-                depth = (y - .427) / (.603 - .427)
-                x = round(.405 * w + offset * (3 + 23 * depth) + 2 * math.sin(TAU * phase + seed))
-                py = round(y * h)
-                width = round(1 + depth * 5 * gain)
-                opacity = round((60 + 100 * gain) * (.68 + .32 * math.sin(TAU * phase + seed)))
-                pen.line((x, py, x + width, py), fill=(184, 217, 237, opacity), width=1)
-            limit = ImageChops.darker(self.mask, self.ocean_mask) if self.ocean_mask else self.mask
-            shimmer.putalpha(ImageChops.multiply(shimmer.getchannel('A'), limit))
-            frame.alpha_composite(shimmer)
+        if self.reflection is not None:
+            frame.alpha_composite(self.reflection.layer(frame,phase))
         if self.kind == 'house':
             # Distant birds enter and leave behind the doorway.
             birds = Image.new('RGBA', SIZE)
             pen = ImageDraw.Draw(birds)
             strength = {'dawn': .7, 'day': .8, 'dusk': .7, 'night': .16}[self.part]
             for offset, y, size in ((0.0, .322, 5), (.14, .337, 4), (.56, .290, 3)):
-                p = (phase + offset) % 1
+                p = (atmosphere_phase + offset) % 1
                 x = round((.83 - .62 * p) * w)
                 cy = round((y + .005 * math.sin(TAU * p)) * h)
-                wing = round(1.5 * math.sin(TAU * (5 * phase + offset)))
+                wing = round(1.5 * math.sin(TAU * (5 * atmosphere_phase + offset)))
                 pen.line(((x - size, cy - wing), (x - 2, cy), (x, cy + 1),
                           (x + 2, cy), (x + size, cy - wing)),
                          fill=(45, 58, 65, round(160 * strength)), width=1)
