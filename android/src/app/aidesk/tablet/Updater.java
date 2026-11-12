@@ -180,7 +180,7 @@ final class Updater {
     }
 
     /** A socket factory that trusts exactly one certificate: the one whose SHA-256 is the baked fingerprint. */
-    private static SSLSocketFactory pinnedFactory() throws GeneralSecurityException {
+    static SSLSocketFactory pinnedFactory() throws GeneralSecurityException {
         TrustManager[] managers = new TrustManager[] {new X509TrustManager() {
             @Override
             public void checkClientTrusted(X509Certificate[] chain, String authType) throws CertificateException {
