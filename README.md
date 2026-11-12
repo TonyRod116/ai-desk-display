@@ -43,13 +43,21 @@ There's an isometric city that lights up with your remaining usage, a coastal dr
 
 The tablet connects to your computer over your local Wi-Fi, with a password and HTTPS. An optional Android app keeps the display awake and pins the computer's certificate. Fresh readings still need the computer and monitor running. CPU, GPU, temperature and disk details depend on your hardware; unavailable readings stay unavailable. Optional weather is off until you enable it.
 
-The downloadable code includes original procedural artwork and a demo with fictional readings. My personal photos, videos, game artwork and account data are not included. [Try and set up the tablet companion](docs/tablet.md).
+The downloadable code includes original procedural artwork and a demo with fictional readings. My optional source backgrounds, videos, game artwork and account data are not included. [Try and set up the tablet companion](docs/tablet.md).
 
-| Dashboard | Picture mode |
+| Dashboard | Picture mode, in motion |
 |:---:|:---:|
-| <img src="docs/images/tablet-dashboard.png" width="280" alt="Tablet dashboard with a city, usage and computer metrics"> | <img src="docs/images/tablet-picture-mode.png" width="280" alt="Tablet picture mode with an isometric city and compact usage bars"> |
+| <img src="docs/images/tablet-dashboard.png" width="280" alt="Tablet dashboard with an isometric city, usage and computer metrics"> | <img src="docs/images/tablet-picture-mode-scenes.gif" width="280" alt="Animated picture mode showing a surfer, a coastal drive, a train and a fighting scene"> |
 
-*Both screenshots use fictional readings and the included procedural city.*
+*Picture mode in the GIF cycles through Tidal Rush, Token Run, Infinite Express and Versus.*
+
+| **Tidal Rush** | **Token Run** |
+|:---:|:---:|
+| <img src="docs/images/tablet-tidal-rush.png" width="280" alt="Tidal Rush tablet dashboard with a surfer riding a wave"> | <img src="docs/images/tablet-token-run.png" width="280" alt="Token Run tablet dashboard with a coastal drive"> |
+| **Infinite Express** | **Versus** |
+| <img src="docs/images/tablet-infinite-express.png" width="280" alt="Infinite Express tablet dashboard with a view from a train window"> | <img src="docs/images/tablet-versus.png" width="280" alt="Versus tablet dashboard with the Codex and Claude characters fighting"> |
+
+*All tablet previews use fictional readings. Tidal Rush and Infinite Express show optional custom artwork; Versus uses the bundled original stage.*
 
 ## What does it show?
 
