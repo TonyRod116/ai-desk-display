@@ -26,3 +26,12 @@ state/
 output/
 preview/
 dist/
+*.apk
+*.aab
+*.p12
+*.jks
+*.keystore
+*.pass
+.playwright-cli/
+*.apk.json
+build-counter.txt
