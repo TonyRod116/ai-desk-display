@@ -1,6 +1,6 @@
 # A new life for an old tablet
 
-The tablet companion turns a portrait tablet into a little window onto your desk: animated scenes, the time, Claude and Codex usage, and computer readings. It is separate from the small ESP32 display, so you can use either or both.
+Turn a portrait tablet into a little window onto your desk: animated scenes, the time, Claude and Codex usage, and computer readings. **You do not need a NerdMiner or ESP32 board**; use the tablet alone, the small display alone, or both. A computer still runs the monitor and readers for fresh data.
 
 ## Try it without an account
 
@@ -14,7 +14,7 @@ Open **http://127.0.0.1:18861/** on the computer. This is a local demo: its quot
 
 ## Set up your tablet
 
-1. Install and configure the monitor and the readers you need, following [setup](setup.md). Start the monitor on the computer.
+1. On the computer, [create your private configuration](setup.md#1-create-your-private-configuration), then [start the monitor and readers](setup.md#3-enable-fresh-readings). If you only want the tablet, skip board pairing and firmware; you do not need a board address.
 2. In another terminal, start the tablet service:
 
    ```bash

@@ -4,7 +4,7 @@
 
 ### Your AI limits called. They want a better screen.
 
-A tiny animated display for **Claude and Codex usage** — with a tablet companion for the days when tiny just isn't big enough.
+An animated home for **Claude and Codex usage** on a tiny screen, a tablet, or another display you adapt with a little help from AI.
 
 [![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python&logoColor=white)](pyproject.toml)
 [![License: MIT](https://img.shields.io/badge/code-MIT-green)](LICENSE)
@@ -16,7 +16,15 @@ A tiny animated display for **Claude and Codex usage** — with a tablet compani
 
 I had a NerdMiner V2 on my desk. After calculating that finding a Bitcoin block might take an *average* of about **19 billion years** at a generous 1 MH/s,[^mining-math] I decided to give it a less demanding career.
 
-Now it tells me when I'm running out of AI. Honestly, more useful.
+Now it tells me when I'm running out of AI. Still no Bitcoin, but at least something on my desk knows when I need a break.
+
+## Pick your screen
+
+- **A NerdMiner-style touchscreen:** turn a compatible little ESP32 display into an animated quota monitor.
+- **A tablet:** use the portrait dashboard on its own. No NerdMiner or small board required.
+- **Something else:** start with whichever version is closer and ask an AI coding assistant to help adapt it to your screen. That mysterious display in your drawer may finally have a purpose.
+
+Use one, or use both — you don't need to collect them all. In each setup, a computer runs the readers and supplies fresh data. Other hardware may need a driver, firmware changes and testing.
 
 ## What does it show?
 
@@ -41,9 +49,9 @@ There's also [Hyrule Quest](docs/board-quest.md), older designs and more in the 
 
 ## An old tablet gets a new job
 
-Got an old Android tablet? It can show the same AI limits, your computer stats and animated scenes in portrait. Tap the clock for **picture mode**, swipe between scenes, or double-tap to pick one. Weekly bars have seven divisions; Claude's five-hour bar has five.
+Got an old Android tablet? Use it as your display, with no NerdMiner needed. It shows your AI limits, computer stats and animated scenes in portrait. Tap the clock for **picture mode**, swipe between scenes, or double-tap to pick one. Weekly bars have seven divisions; Claude's five-hour bar has five.
 
-The tablet can rotate scenes by time of day, show your photos and control the little display remotely. It has its own settings, so it won't rearrange the board while you're busy admiring the scenery.
+It can rotate scenes by time of day and show your photos. If you also have the little display, the tablet can control it remotely; their scene settings remain separate.
 
 | Tablet dashboard | Picture mode |
 |:---:|:---:|
@@ -57,7 +65,7 @@ The tablet can rotate scenes by time of day, show your photos and control the li
 
 ## A screen library, not just eight slots
 
-On your computer, open **http://127.0.0.1:8787/board** while the monitor is running. Preview screens, bring back old favourites, drag the eight slots into order, adjust speed and touch holds, or rotate every **30 minutes or hour**. When the clock is synced, changes happen on the half hour or hour. Compatible firmware remembers your settings.
+For the little touchscreen, open **http://127.0.0.1:8787/board** on your computer while the monitor is running. Preview screens, bring back old favourites, drag the eight slots into order, adjust speed and touch holds, or rotate every **30 minutes or hour**. When the clock is synced, changes happen on the half hour or hour. Compatible firmware remembers your settings.
 
 ![The local screen library with fictional readings](docs/images/screen-library.png?v=quest-2)
 
@@ -93,32 +101,30 @@ On Windows, use `py -m venv .venv` and `.venv\Scripts\Activate.ps1`. The full re
 
 ## Okay, I want this on my desk
 
-**For the little screen:**
+First, install the project as above, sign in to the official Claude Code and/or Codex CLI clients you use, and run `ai-desk-display setup`. Start the monitor and readers using the [setup guide](docs/setup.md), then pick your screen:
 
-1. Check your hardware: the reference is the 2.8-inch **ESP32-2432S028R / Cheap Yellow Display**, used by many NerdMiner V2 boards. Other NerdMiners exist. Flashing replaces the mining app, so follow the [hardware](docs/hardware.md) and [firmware](firmware/board/README.md) guides for your controller.
-2. Install the project as above and sign in to the official Claude Code and/or Codex CLI clients you use. Run `ai-desk-display setup`, then follow the [setup guide](docs/setup.md) to pair the board and start the readers and monitor.
-3. Open **http://127.0.0.1:8787**, choose your screens and enjoy your new, slightly judgemental desk companion.
-
-**For a tablet:** open the [tablet guide](docs/tablet.md), start the tablet service and connect over the same Wi-Fi using its HTTPS address and password. A browser works; the [optional Android app](docs/tablet-app.md) adds full screen, screen-on behaviour and certificate pinning. Compare the certificate fingerprint before trusting it.
+- **NerdMiner-style touchscreen:** the reference is the 2.8-inch **ESP32-2432S028R / Cheap Yellow Display**, used by many NerdMiner V2 boards. Check your exact model: flashing replaces the mining app. Follow the [hardware](docs/hardware.md), [firmware](firmware/board/README.md) and [board pairing](docs/setup.md#2-connect-the-touchscreen-board) guides, then open **http://127.0.0.1:8787**.
+- **Tablet:** follow the [tablet guide](docs/tablet.md) to start its service and connect over Wi-Fi using HTTPS and a password. You can skip the board pairing and firmware steps entirely. A browser works; the [optional Android app](docs/tablet-app.md) adds screen-on behaviour and certificate pinning. Compare the certificate fingerprint before trusting it.
+- **Another display:** start from the tablet or small-screen version and [adapt it with AI](#make-it-yours-with-or-without-ai).
 
 **Got a GeekMagic SmallTV Ultra?** That's a different integration, not the touchscreen firmware. See the [SmallTV guide](docs/smalltv-ultra.md).
 
 ### Keep the connection steady
 
-Reserve the board's IP address in your router (a **DHCP reservation**) so it doesn't wander off after a restart. This is not port forwarding. If you see `NO DATA`, check power, Wi-Fi, the monitor and readers; the [setup guide](docs/setup.md#troubleshooting) walks through it. The repository doesn't install automatic startup for you; see the [Windows/WSL notes](docs/windows-startup-local.md) if you want it.
+If you use the small touchscreen, reserve its IP address in your router (a **DHCP reservation**) so it doesn't wander off after a restart. This is not port forwarding. If you see `NO DATA`, check power, Wi-Fi, the monitor and readers; the [setup guide](docs/setup.md#troubleshooting) walks through it. The repository doesn't install automatic startup for you; see the [Windows/WSL notes](docs/windows-startup-local.md) if you want it.
 
 ## Local, not magic
 
 - Rendering and the computer dashboard are local. Enabled readers still contact the **official providers**; optional weather contacts Open-Meteo when enabled.
-- The computer and monitor must be running for fresh readings. The board can keep animating stored scenes, but old data becomes unavailable.
-- The board uses unencrypted HTTP on your local network. Use a trusted network and don't expose its ports to the Internet. Automatic rediscovery can send the pairing token to devices on the saved subnet; [read the details](docs/setup.md#troubleshooting).
+- The computer and monitor must be running for fresh readings. A compatible small board can keep animating stored scenes, but old data becomes unavailable.
+- The small board uses unencrypted HTTP on your local network. Use a trusted network and don't expose its ports to the Internet. Automatic rediscovery can send the pairing token to devices on the saved subnet; [read the details](docs/setup.md#troubleshooting).
 - Your accounts, credentials, pairing files and optional source artwork are yours. They aren't included in the repository.
 
 ## Make it yours, with or without AI
 
 Change colours, invent a scene or ask an AI to help: *“Read the Tidal Rush renderer, give it a purple sunset, keep the readings intact and show me a preview with fictional data.”* That's pretty much how this project acquired more screens than anyone strictly needs.
 
-AI can also help adapt it to another display, although a new resolution, connection or device may need its own driver or firmware. Test on the actual hardware. Start with the [control room guide](docs/board-control.md), `token_tv/board_*.py` or the [tablet guide](docs/tablet.md).
+An AI coding assistant can also help adapt **either version** to another display. Try: *“Adapt the tablet version to my [device] at [resolution] over [connection]. Keep the readings intact and show a preview with fictional data.”* Depending on the hardware, you may need a driver, firmware changes and a real-device test. Start with `token_tv/board_*.py` for the little screen or the [tablet guide](docs/tablet.md) for the browser version.
 
 Made something cool? Share it in an [issue](https://github.com/TonyRod116/ai-desk-display/issues) — with fictional readings, please. Run `python -m unittest discover -s tests` for the Python checks; some also need a C++ compiler, and the JavaScript checks use Node.
 

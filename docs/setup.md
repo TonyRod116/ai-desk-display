@@ -1,8 +1,8 @@
 # Set up AI Desk Display
 
-This guide uses the **ESP32-2432S028R touchscreen** in the reference setup. Start with the [offline gallery](../README.md#try-it-without-a-display-or-an-account), then follow the [hardware guide](hardware.md) and [firmware instructions](../firmware/board/README.md) for your exact board and controller. Flashing replaces the program already on the board.
+This guide covers the shared computer setup and the optional **ESP32-2432S028R touchscreen**. For a tablet only, follow steps 1 and 3, skip board pairing and firmware, then continue with the [tablet guide](tablet.md). For the small display, start with the [offline gallery](../README.md#try-it-without-a-display-or-an-account), then check the [hardware guide](hardware.md) and [firmware instructions](../firmware/board/README.md) for your exact board and controller. Flashing replaces the program already on the board.
 
-The reference account-reader setup runs on **Linux or WSL**. Native Windows and macOS have not received the same level of testing. Your computer and board need to be on the same reachable local network, and the computer needs Internet access for fresh account readings.
+The reference account-reader setup runs on **Linux or WSL**. Native Windows and macOS have not received the same level of testing. Your computer and chosen display need to be on the same reachable local network, and the computer needs Internet access for fresh account readings.
 
 ## 1. Create your private configuration
 
@@ -15,7 +15,7 @@ ai-desk-display setup
 ai-desk-display doctor
 ```
 
-`setup` asks for account emails and login locations and creates a private configuration; it will not overwrite an existing one. For the reference local setup, use at most one Claude and one Codex account. Skip providers you don't use. The clock-address question refers to an optional **GeekMagic clock**; leave it blank if you only have the touchscreen board. `doctor` checks the installation without requesting live quota. `doctor --live` does contact providers, so use it only when you want that check.
+`setup` asks for account emails and login locations and creates a private configuration; it will not overwrite an existing one. For the reference local setup, use at most one Claude and one Codex account. Skip providers you don't use. The clock-address question refers to an optional **GeekMagic clock**; leave it blank unless you use that clock, including when you only use a tablet or touchscreen board. `doctor` checks the installation without requesting live quota. `doctor --live` does contact providers, so use it only when you want that check.
 
 The default Linux/WSL config is `~/.config/token-tv/config.json`. Keep this file private: after pairing it contains the board's pairing token, as well as account identifiers. Don't post it, copy another person's file, or put credentials into the repository.
 
