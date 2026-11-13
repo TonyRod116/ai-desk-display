@@ -214,6 +214,7 @@
   function renderWeather() {
     const reading = weatherNow && { ...weatherNow, age: (Number(weatherNow.age) || 0) + (Date.now() - weatherAt) / 1000 };
     const view = window.TabletWeather && settings.weather && settings.weather.enabled !== false ? TabletWeather.view(reading, language) : null;
+    if (stage && stage.setWeather) stage.setWeather(view ? { code: reading.code } : null);
     weatherBox.hidden = !view;
     if (!view) return;
     wxIcon.innerHTML = TabletWeather.svg(view.icon, view.day);          // fixed markup picked from the module's own table, never text from the network
@@ -397,6 +398,7 @@
       setQuality: (q) => each((s) => { if (s.setQuality) s.setQuality(q); }), setLive: (on) => each((s) => { if (s.setLive) s.setLive(on); }),
       pause: () => each((s) => s.pause()), resume: () => each((s) => s.resume()),
       setReadings: (latest) => each((s) => { if (s.setReadings) s.setReadings(latest); }),
+      setWeather: (latest) => each((s) => { if (s.setWeather) s.setWeather(latest); }),
       poke: (x, y) => { if (active && active.poke) active.poke(x, y); },
       status: () => (active ? active.status() : { renderer: 'plain', tier: 'plain' }),
     };
@@ -407,7 +409,7 @@
     if (window.SceneStage && typeof window.SceneStage.create === 'function') { try { photo = window.SceneStage.create(stageBox, { onStatus: onStage }); } catch (_) { photo = null; } }
     if (window.TabletGames && typeof window.TabletGames.create === 'function') { try { game = window.TabletGames.create(stageBox, { onStatus: onStage }); } catch (_) { game = null; } }
     stage = photo || game ? routeStages(photo, game) : null;
-    if (stage) applyMotion();
+    if (stage) { applyMotion(); renderWeather(); }
   }
   function setLanguage(next) {
     language = next === 'es' ? 'es' : 'en';
@@ -444,7 +446,8 @@
     if (stage && info) {
       document.body.dataset.look = info.look;
       document.body.classList.add('stage-on');
-      stage.show(Object.assign({ name: selectedScene }, info));
+      const savedPack = localApp && offlineInfo();
+      stage.show(Object.assign({ name: selectedScene }, info, { resourceRevision: savedPack && savedPack.ready ? savedPack.revision : '' }));
       updateArea();
     } else {
       if (stage) stage.show(null);
@@ -991,7 +994,16 @@
     const value = offlineInfo();
     if (value && value.state !== offlinePhase) { offlinePhase = value.state; report('tick', 750); }
     if (value && value.ready && value.revision && value.revision !== offlineRevision) {
-      offlineRevision = value.revision; loadScenes(); loadPhotos();
+      offlineRevision = value.revision;
+      const previous = selectedScene;
+      // A game atlas can have new bytes at the same URL. Once the complete
+      // pack is installed, reload the still-selected game without changing its
+      // settings or the picture mode; never switch during a partial transfer.
+      loadScenes().then(() => {
+        const info = displayInfo(previous);
+        if (!photoMode && selectedScene === previous && info && info.look === 'game') setScene(previous, false);
+      });
+      loadPhotos();
     }
     if (window.TabletPanels && TabletPanels.updateOffline) TabletPanels.updateOffline();
   }

@@ -16,3 +16,5 @@
 - The tablet handheld engine also has original geometric stand-ins drawn in code. `scripts/prepare_game_handheld.py` prepares that demo without a ROM or external graphics and will not overwrite an existing scene. The refreshed Tidal Rush README capture uses the same previously approved custom background with fictional quotas and credits.
 
 - The local-storage and small-screen-remote README captures use only the procedural art from `scripts/sample_tablet.py`, fictional readings and a synthetic Android bridge for the storage controls. They are UI demonstrations, not captures of a user's accounts or hardware measurements. New Peaceful House source photographs, movies, sprites and prepared private films are not included; the repository ships only its preparer code.
+
+- The Isometric City dashboard screenshot and day/night/weather GIF are generated from the public procedural city and its bundled mascots, with fictional readings and simulated, accelerated time and weather. No private scene files or account data are used.

@@ -438,7 +438,25 @@ def make_plan(seed=2026):
     for b in out:
         if b.kind == 'city':
             b.lit *= .75
+    vary_riverfront(out, heroes, seed)
+    vary_foreground(out, heroes, seed)
+    vary_codex_neighbours(out, seed)
+    curve_codex_right(out, seed)
+    add_ribbon_accents(out)
+    add_second_mirror(out)
     choose_cranes(out, seed)
+    # Reserve one genuinely flat, visible low roof for the shuttle. It is a
+    # normal building, never a quota tower; its shape and position stay put.
+    candidates = [b for b in out if b.kind == 'city' and not b.style.get('landmark')
+                  and not b.style.get('crane') and not b.podium and b.tiers == 1
+                  and b.style.get('crown') == 'flat' and b.style.get('arch') not in SPECIAL
+                  and min(b.x1 - b.x0, b.y1 - b.y0) >= 2 and 12 <= b.h <= 42]
+    if candidates:
+        def pad_distance(b):
+            x, y = proj((b.x0 + b.x1) / 2, (b.y0 + b.y1) / 2, b.h)
+            return (x - 180) ** 2 + (y - 329) ** 2
+        min(candidates, key=pad_distance).style['life_pad'] = True
+    assign_facade_details(out, seed)
     everything = out + list(heroes.values()) + make_rail()
     everything.sort(key=lambda b: (b.order, b.x0 + b.y0))
     for i, b in enumerate(everything, 1):
@@ -545,6 +563,7 @@ class Rec:
         self.paths = []         # ((gx, gy), (gx, gy)) walks in the parks and plazas
         self.covered = []       # (gx0, gy0, gx1, gy1): street cells that a park or a data building has taken over (no traffic, no walkers there)
         self.regions = []       # the open grounds (parks, plazas, avenues) with what stands on them
+        self.living = {'pads': [], 'stadiums': [], 'cranes': [], 'markets': [], 'parks': [], 'stalls': [], 'shelters': [], 'picnics': []}
 
 
 def faces_base(x0, y0, x1, y1):
@@ -580,6 +599,91 @@ def lit_window_colour(rnd, colour):
     return mix(base, colour, rnd.uniform(0, .30))
 
 
+def paint_mirror_face(cv, rec, b, base, z0, z1, floor_h, side, style, rnd):
+    """A continuous reflective glass skin, with a few occasional office lights."""
+    a, bb = base
+    bottom, top = style['palette']
+    glass = GLASS_L if side == 0 else GLASS_R
+    tone = mix(mix(bottom, top, .55), (100, 151, 174), .32)
+    span = z1 - z0
+    # Broad glass panels replace the small repeated window grid. Subtle shifts
+    # in tone and two diagonal bands suggest reflected sky and neighbours.
+    for k in range(5):
+        p, q = lerp(a, bb, k / 5), lerp(a, bb, (k + 1) / 5)
+        tint = (.16, -.22, .20, -.16, .12)[k]
+        colour = mix(tone, (255, 255, 255) if tint > 0 else (12, 24, 34), abs(tint))
+        cv.poly([(p[0], p[1]-z0), (q[0], q[1]-z0), (q[0], q[1]-z1), (p[0], p[1]-z1)], colour, glass)
+    # Darker, differently sized silhouettes in the lower glass suggest other
+    # buildings reflected in the surface; they are not painted-on windows.
+    for u0, u1, height in ((.07, .22, .42), (.23, .39, .58), (.43, .57, .34), (.61, .75, .53), (.78, .93, .39)):
+        p, q = lerp(a, bb, u0), lerp(a, bb, u1)
+        cv.poly([(p[0], p[1]-z0-span*.12), (q[0], q[1]-z0-span*.12),
+                 (q[0], q[1]-z0-span*height), (p[0], p[1]-z0-span*height)], mix(tone, (25, 53, 67), .52), glass)
+    for low, high, strength in ((.25, .38, .42), (.59, .70, .32)):
+        p, q = lerp(a, bb, .04), lerp(a, bb, .96)
+        cv.poly([(p[0], p[1]-z0-span*low), (q[0], q[1]-z0-span*(low+.08)),
+                 (q[0], q[1]-z0-span*(high+.08)), (p[0], p[1]-z0-span*high)],
+                mix(tone, (222, 235, 238), strength), glass)
+    for fraction in (0, .25, .5, .75, 1):
+        p = lerp(a, bb, fraction)
+        cv.line([(p[0], p[1]-z0), (p[0], p[1]-z1)], mix(tone, (35, 54, 63), .52), .60, METAL)
+    floors = max(1, round(span / floor_h))
+    for f in range(2, floors, 4):
+        p, q = lerp(a, bb, .18 if (f + side) % 2 else .58), lerp(a, bb, .30 if (f + side) % 2 else .70)
+        za, zb = z0 + span*(f+.16)/floors, z0 + span*(f+.56)/floors
+        quad = [(p[0], p[1]-za), (q[0], q[1]-za), (q[0], q[1]-zb), (p[0], p[1]-zb)]
+        rec.wins.append((quad, (196, 211, 200) if side else (179, 195, 193), rnd.randrange(BUCKETS), b.id, False))
+        rec.poke.append(((p[0]+q[0])/2, (p[1]+q[1])/2-(za+zb)/2, abs(q[0]-p[0]), zb-za, b.id))
+    # A darker entrance anchors the glass volume at street level.
+    low = min(span * .10, 4.0)
+    cv.poly([(a[0], a[1]-z0), (bb[0], bb[1]-z0), (bb[0], bb[1]-z0-low), (a[0], a[1]-z0-low)], mix(tone, (16, 26, 36), .44), glass)
+
+
+def paint_facade_detail(cv, base, z0, z1, side, style, material, floors):
+    """A quiet material detail; it is architecture, never an extra light."""
+    a, bb = base
+    width, span = abs(bb[0]-a[0]), z1-z0
+    detail = style.get('detail')
+    if not detail or width < 6 or span < 9:
+        return
+    bottom, top = style.get('palette', FACADE[material][0])
+    mid = mix(bottom, top, .56)
+    light = mix(mid, (206, 214, 210), .42 if side else .29)
+    dark = mix(mid, (25, 37, 43), .43)
+    phase = style.get('detail_phase', 0)
+    if detail == 'vertical_fins':
+        for u in (.16, .42, .68, .91):
+            p = lerp(a, bb, u)
+            cv.line([(p[0], p[1]-z0), (p[0], p[1]-z1)], light, .75, METAL)
+    elif detail in ('horizontal_bands', 'stone_courses'):
+        fractions = (.18, .41, .64, .87) if detail == 'horizontal_bands' else (.25, .50, .75)
+        for f in fractions:
+            p, q = lerp(a, bb, .04), lerp(a, bb, .96)
+            z = z0 + span*f
+            cv.line([(p[0], p[1]-z), (q[0], q[1]-z)], light if detail == 'stone_courses' else dark, .75, METAL if detail == 'horizontal_bands' else (WALL_L if side == 0 else WALL_R))
+    elif detail == 'framed_bays':
+        for u in (.12, .50, .88):
+            p = lerp(a, bb, u)
+            cv.line([(p[0], p[1]-z0-span*.10), (p[0], p[1]-z1+span*.07)], light, .65, METAL)
+        for f in (.34, .68):
+            p, q, z = lerp(a, bb, .12), lerp(a, bb, .88), z0 + span*f
+            cv.line([(p[0], p[1]-z), (q[0], q[1]-z)], light, .65, METAL)
+    elif detail == 'recessed_edge':
+        u0, u1 = ((.04, .12) if (phase + side) % 2 else (.88, .96))
+        p, q = lerp(a, bb, u0), lerp(a, bb, u1)
+        cv.poly([(p[0], p[1]-z0), (q[0], q[1]-z0), (q[0], q[1]-z1), (p[0], p[1]-z1)], dark, WALL_L if side == 0 else WALL_R)
+    elif detail == 'sunshades' and floors >= 3:
+        for f in range(1 + phase % 2, floors, 2):
+            p, q, z = lerp(a, bb, .10), lerp(a, bb, .90), z0 + span*f/floors
+            cv.line([(p[0]-.25, p[1]-z-.55), (q[0]-.25, q[1]-z-.55)], light, .7, METAL)
+    elif detail == 'glass_reflection' and material == 'glass':
+        p, q = lerp(a, bb, .10), lerp(a, bb, .32)
+        u, v = lerp(a, bb, .34), lerp(a, bb, .56)
+        cv.poly([(p[0], p[1]-z0-span*.12), (q[0], q[1]-z0-span*.12),
+                 (v[0], v[1]-z0-span*.75), (u[0], u[1]-z0-span*.75)],
+                mix(mid, (194, 221, 228), .28), GLASS_L if side == 0 else GLASS_R)
+
+
 def paint_face(cv, rec, b, base, z0, z1, floor_h, side, style, rnd, windows=True, shop=False):
     """One face of a box, floor by floor: the colour of the wall (darker near the street, lighter high up), uneven grime in three strips, spandrel bands,
     ledges, piers, sills, windows (all dark: the lit ones are separate pictures), balconies, a fire escape on some brick, and on the ground floor a lit
@@ -591,8 +695,11 @@ def paint_face(cv, rec, b, base, z0, z1, floor_h, side, style, rnd, windows=True
     fh = (z1 - z0) / floors
     width = abs(bb[0] - a[0])
     columns = max(1, round(width / style.get('pitch', 3.0)))
+    if windows and mat == 'glass' and style.get('facade') == 'mirror' and width >= 6 and z1-z0 >= floor_h*3:
+        paint_mirror_face(cv, rec, b, base, z0, z1, floor_h, side, style, rnd)
+        return
     key = abs(round(a[0] * 7 + a[1] * 11 + z1 * 3))
-    balconies = windows and width >= 8 and floors >= 4 and (style.get('facade') == 'balcony' or (mat in ('stone', 'brick', 'concrete') and key % 5 == 0))
+    balconies = windows and style.get('ribbon_side') != side and width >= 8 and floors >= 4 and (style.get('facade') == 'balcony' or (mat in ('stone', 'brick', 'concrete') and key % 5 == 0))
     office = {f for f in range(floors) if style.get('office') and rnd.random() < .12}
     wall, glass = (WALL_L, GLASS_L) if side == 0 else (WALL_R, GLASS_R)
     tone = style.get('tone', 0.0)
@@ -646,6 +753,13 @@ def paint_face(cv, rec, b, base, z0, z1, floor_h, side, style, rnd, windows=True
             continue
         if windows and style.get('band') and f == max(1, floors // 2) and floors >= 6 and width >= 6:              # a coloured spandrel band across the face
             cv.poly([(a[0], a[1] - za), (bb[0], bb[1] - za), (bb[0], bb[1] - za - fh * .34), (a[0], a[1] - za - fh * .34)], mix(colour, style['band'], .7), wall)
+        if windows and style.get('ribbon_side') == side and width >= 8 and (f > 0 or z0 > 0):
+            # A continuous horizontal glazing band, with the existing window
+            # lights still recorded below. The other face keeps its balconies.
+            p, q = lerp(a, bb, .05), lerp(a, bb, .95)
+            low, high = za + fh * .18, za + fh * .76
+            cv.poly([(p[0], p[1]-low), (q[0], q[1]-low), (q[0], q[1]-high), (p[0], p[1]-high)],
+                    mix(colour, (35, 66, 77), .52), glass)
         for c in range(columns):
             rhythm = style.get('rhythm')
             if rhythm == 'wide' and columns >= 4 and c % 3 == 1:
@@ -764,6 +878,8 @@ def paint_face(cv, rec, b, base, z0, z1, floor_h, side, style, rnd, windows=True
             for line in ([(p0[0], p0[1] - low), (p1[0], p1[1] - high)], [(p1[0], p1[1] - low), (p0[0], p0[1] - high)]):
                 cv.line(line, (24, 35, 43), 1.25, METAL)
                 cv.line(line, (157, 185, 184) if side else (105, 139, 144), .5, METAL)
+    if windows:
+        paint_facade_detail(cv, base, z0, z1, side, style, mat, floors)
     if style.get('escape') and mat == 'brick' and floors >= 3 and width > 5:              # a fire escape zig-zags up the face
         dark = (24, 26, 32)
         x_a, x_b = rnd.uniform(.15, .35), rnd.uniform(.55, .8)
@@ -1115,9 +1231,7 @@ def tower_crane(cv, rec, b, gx, gy, z, own):
     cv.line([(top[0], top[1] - 3.0), far], (150, 150, 156), .25, METAL)                      # its tie rod from the tip of the cab
     cv.line([(top[0], top[1] - 3.0), near], (150, 150, 156), .25, METAL)
     cv.line([(top[0], top[1]), (top[0], top[1] - 3.2)], (232, 188, 48), .55, METAL)
-    trolley = lerp(top, far, .62)
-    cv.line([trolley, (trolley[0], trolley[1] + height * .45)], (60, 60, 66), .22, METAL)       # the cable and the hook with a load
-    cv.rect(((trolley[0] - .8, trolley[1] + height * .45), (trolley[0] + .8, trolley[1] + height * .45 + 1.4)), (196, 80, 56), METAL)
+    rec.living['cranes'].append({'top': list(top), 'far': list(far), 'height': height, 'id': b.id})
     cv.rect(((near[0] - .8, near[1] - .3), (near[0] + .8, near[1] + 1.2)), (120, 124, 130), METAL)  # the counterweights
     red_light(cv, rec, b, top[0], top[1] - 3.6)
 
@@ -1407,7 +1521,10 @@ def paint_cyl(cv, rec, b, cx, cy, rx_px, ry_px, z0, z1, rnd, style, windows=True
                 cv.poly(quad, mix(colour, (8, 14, 28), .6), glass[0] if (xa + xb) / 2 < X - rx_px * .1 else glass[1])
                 rec.poke.append(((xa + xb) / 2, (ya + yb) / 2 - (za + zb) / 2, abs(xb - xa), abs(zb - za), b.id))
                 if rnd.random() < b.lit:
-                    rec.wins.append((quad, lit_window_colour(rnd, colour), rnd.randrange(BUCKETS), b.id, rnd.random() < .12))
+                    glow = lit_window_colour(rnd, colour)
+                    if style.get('codex_flank'):
+                        glow = mix(glow, (68, 82, 88), .58)
+                    rec.wins.append((quad, glow, rnd.randrange(BUCKETS), b.id, rnd.random() < .12))
     if roof:
         base = roof_colour or mix(style.get('roof_colour', (136, 152, 178)), top, .1)
         cv.ellipse(((X - rx_px, Y - ry_px - z1), (X + rx_px, Y + ry_px - z1)), base, ROOF)
@@ -1640,6 +1757,222 @@ def choose_archetype(b, district, own):
     return W
 
 
+def vary_riverfront(buildings, heroes, seed):
+    """A mixed-use waterfront: varied volumes, roofs and materials on both banks.
+
+    The industrial district used to give nearly every riverside lot the same
+    low box. Keep the actual lots and landmarks, but alternate buildings with
+    different silhouettes; never touch the data towers or the future helipad.
+    """
+    profiles = (('terrace_block', 'concrete_pale', 28), ('wedge', 'stone_ivory', 37),
+                ('round', 'glass_steel', 34), ('warehouse', 'brick_brown', 23),
+                ('L_block', 'brick_sand', 32), ('offset_tower', 'glass_smoke', 43),
+                ('courtyard', 'stone_warm', 26), ('loft', 'brick_taupe', 31))
+    narrow = (('tenement', 'brick_ash', 'mansard', 31), ('office', 'glass_ice', 'slant', 23),
+              ('tenement', 'stone_ivory', 'gable', 39), ('warehouse', 'brick_brown', 'sawtooth', 19))
+    for side in (0, 1):
+        bank = []
+        for b in buildings:
+            if b.kind != 'city' or b.style.get('landmark'):
+                continue
+            near = abs(b.y1 - CANAL[0]) <= 1.2 if side == 0 else CANAL[1] < b.y0 <= CANAL[1] + 6.2
+            if not near:
+                continue
+            x, y = proj((b.x0 + b.x1) / 2, (b.y0 + b.y1) / 2, b.h)
+            if not (-5 <= x <= WORLD[0] + 5 and 220 <= y <= WORLD[1] + 20):
+                continue
+            if abs(x - 180) < 12 and abs(y - 329) < 18:
+                continue  # leave the visible flat roof for the helicopter pad
+            bank.append((x, b))
+        bank.sort(key=lambda item: item[0])
+        wide_i, narrow_i = side * 3, side
+        for _, b in bank:
+            span = min(b.x1 - b.x0, b.y1 - b.y0)
+            if span >= 2.4:
+                options = profiles[wide_i % len(profiles):] + profiles[:wide_i % len(profiles)]
+                arch, scheme, height = next(p for p in options if p[0] not in ('L_block', 'courtyard') or span >= 3.1)
+                wide_i = (profiles.index((arch, scheme, height)) + 1) % len(profiles)
+                crown = None
+            else:
+                arch, scheme, crown, height = narrow[narrow_i % len(narrow)]
+                narrow_i += 1
+            b.h = min(height_cap(b, heroes), height)
+            # The garage helipad is behind this lot. A tall volume at the
+            # same screen x hides its whole supporting facade, making the
+            # pad appear to float. Keep this one low enough to show the base.
+            sx, _ = proj((b.x0 + b.x1) / 2, (b.y0 + b.y1) / 2, b.h)
+            if side == 0 and abs(sx - 146) < 7:
+                b.h = min(b.h, 18)
+            b.podium, b.tiers = None, 1
+            b.material = MATERIAL_OF[arch]
+            own = random.Random(f'riverfront:{b.seed()}:{seed}')
+            b.style = style_for_arch(b, arch, scheme, own, 'res' if side else 'comm')
+            b.style.update(district='res' if side else 'comm', orient=own.randrange(4), riverfront=True)
+            if crown:
+                b.style['crown'] = crown
+
+
+def vary_foreground(buildings, heroes, seed):
+    """The very nearest blocks remain individually recognisable at the bottom edge."""
+    forms = (('wedge', 'stone_ivory', 31), ('terrace_block', 'concrete_pale', 26),
+             ('round', 'glass_steel', 34), ('L_block', 'brick_sand', 30),
+             ('warehouse', 'brick_brown', 21), ('offset_tower', 'glass_ice', 35),
+             ('courtyard', 'stone_warm', 27), ('loft', 'brick_ash', 24))
+    candidates = []
+    for b in buildings:
+        if b.kind != 'city' or b.style.get('landmark') or b.style.get('riverfront') or b.y0 < CANAL[1] + 10:
+            continue
+        x, y = proj((b.x0 + b.x1) / 2, (b.y0 + b.y1) / 2, b.h)
+        if 80 <= x < WORLD[0] + 12 and 370 <= y <= WORLD[1] + 20:
+            candidates.append((y, x, b))
+    candidates.sort(key=lambda item: (round(item[0] / 15), item[1]))
+    wide = 0
+    for _, _, b in candidates:
+        span = min(b.x1 - b.x0, b.y1 - b.y0)
+        if span < 2.4:
+            continue
+        choices = forms[wide % len(forms):] + forms[:wide % len(forms)]
+        arch, scheme, height = next(p for p in choices if p[0] not in ('L_block', 'courtyard') or span >= 3.1)
+        wide = (forms.index((arch, scheme, height)) + 1) % len(forms)
+        b.h, b.podium, b.tiers = min(height_cap(b, heroes), height), None, 1
+        b.material = MATERIAL_OF[arch]
+        own = random.Random(f'foreground:{b.seed()}:{seed}')
+        b.style = style_for_arch(b, arch, scheme, own, 'res')
+        b.style.update(district='res', orient=own.randrange(4), foreground=True)
+    # The last three roofs remain visible at the bottom of the tablet. Treat
+    # them as a group: cycling each depth band independently could otherwise
+    # put the same shape at both ends of this exact row.
+    chosen = set()
+    for sx, sy, arch, scheme, height in ((146, 450, 'wedge', 'stone_ivory', 31),
+                                          (206, 450, 'terrace_block', 'concrete_pale', 26),
+                                          (266, 450, 'round', 'glass_steel', 34)):
+        pool = []
+        for b in buildings:
+            if b.kind != 'city' or b.style.get('landmark') or b in chosen or min(b.x1-b.x0, b.y1-b.y0) < 2.4:
+                continue
+            x, y = proj((b.x0+b.x1)/2, (b.y0+b.y1)/2, b.h)
+            if math.hypot(x-sx, y-sy) < 18:
+                pool.append((math.hypot(x-sx, y-sy), b))
+        if not pool:
+            continue
+        _, b = min(pool, key=lambda item: item[0]); chosen.add(b)
+        was_river = bool(b.style.get('riverfront'))
+        b.h, b.podium, b.tiers = min(height_cap(b, heroes), height), None, 1
+        b.material = MATERIAL_OF[arch]
+        own = random.Random(f'foreground-edge:{b.seed()}:{seed}')
+        b.style = style_for_arch(b, arch, scheme, own, 'res')
+        b.style.update(district='res', orient=own.randrange(4), foreground=True, riverfront=was_river, foreground_edge=True)
+
+
+def vary_codex_neighbours(buildings, seed):
+    """Give repetitive visible neighbours distinct silhouettes.
+
+    The lots and heights stay fixed, so the quota building, traffic and city
+    layout remain where they were. The saved city uses these screen positions;
+    another seed is only changed when a suitable nearby lot exists.
+    """
+    profiles = ((56, 115, 'glass_slab', 'glass_pearl', 'mirror'),
+                (56, 56, 'wedge', 'stone_warm', 'bay'),
+                (116, 33, 'twin', 'glass_steel', 'curtain'),
+                (116, 86, 'tapered', 'glass_smoke', 'vertical'))
+    chosen = set()
+    for sx, sy, arch, scheme, facade in profiles:
+        choices = []
+        for b in buildings:
+            if (b.kind != 'city' or b in chosen or b.style.get('landmark') or b.style.get('neighbourhood')
+                    or b.style.get('riverfront') or b.style.get('foreground') or b.podium
+                    or min(b.x1-b.x0, b.y1-b.y0) < 2.4):
+                continue
+            x, y = proj((b.x0+b.x1)/2, (b.y0+b.y1)/2, b.h)
+            distance = math.hypot(x-sx, y-sy)
+            if distance < 8:
+                choices.append((distance, b))
+        if not choices:
+            continue
+        _, b = min(choices, key=lambda item: item[0]); chosen.add(b)
+        district = b.style.get('district', 'glass')
+        b.material = MATERIAL_OF[arch]
+        if arch == 'glass_slab':
+            b.tiers = 1  # one continuous reflective skin, not three copies
+        own = random.Random(f'codex-neighbour:{b.seed()}:{seed}')
+        b.style = style_for_arch(b, arch, scheme, own, district)
+        b.style.update(district=district, orient=own.randrange(4), facade=facade, codex_accent=True)
+
+
+def curve_codex_right(buildings, seed):
+    """A rounded neighbour contrasts with the straight mirror on Codex's left."""
+    b = next((b for b in buildings if b.kind == 'city' and (b.x0, b.y0, b.x1, b.y1) == (31, 36, 35, 40)
+              and not b.style.get('landmark')), None)
+    if not b:
+        return
+    b.material, b.tiers, b.podium = 'glass', 1, None
+    b.lit = min(b.lit, .10)  # ordinary rooms must not resemble quota lights
+    own = random.Random(f'codex-round-flank:{b.seed()}:{seed}')
+    b.style = style_for_arch(b, 'round', 'glass_titanium', own, 'res')
+    b.style.update(district='res', orient=1, facade='ribbon', round_ribbon=True, codex_flank=True,
+                   roof_colour=ROOF_COLOURS['zinc'])
+
+
+def add_ribbon_accents(buildings):
+    """A distant stepped building gains one glazed face, keeping its volume."""
+    chosen = set()
+    for sx, sy in ((206, 298),):
+        candidates = []
+        for b in buildings:
+            if b.kind != 'city' or b in chosen or b.style.get('landmark') or b.style.get('arch') != 'terrace_block':
+                continue
+            x, y = proj((b.x0+b.x1)/2, (b.y0+b.y1)/2, b.h)
+            distance = math.hypot(x-sx, y-sy)
+            if distance < 8:
+                candidates.append((distance, b))
+        if candidates:
+            _, b = min(candidates, key=lambda item: item[0]); chosen.add(b)
+            b.style.update(ribbon_side=1, ribbon_accent=True)
+
+
+FACADE_DETAILS = {
+    'glass': ('vertical_fins', 'horizontal_bands', 'framed_bays', 'glass_reflection', 'recessed_edge'),
+    'concrete': ('horizontal_bands', 'vertical_fins', 'framed_bays', 'recessed_edge', 'sunshades'),
+    'stone': ('stone_courses', 'vertical_fins', 'framed_bays', 'recessed_edge', 'sunshades'),
+    'deco': ('vertical_fins', 'stone_courses', 'framed_bays', 'recessed_edge', 'horizontal_bands'),
+    'brick': ('stone_courses', 'framed_bays', 'recessed_edge', 'sunshades', 'horizontal_bands'),
+}
+
+
+def add_second_mirror(buildings):
+    """A second, distant glass landmark so the mirrored finish is not unique."""
+    candidates = []
+    for b in buildings:
+        if b.kind != 'city' or b.material != 'glass' or b.style.get('arch') != 'twin' or b.style.get('landmark') or b.style.get('codex_accent'):
+            continue
+        x, y = proj((b.x0+b.x1)/2, (b.y0+b.y1)/2, b.h)
+        distance = math.hypot(x-239, y-74)
+        if distance < 12:
+            candidates.append((distance, b))
+    if candidates:
+        _, b = min(candidates, key=lambda item: item[0])
+        b.style.update(facade='mirror', mirror_accent=True)
+
+
+def assign_facade_details(buildings, seed):
+    """Small, material-appropriate differences throughout the ordinary city."""
+    placed = []
+    for b in sorted((b for b in buildings if b.kind == 'city' and not b.style.get('landmark')),
+                    key=lambda b: (b.x0 + b.y0, b.x0, b.y0)):
+        if b.style.get('facade') == 'mirror':
+            b.style['detail'] = 'mirror_skin'
+        else:
+            options = list(FACADE_DETAILS.get(b.material, FACADE_DETAILS['concrete']))
+            own = random.Random(f'facade-detail:{b.seed()}:{seed}')
+            own.shuffle(options)
+            cx, cy = (b.x0+b.x1)/2, (b.y0+b.y1)/2
+            near = [p.style.get('detail') for p in placed
+                    if abs((p.x0+p.x1)/2-cx) + abs((p.y0+p.y1)/2-cy) < 7]
+            b.style['detail'] = min(options, key=lambda name: near.count(name))
+            b.style['detail_phase'] = own.randrange(3)
+        placed.append(b)
+
+
 def assign_archetypes(buildings, heroes, seed):
     """Give every city building an archetype and a scheme: by its district, so that the city reads as places, and never the same as a neighbour's (a building's
     neighbours are the ones within seven cells). Landmarks were placed before and keep theirs."""
@@ -1868,14 +2201,17 @@ def shaft_rect(b, inset=.0):
 
 def paint_round(cv, rec, b, rnd):
     z0 = paint_podium(cv, rec, b, rnd)
-    x0, y0, x1, y1 = shaft_rect(b, 0 if b.podium else .35)
+    inset = 0 if b.podium else (.12 if b.style.get('codex_flank') else .35)
+    x0, y0, x1, y1 = shaft_rect(b, inset)
     cx, cy = (x0 + x1) / 2, (y0 + y1) / 2
     r = min(x1 - x0, y1 - y0) / 2 * .96
     Rx = r * 8.485
     top = b.h
     mid = z0 + (top - z0) * .64
-    paint_cyl(cv, rec, b, cx, cy, Rx, Rx / 2, z0, mid, rnd, b.style, floor_h=FLOOR + .3, ribbon=rnd.random() < .5)
-    paint_cyl(cv, rec, b, cx, cy, Rx * .74, Rx * .37, mid, top, rnd, b.style, floor_h=FLOOR + .3, ribbon=rnd.random() < .5)
+    ribbon1 = rnd.random() < .5
+    paint_cyl(cv, rec, b, cx, cy, Rx, Rx / 2, z0, mid, rnd, b.style, floor_h=FLOOR + .3, ribbon=b.style.get('round_ribbon', ribbon1))
+    ribbon2 = rnd.random() < .5
+    paint_cyl(cv, rec, b, cx, cy, Rx * .74, Rx * .37, mid, top, rnd, b.style, floor_h=FLOOR + .3, ribbon=b.style.get('round_ribbon', ribbon2))
     px, py = proj(cx, cy, top)
     cv.line([(px, py), (px, py - 12)], (210, 212, 224), .5, METAL)
     red_light(cv, rec, b, px, py - 12)
@@ -1996,6 +2332,13 @@ def paint_offset_tower(cv, rec, b, rnd):
     x0, y0, x1, y1 = shaft_rect(b, 0 if b.podium else .12)
     w, d = x1 - x0, y1 - y0
     direction = 1 if b.style.get('orient', 0) % 2 else -1
+    # A continuous structural core remains behind all three offset volumes.
+    # Without it, narrow gaps in the raster could make an upper block look
+    # suspended in the air instead of supported by the building below.
+    cx, cy = (x0 + x1) / 2, (y0 + y1) / 2
+    hw, hd = w * .20, d * .20
+    paint_box(cv, rec, b, cx - hw, cy - hd, cx + hw, cy + hd, z0, b.h, b.material, rnd,
+              windows=False, style=wall_style(b, crown='flat'))
     # The two upper volumes shift in opposite directions while remaining inside the lot.
     for k, (low, high) in enumerate(((0, .36), (.36, .68), (.68, 1))):
         dx = (0, .15 * direction, -.10 * direction)[k] * w
@@ -2009,6 +2352,12 @@ def paint_offset_tower(cv, rec, b, rnd):
             cv.line([a, c], (147, 192, 204), .6, METAL)
         else:
             top_of(cv, rec, b, rnd, r, high_z, b.style.get('crown', 'flat'))
+    # A visible slim structural spine ties the offset volumes together and
+    # continues to the ground, so the terraces cannot read as floating slabs.
+    foot = proj(cx + hw * .75, cy + hd * .75, z0)
+    top = proj(cx + hw * .75, cy + hd * .75, b.h)
+    cv.line([foot, top], (56, 78, 91), 1.1, METAL)
+    cv.line([(foot[0] + .25, foot[1]), (top[0] + .25, top[1])], (154, 181, 188), .28, METAL)
 
 
 # ......................................................................................................................................... landmarks
@@ -2104,6 +2453,7 @@ def paint_stadium(cv, rec, b, rnd):
     # isometric ground plane as the rest of the city.
     field_z = z1 - 6.4
     fx0, fy0, fx1, fy1 = x0 + .95, y0 + .95, x1 - .95, y1 - .95
+    rec.living['stadiums'].append({'field': [fx0, fy0, fx1, fy1, field_z], 'id': b.id})
     point = lambda x, y: proj(x, y, field_z)
     field = [(fx0, fy0), (fx1, fy0), (fx1, fy1), (fx0, fy1)]
     cv.poly([point(*p) for p in field], (70, 146, 78), GRASS)
@@ -2174,12 +2524,20 @@ def paint_hospital(cv, rec, b, rnd):
     px, py = proj(cx, cy, 18)                                                                                                           # the red cross on the roof of the middle block
     cv.rect(((px - 1.0, py - 3.0), (px + 1.0, py + 3.0)), (214, 40, 40), SIGN)
     cv.rect(((px - 3.0, py - 1.0), (px + 3.0, py + 1.0)), (214, 40, 40), SIGN)
-    hx, hy = proj(x1 - .75, cy + 1.0, 22)                                                                                               # the helipad
-    cv.ellipse(((hx - 4.2, hy - 2.2), (hx + 4.2, hy + 2.2)), (236, 236, 240), SIGN)
-    cv.ellipse(((hx - 3.6, hy - 1.9), (hx + 3.6, hy + 1.9)), (58, 70, 96), ROOF)
-    cv.line([(hx - 1.2, hy - 1), (hx - 1.2, hy + 1), (hx - 1.2, hy), (hx + 1.2, hy), (hx + 1.2, hy - 1), (hx + 1.2, hy + 1)], (236, 236, 240), .3, SIGN)
+    # The former pad was hidden behind the next tower. This wing has a
+    # visible roof, so a landing can be seen and is really at the hospital.
+    life_helipad(cv, rec, b, x0 + .65, cy, 26, 'hospital')
     ax0, ay0 = proj(cx - .8, y1 - .2)                                                                                                   # the entrance canopy
     cv.poly([(ax0, ay0 - 5), (ax0 + 9, ay0 - 5 + 4.5), (ax0 + 9, ay0 - 3.5 + 4.5), (ax0, ay0 - 3.5)], (60, 150, 190), ROOF)
+
+
+def life_helipad(cv, rec, b, gx, gy, z, role='rooftop'):
+    """A small rooftop pad; coordinates are also used by the flight paths."""
+    x, y = proj(gx, gy, z)
+    cv.ellipse(((x - 4.1, y - 2.15), (x + 4.1, y + 2.15)), (226, 229, 223), SIGN)
+    cv.ellipse(((x - 3.5, y - 1.7), (x + 3.5, y + 1.7)), (63, 84, 89), ROOF)
+    cv.line([(x - 1.2, y - 1), (x - 1.2, y + 1), (x - 1.2, y), (x + 1.2, y), (x + 1.2, y - 1), (x + 1.2, y + 1)], (244, 243, 224), .38, SIGN)
+    rec.living['pads'].append({'point': [gx, gy, z], 'id': b.id, 'role': role})
 
 
 def paint_garage(cv, rec, b, rnd):
@@ -2219,6 +2577,7 @@ def paint_garage(cv, rec, b, rnd):
     px, py = proj(x0 + 1.0, y1 - .6, top)
     cv.rect(((px - 1.6, py - 8), (px + 1.6, py - 4.5)), (40, 110, 220), SIGN)                                                           # a blue sign on a post: no letter
     cv.line([(px, py - 4.5), (px, py)], (80, 84, 92), .4, METAL)
+    life_helipad(cv, rec, b, (x0 + x1) / 2, (y0 + y1) / 2, top, 'garage')
 
 
 def paint_mall(cv, rec, b, rnd):
@@ -2250,27 +2609,42 @@ def paint_mall(cv, rec, b, rnd):
     roof_equipment(cv, rec, b, (x0 + .15, y0 + .35, ax0, cy + .8), 11)
 
 
+def silo_layout(b):
+    """The three separate silos, a supported gallery and the chimney's base."""
+    x0, y0, x1, y1 = piece_rect(b)
+    return {'stacks': [(x0 + .72 + k * 1.05, y0 + 1.05, h) for k, h in enumerate((22, 24, 26))],
+            'gallery_z': 19, 'chimney': (x1 - .48, y0 + .95), 'chimney_base': 4, 'chimney_top': 40}
+
+
 def paint_silos(cv, rec, b, rnd):
     x0, y0, x1, y1 = piece_rect(b)
-    cx, cy = (x0 + x1) / 2, (y0 + y1) / 2
+    cy = (y0 + y1) / 2
+    layout = silo_layout(b)
     st = dict(b.style, facade='warehouse', pitch=4.0, win_w=.6, win_h=.4, crown='flat')
-    paint_box(cv, rec, b, x0 + .2, cy + .5, x1 - 1.2, y1 - .2, 0, 9, 'concrete', rnd, windows=True, floor_h=4.5, style=st)                  # a low shed
-    roof_equipment(cv, rec, b, (x0 + .2, cy + .5, x1 - 1.2, y1 - .2), 9)
-    for k in range(4):                                                                                                                   # the silos, in a row
-        sx, sy = x0 + .9 + k * .85, y0 + 1.2 + k * .0
-        h = rnd.choice((28, 32, 36, 30))
-        colour = rnd.choice(((206, 204, 196), (190, 196, 200), (170, 120, 90)))
+    shed = (x0 + .2, cy + .35, x1 - .2, y1 - .2)
+    paint_box(cv, rec, b, *shed, 0, 9, 'concrete', rnd, windows=True, floor_h=4.5, style=st)
+    roof_gable(cv, *shed, 9, 2.4, 'x', (122, 132, 139), (155, 157, 151), rnd, tiles=False)
+    for k, (sx, sy, h) in enumerate(layout['stacks']):
+        colour = ((196, 198, 194), (176, 188, 194), (186, 174, 158))[k]
         sst = dict(st, palette=(mix(colour, (0, 0, 0), .35), colour))
-        paint_cyl(cv, rec, b, sx, sy, 6.2, 3.1, 0, h, rnd, sst, windows=False, floor_h=6.0)
+        paint_cyl(cv, rec, b, sx, sy, 3.2, 1.6, 0, h, rnd, sst, windows=False, floor_h=6.0)
         X, Y = proj(sx, sy)
-        cv.ellipse(((X - 6.2, Y - 3.1 - h), (X + 6.2, Y + 3.1 - h)), mix(colour, (255, 255, 255), .15), ROOF)
-        cv.ellipse(((X - 2.0, Y - 1.4 - h - 2), (X + 2.0, Y + 1.0 - h - 2)), (170, 172, 176), METAL)
-    cv.poly([proj(x0 + .6, y0 + 1.0, 36), proj(x0 + 4.0, y0 + 1.0, 36), proj(x0 + 4.0, y0 + 1.3, 36), proj(x0 + .6, y0 + 1.3, 36)], (150, 152, 156), METAL)   # the gallery over the tops
-    ch_x, ch_y = x1 - .55, y0 + .9                                                                                                       # a tall chimney, banded red and white
+        cv.ellipse(((X - 1.1, Y - .8 - h - 1), (X + 1.1, Y + .6 - h - 1)), (170, 172, 176), METAL)
+    gallery = layout['gallery_z']
+    points = [proj(sx, sy, gallery) for sx, sy, _ in layout['stacks']]
+    cv.line(points, (108, 116, 120), 1.0, METAL)
+    for (sx, sy, h), point in zip(layout['stacks'], points):
+        cv.line([point, proj(sx, sy, h)], (142, 148, 149), .4, METAL)
+    ch_x, ch_y = layout['chimney']
+    lowbox(cv, ch_x - .25, ch_y - .25, ch_x + .25, ch_y + .25, 0, layout['chimney_base'],
+           (172, 174, 170), (94, 99, 100), (130, 135, 133))
+    cv.line([proj(x1 - 1.1, cy + .4, 8.5), proj(ch_x, ch_y, 10)], (149, 158, 159), .75, METAL)
     for k in range(6):
-        paint_cyl(cv, rec, b, ch_x, ch_y, 2.6 - k * .06, 1.3 - k * .03, 8 * k, 8 * (k + 1), rnd, dict(st, palette=((150, 40, 36), (214, 70, 60)) if k % 2 else ((190, 188, 184), (244, 242, 236))),
-                  windows=False, floor_h=8.0, roof=(k == 5))
-    cx_, cy_ = proj(ch_x, ch_y, 48)
+        z0, z1 = layout['chimney_base'] + 6 * k, layout['chimney_base'] + 6 * (k + 1)
+        paint_cyl(cv, rec, b, ch_x, ch_y, 1.65 - k * .04, .82 - k * .02, z0, z1, rnd,
+                  dict(st, palette=((150, 48, 42), (204, 74, 62)) if k % 2 else ((176, 177, 174), (229, 229, 222))),
+                  windows=False, floor_h=6.0, roof=(k == 5))
+    cx_, cy_ = proj(ch_x, ch_y, layout['chimney_top'])
     red_light(cv, rec, b, cx_, cy_ - 2)
     rec.vents.append((cx_, cy_ - 3, b.id))
 
@@ -2458,7 +2832,7 @@ def paint_building(cv, rec, b):
         share = b_height if b.tiers == 1 else b_height * (.62, .26, .12)[tier]
         paint_box(cv, rec, b, x0, y0, x1, y1, z0, z0 + share, b.material, rnd, shop=(tier == 0 and not b.podium), style=b.style)
         z0 += share
-        if tier + 1 < b.tiers or b.style.get('crown') not in ('roof_garden', 'roof_deck', 'gable', 'sawtooth'):
+        if not b.style.get('life_pad') and (tier + 1 < b.tiers or b.style.get('crown') not in ('roof_garden', 'roof_deck', 'gable', 'sawtooth')):
             roof_equipment(cv, rec, b, (x0, y0, x1, y1), z0)
         if tier + 1 < b.tiers:
             inset = rnd.choice((.3, .5, .5)) if min(x1 - x0, y1 - y0) >= 3 else .3
@@ -2479,14 +2853,17 @@ def paint_building(cv, rec, b):
         cv.rect(((corner[0] - 1.6, corner[1] - top), (corner[0] - .6, corner[1] - 3)), colour, SIGN)
         rec.screens.append(([(corner[0] - 1.6, corner[1] - 3), (corner[0] - .6, corner[1] - 3), (corner[0] - .6, corner[1] - top), (corner[0] - 1.6, corner[1] - top)],
                             colour, b.id))
-    if 40 < b.h < 120 and not b.podium and b.tiers == 1 and rnd.random() < .6:
+    if 40 < b.h < 120 and not b.podium and b.tiers == 1 and b.style.get('facade') != 'mirror' and rnd.random() < .6:
         led_wall(cv, rec, b, rnd)
     crown = b.style.get('crown', 'flat')
-    if crown == 'flat' or x1 - x0 < 1.0:
+    if b.style.get('life_pad'):
+        life_helipad(cv, rec, b, (x0 + x1) / 2, (y0 + y1) / 2, z0)
+    elif crown == 'flat' or x1 - x0 < 1.0:
         roof_details(cv, rec, b, (x0, y0, x1, y1), z0, rnd, b.h, b.style)
     else:
         paint_crown(cv, rec, b, (x0, y0, x1, y1), z0, b.material, rnd, b.h, crown, b.style)
-    roof_extras(cv, rec, b, (x0, y0, x1, y1), z0, crown)
+    if not b.style.get('life_pad'):
+        roof_extras(cv, rec, b, (x0, y0, x1, y1), z0, crown)
     cv.bid = 0
 
 
@@ -2670,6 +3047,7 @@ def paint_item(cv, rec, item):
             rec.lamps.append((round(px, 1), round(py - 3.3, 1)))
     elif kind == 'stall':
         axis, c1, c2 = arg
+        rec.living['stalls'].append([gx, gy, axis])
         a = (.46, .2) if axis == 'x' else (.2, .46)
         lowbox(cv, gx - a[0], gy - a[1], gx + a[0], gy + a[1], 0, 1.2, (170, 130, 92), (96, 70, 52), (132, 96, 66))
         for k in range(5):                                                                # goods on the counter
@@ -2744,6 +3122,7 @@ def paint_item(cv, rec, item):
         cv.line([(px, py - 3.4), (px + (.9 if axis == 'x' else -.9), py - 3.0)], (214, 80, 50), .45, METAL)
     elif kind == 'busstop':
         axis = arg[0]
+        rec.living['shelters'].append([gx, gy, axis])
         a = (.6, .2) if axis == 'x' else (.2, .6)
         for ox, oy in ((-a[0], -a[1]), (a[0], -a[1]), (a[0], a[1]), (-a[0], a[1])):
             qx, qy = proj(gx + ox, gy + oy)
@@ -2954,6 +3333,10 @@ def design_great_park(cv, rec, R):
     """A big park, Central-Park-like: striped great lawn, woods, a meadow, a pond with a stone bridge, winding paths with benches and lamps, a round fountain plaza,
     a playground, a summer house by the water. Trees of several species and heights, autumn colours among them."""
     x0, y0, x1, y1 = R.rect
+    rec.living['parks'].append(list(R.rect))
+    px, py = R.at(.42, .28)
+    rec.living['picnics'].append([px, py])
+    R.occ.append(('c', px, py, .8))
     rnd = R.rnd
     lawn(cv, R, (46, 108, 66), (63, 133, 77), 'x', .65)
     woods = [R.at(.82, .2) + (2.0, 1.4, .5), R.at(.15, .3) + (1.5, 1.7, -.4), R.at(.7, .9) + (1.6, 1.0, .2)]
@@ -3192,6 +3575,7 @@ def design_plaza(cv, rec, R):
 def design_market(cv, rec, R):
     """A market square: paving, two rows of striped stalls with goods, crates, a few trees at the edge, people moving between the stalls."""
     x0, y0, x1, y1 = R.rect
+    rec.living['markets'].append(list(R.rect))
     rnd = R.rnd
     paving(cv, R, (166, 152, 130), (176, 162, 138), (130, 118, 100), .5)
     palettes = (((214, 70, 60), (244, 240, 230)), ((60, 130, 200), (244, 240, 230)), ((240, 180, 50), (244, 240, 230)), ((70, 160, 100), (244, 240, 230)), ((200, 80, 150), (244, 240, 230)))
@@ -3701,6 +4085,9 @@ def paint_ground(cv, rec):
         for off in (0, 1):                                                              # parapets, and the arch of the bridge's side
             cv.line([proj(gx + off, c0), proj(gx + off, c1)], (170, 164, 152), 1.0, STONE)
             cv.line([proj(gx + off, c0 + .3), proj(gx + off, c1 - .3)], (116, 112, 104), .6, STONE)
+    # A small landing on the quay, with a pontoon alongside the ferry lane.
+    cv.poly([proj(73.2, c0), proj(75.0, c0), proj(75.0, c0 + 1.0), proj(73.2, c0 + 1.0)], (126, 112, 91), STONE)
+    cv.line([proj(73.2, c0 + .8), proj(75.0, c0 + .8)], (219, 201, 161), .5, STONE)
 
 
 # ------------------------------------------------------------------------------------------------------------------------ lighting a phase
@@ -4188,6 +4575,45 @@ def runs(flags, min_len, max_gap):
     return [s for s in spans if s[1] - s[0] + 1 >= min_len]
 
 
+def best_fan_route(station_x, field, owner_at, blocked=lambda point: False):
+    """Choose a walkable route that stays visible between buildings when possible."""
+    start_ys = (RAIL_Y - .42, RAIL_Y + .42)
+    street_y = 5 * math.floor(field[1] / 5)
+    end_ys = (street_y + .08, street_y + .92, street_y + 5.08, street_y + 5.92)
+    end_x = field[0] - .15
+    low = math.floor(min(station_x, end_x) / 5)
+    high = math.ceil(max(station_x, end_x) / 5)
+    best = None
+    for sy in start_ys:
+        for ey in end_ys:
+            for n in range(low, high + 1):
+                for offset in (.08, .92):
+                    cx = 5 * n + offset
+                    route = [[station_x, sy], [cx, sy], [cx, ey], [end_x, ey]]
+                    seen = total = 0
+                    obstructed = False
+                    length = 0.0
+                    for a, b in zip(route, route[1:]):
+                        segment = math.dist(a, b)
+                        length += segment
+                        steps = max(1, math.ceil(segment * 3))
+                        for i in range(steps + 1):
+                            t = i / steps
+                            gx, gy = a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t
+                            if blocked((gx, gy)):
+                                obstructed = True
+                            x, y = proj(gx, gy)
+                            if 0 <= x < WORLD[0] and 0 <= y - 1 < WORLD[1]:
+                                total += 1
+                                seen += owner_at(x, y - 1) == 0
+                    if obstructed:
+                        continue
+                    score = seen / max(1, total) - length * .0015
+                    if best is None or score > best[0]:
+                        best = (score, route)
+    return best[1] if best else []
+
+
 def derive(buildings, heroes, rec, cv, seed):
     """From the finished painting: which pixel belongs to which building, and where the scene can put its animated things (all only where they can
     actually be seen)."""
@@ -4325,7 +4751,18 @@ def derive(buildings, heroes, rec, cv, seed):
     manholes = [[x, y] for x, y in rec.manholes if seen(x, y, up=0) and not in_covered(unproj(x, y))]
     pokes = [[round(x), round(y), max(1, round(w)), max(1, round(hh))] for x, y, w, hh, bid in rec.poke if 40 <= y < WORLD[1] - 3 and at(x, y) == bid]
     rnd.shuffle(pokes)
-    return dict(idmap=idmap, boxes=boxes, lanes=lanes, walks=walks, boats=boats, bridges=bridges, lights=lights, poles=poles, beacons=beacons, vents=vents[:60],
+    living = dict(rec.living)
+    station = next((b for b in buildings if getattr(b, 'style', {}).get('arch') == 'station'), None)
+    living['station'] = (station.x0 + station.x1) / 2 if station else None
+    living['bridge_grid'] = [[5 * m, CANAL[0], CANAL[1]] for m in BRIDGES]
+    living['ferry_dock'] = [74.1, CANAL[0] + 1.2]
+    living['pads'] = [p for p in living['pads'] if at(*proj(*p['point'])) == p['id']]
+    living['stadiums'] = [p for p in living['stadiums'] if at(*proj((p['field'][0] + p['field'][2]) / 2, (p['field'][1] + p['field'][3]) / 2, p['field'][4])) == p['id']]
+    living['stalls'] = [s for s in living['stalls'] if at(*proj(s[0], s[1], 3)) == 0]
+    living['shelters'] = [s for s in living['shelters'] if at(*proj(s[0], s[1], 2)) == 0]
+    if station and living['stadiums']:
+        living['fan_route'] = best_fan_route(living['station'], living['stadiums'][0]['field'], at, in_covered)
+    return dict(idmap=idmap, boxes=boxes, lanes=lanes, walks=walks, boats=boats, bridges=bridges, lights=lights, poles=poles, beacons=beacons, vents=vents[:60], living=living,
                 screens=screens[:40], fountains=fountains, manholes=manholes[:20], poke=pokes[:2600], waterRows=water_rows, buildingRows=building_rows)
 
 

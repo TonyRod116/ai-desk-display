@@ -2,145 +2,109 @@
 
 # AI Desk Display
 
-### Your AI limits called. They want a better screen.
+### Your AI limits deserve a better screen.
 
-An animated home for **Claude and Codex usage** on a tiny screen, a tablet, or another display you adapt with a little help from AI.
+Turn an old tablet, a tiny touchscreen, or another display into an animated home for your **Claude and Codex usage**.
 
 [![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python&logoColor=white)](pyproject.toml)
-[![License: MIT](https://img.shields.io/badge/code-MIT-green)](LICENSE)
-[![Local rendering](https://img.shields.io/badge/rendering-local-7c3aed)](#local-not-magic)
+[![License: MIT](https://img.shields.io/badge/code-MIT-58a06a)](LICENSE)
+[![Local display](https://img.shields.io/badge/display-local-8064ce)](#the-local-part)
 
-[Download](https://github.com/TonyRod116/ai-desk-display/archive/refs/heads/main.zip) · [Tiny screens](#eight-screens-zero-boredom) · [Tablet](#an-old-tablet-gets-a-new-job) · [Try it](#try-it-without-a-display-or-an-account) · [Setup](#okay-i-want-this-on-my-desk) · [Make it yours](#make-it-yours-with-or-without-ai)
+[Try the demo](#try-it-without-a-display-or-an-account) · [Choose your screen](#one-project-two-desk-toys) · [Set it up](#bring-it-to-your-desk) · [Make it yours](#make-it-yours)
+
+<img src="docs/images/tablet-isometric-weather.gif" width="280" alt="Isometric City in tablet picture mode, with fictional Codex and Claude readings, transitioning through day, sunset, night and rain">
+<img src="docs/images/tablet-picture-tidal-rush.gif" width="280" alt="A surfer rides a wave behind the tablet's fictional AI usage readings">
+
+**Isometric City** · **Tidal Rush**
 
 </div>
 
-I had a NerdMiner V2 on my desk. After calculating that finding a Bitcoin block might take an *average* of about **19 billion years** at a generous 1 MH/s,[^mining-math] I decided to give it a less demanding career.
+I had a NerdMiner V2 on my desk. Its chances of finding a Bitcoin block were… let's call them *character-building*. So I gave it a new job: telling me when I'm about to run out of AI instead.
 
-Now it tells me when I'm running out of AI. Still no Bitcoin, but at least something on my desk knows when I need a break.
+Then an old tablet joined in. Then I made a few screens. Then a few more. You know how these things go.
 
-## Pick your screen
+## Your quota, with a view
 
-- **A NerdMiner-style touchscreen:** turn a compatible little ESP32 display into an animated quota monitor.
-- **A tablet:** use the portrait dashboard on its own. No NerdMiner or small board required.
-- **Something else:** start with whichever version is closer and ask an AI coding assistant to help adapt it to your screen. That mysterious display in your drawer may finally have a purpose.
+- **Know what's left:** see weekly Claude and Codex usage remaining and their reset times, plus Claude's five-hour window when available. Percentages mean **remaining**, not used.
+- **See the extras:** saved resets appear when the provider reports them. A confirmed positive credit balance can replace the percentage after the weekly quota is exhausted. If a reading isn't available, it stays unknown.
+- **Keep an eye on your PC:** the tablet can also show CPU and GPU readings, memory, multiple drives, time and date. Sensor availability depends on your hardware and operating system.
+- **Let it live:** switch scenes, rotate them automatically, use picture mode, or add your own photos. The two displays have independent settings.
 
-Use one, or use both — you don't need to collect them all. A computer supplies fresh readings; the Android app can keep its saved scenery running without it. Other hardware may need a driver, firmware changes and testing.
+In **Isometric City**, windows show remaining quota while traffic, boats, helicopters and little city stories carry on around them. The light follows the time of day; if you enable weather, the city can react to clouds, rain and other conditions. The GIF above speeds up the day and uses simulated weather, because waiting until sunset makes for a rather long README.
 
-## What does it show?
+## One project, two desk toys
 
-- **Claude and Codex:** weekly usage remaining and when it resets, plus Claude's five-hour limit when available.
-- **Saved resets and credits:** up to three hearts when the provider reports them. Credits replace the percentage only when the week is completely exhausted **and** a positive balance is confirmed. Even a sliver of quota stays quota. No mystery credits pulled out of a hat.
-- **Your computer, on the tablet:** CPU and GPU usage and temperatures, memory, multiple drives, time and date. There's optional weather and alerts for low quota, renewed limits and low disk space.
+**A tablet.** Use it on its own, in portrait, with the dashboard or picture mode. Tap the clock to enjoy the scenery, swipe to change scenes, and double-tap to open the scene picker. The Android app can save prepared scenes for offline viewing.
 
-Some readings depend on your plan, clients and hardware. If something is missing or stale, the display says so instead of inventing a reassuring number. Claude's saved-reset balance needs an [optional local browser extension](docs/claude-bank-local.md).
+<p align="center">
+  <img src="docs/images/tablet-city-dashboard.png" width="220" alt="The tablet dashboard with fictional AI quotas, CPU, GPU, memory and multiple drives">
+  <img src="docs/images/tablet-picture-token-run.gif" width="220" alt="Token Run: an animated coastal drive in tablet picture mode with fictional usage">
+  <img src="docs/images/tablet-picture-versus.gif" width="220" alt="Versus: original Codex and Claude fighters in an animated tablet scene">
+  <img src="docs/images/tablet-picture-infinite-express.gif" width="220" alt="Infinite Express: a moving view through a train window in tablet picture mode">
+</p>
+<p align="center"><b>Dashboard</b> · <b>Token Run</b> · <b>Versus</b> · <b>Infinite Express</b></p>
 
-## Eight screens, zero boredom
+**A little touchscreen.** A compatible ESP32 touchscreen can show animated scenes and cycle through eight selected screens. Many NerdMiner V2 devices use the ESP32-2432S028R / Cheap Yellow Display family, but check your exact board and display controller first.
 
-Pick eight for the little display. Change them whenever your attention span demands it.
+### Eight screens, zero boredom
 
-| | |
-|:---:|:---:|
-| **Game Boy**<br>![Green Game Boy-style display with simulated usage updates](docs/images/game-boy.gif) | **Paradise**<br>![Animated tropical beach with a sailboat](docs/images/paradise.gif?v=8604eaf692)<br>*Optional artwork* · [Setup](docs/board-paradise.md) |
-| **Tidal Rush**<br>![A surfer riding an animated wave](docs/images/surf.gif?v=surf-2) | **Token Run**<br>![An animated coastal drive](docs/images/dials.gif) |
-| **Versus**<br>Run out of quota? KO.<br>![Codex and Claude in an animated fighting game](docs/images/arcade.gif?v=arcade-2) | **Platform World**<br>![An animated side-scrolling platform scene](docs/images/cockpit.gif?v=7887cab24d)<br>*Optional artwork* · [Setup](docs/board-platform.md) |
-| **Neon District**<br>![An animated cyberpunk city with rooftop indicators](docs/images/neon-district.gif?v=aa28bc1e23)<br>*Optional artwork* | **Quota City**<br>![An animated isometric city whose lights show remaining usage](docs/images/countdown.gif) |
+<p align="center">
+  <img src="docs/images/game-boy.gif" width="210" alt="Green handheld-inspired screen with fictional usage updates">
+  <img src="docs/images/arcade.gif" width="210" alt="A retro fighting scene where the AI competitors have usage bars">
+  <img src="docs/images/dials.gif" width="210" alt="Token Run: an animated coastal road on the small display">
+  <img src="docs/images/countdown.gif" width="210" alt="A small isometric city showing fictional remaining usage">
+</p>
+<p align="center"><b>Game Boy</b> · <b>Versus</b> · <b>Token Run</b> · <b>Quota City</b></p>
 
-There's also [Hyrule Quest](docs/board-quest.md), older designs and more in the library. **All numbers in these previews are fictional.** Some show optional artwork that isn't included; no ROMs or separate extracted game sprites are shipped. Paradise and Platform World have bundled alternatives. The Game Boy GIF simulates updates, and the Paradise GIF shows an earlier wave. [Artwork notes](ASSETS.md).
+Tap the small screen to change scenes; hold for two seconds to cycle rotation between off, 30 minutes and one hour; hold for five seconds to open the connection screen. Compatible firmware lets you adjust the hold times. The [screen library](docs/board-control.md) lets you preview, reorder and swap scenes from your computer.
 
-## An old tablet gets a new job
+**Neither device requires the other.** Have a different display? Start with the version closest to yours and adapt it. More on that [below](#make-it-yours).
 
-Got an old Android tablet? Use it as your display, with no NerdMiner needed. It shows your AI limits, computer stats and animated scenes in portrait. Tap the clock for **picture mode**, swipe between scenes, or double-tap to pick one. Weekly bars have seven divisions; Claude's five-hour bar has five. Confirmed positive credits appear after the week runs out; the empty bar still means an exhausted week.
-
-It can rotate scenes by time of day and show your photos. If you also have the little display, the tablet can control it remotely; their scene settings remain separate.
-
-**PC off. Scenery on.** The [Android app](docs/tablet-app.md) now carries its interface inside the APK and saves prepared scenes, videos and photos on the tablet. Wait for **Settings → APP → Ready offline**, then its clock, animations, picture mode and display settings can keep going without the computer. Fresh quotas, weather updates, computer readings and PC/board controls still need it. The sunset gets to work from home.
-
-| Tablet dashboard | Picture mode |
-|:---:|:---:|
-| **Isometric City**<br><img src="docs/images/tablet-dashboard.png" width="260" alt="Isometric city above the tablet dashboard with fictional usage and computer readings"> | **Isometric City**<br><img src="docs/images/tablet-picture-mode.png" width="260" alt="Isometric city in picture mode with compact fictional usage bars"> |
-| **Tidal Rush · credits**<br><img src="docs/images/tablet-tidal-rush.png?v=credits-surf" width="260" alt="Tidal Rush dashboard with a surfer and a fictional Codex credit balance"> | **Tidal Rush · animated**<br><img src="docs/images/tablet-picture-tidal-rush.gif?v=credits-surf" width="260" alt="Animated picture mode with a surfer, foamy wake and fictional credits"> |
-| **Token Run**<br><img src="docs/images/tablet-token-run.png" width="260" alt="Token Run tablet dashboard with a coastal drive and fictional readings"> | **Token Run · animated**<br><img src="docs/images/tablet-picture-token-run.gif" width="260" alt="Animated picture mode with a car on a coastal road"> |
-| **Infinite Express**<br><img src="docs/images/tablet-infinite-express.png" width="260" alt="Infinite Express tablet dashboard looking out of a train window"> | **Infinite Express · animated**<br><img src="docs/images/tablet-picture-infinite-express.gif" width="260" alt="Animated picture mode with scenery moving past a train window"> |
-| **Versus**<br><img src="docs/images/tablet-versus.png" width="260" alt="Versus tablet dashboard with Codex and Claude characters"> | **Versus · animated**<br><img src="docs/images/tablet-picture-versus.gif" width="260" alt="Animated picture mode with Codex and Claude fighting"> |
-
-*Fictional readings and credits, real animations. Tidal Rush and Infinite Express use optional custom artwork; Versus shows the bundled original stage.* [See the four-scene tour](docs/images/tablet-picture-mode-scenes.gif) · [Tablet setup](docs/tablet.md).
-
-| Saved on the tablet | A tiny control room |
-|:---:|:---:|
-| <img src="docs/images/tablet-offline-ready.png" width="260" alt="Android app settings showing saved scenes ready offline, with synthetic demo data"> | <img src="docs/images/tablet-screen-previews.png" width="260" alt="Small-screen remote with dimmed synthetic scene previews behind each name"> |
-
-The latest extras: picture mode and scene choices survive a restart; the small-screen remote has previews; and an optional Windows memory button trims only idle Slack/OneDrive processes. It closes nothing, and the gain may be temporary. RAM still refuses to grow on trees. [Computer controls](docs/tablet-host-controls.md).
-
-Using your own **Peaceful House** artwork? Its preparer now adds broken gold/silver reflections aligned with the sunset and moon, and faster water in all four dayparts while keeping the bird's visit at its original pace. Your tropical daydream can stay tropical. [Scene and offline notes](docs/tablet-offline.md).
-
-## A screen library, not just eight slots
-
-For the little touchscreen, open **http://127.0.0.1:8787/board** on your computer while the monitor is running. Preview screens, bring back old favourites, drag the eight slots into order, adjust speed and touch holds, or rotate every **30 minutes or hour**. When the clock is synced, changes happen on the half hour or hour. Compatible firmware remembers your settings.
-
-![The local screen library with fictional readings](docs/images/screen-library.png?v=quest-2)
-
-The computer's **Usage dashboard** can show any available scene without changing the board. Both computer pages have English and Spanish. [Control room guide](docs/board-control.md).
-
-### One tap, another world
-
-Default touchscreen gestures happen when you **release** your finger:
-
-| Gesture | What happens |
-|---|---|
-| Tap | Next screen. |
-| Hold 2 seconds | Cycle rotation: off, 30 minutes, 1 hour. |
-| Hold 5 seconds | Open the connection screen. |
-
-The hold times can be changed on compatible firmware. Five seconds also opens the physical gate for a Wi-Fi firmware update. [Details](docs/board-control.md).
+<sub>All quota and computer readings in these previews are fictional. The Isometric City time and weather are accelerated and simulated. Some previews use optional custom artwork that is not included in the repository; see [artwork notes](ASSETS.md).</sub>
 
 ## Try it without a display or an account
 
-Python 3.10+ is enough to try a gallery and a tablet demo with **made-up data**:
+You can explore the local demos with made-up data before connecting anything. You'll need Python 3.10+ and Git:
 
-```bash
+~~~bash
 git clone https://github.com/TonyRod116/ai-desk-display.git
 cd ai-desk-display
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -e .
-python scripts/render_gallery.py --out preview  # open preview/gallery.png
-python scripts/sample_tablet.py                  # open http://127.0.0.1:18861/
-```
 
-On Windows, use `py -m venv .venv` and `.venv\Scripts\Activate.ps1`. The full reader setup is tested mainly on Linux/WSL; native Windows and macOS have had less testing. Want animated board previews too? The [setup notes](docs/setup.md) and [scene guides](docs/board-surf.md) have the details.
+# Draw the public Isometric City, then open the fictional tablet demo
+python scripts/prepare_game_city_iso.py --out preview/scenes --manifest
+python scripts/sample_tablet.py --scenes preview/scenes
+~~~
 
-## Okay, I want this on my desk
+Open **http://127.0.0.1:18861/**. No provider account or hardware is contacted. On Windows, use <code>py -m venv .venv</code> and activate it with <code>.venv\Scripts\Activate.ps1</code>; the full setup is tested mainly on Linux/WSL. For a still gallery of the small-screen scenes, run <code>python scripts/render_gallery.py --out preview</code> and open <code>preview/gallery.png</code>.
 
-First, install the project as above, sign in to the official Claude Code and/or Codex CLI clients you use, and run `ai-desk-display setup`. Start the monitor and readers using the [setup guide](docs/setup.md), then pick your screen:
+## Bring it to your desk
 
-- **NerdMiner-style touchscreen:** the reference is the 2.8-inch **ESP32-2432S028R / Cheap Yellow Display**, used by many NerdMiner V2 boards. Check your exact model: flashing replaces the mining app. Follow the [hardware](docs/hardware.md), [firmware](firmware/board/README.md) and [board pairing](docs/setup.md#2-connect-the-touchscreen-board) guides, then open **http://127.0.0.1:8787**.
-- **Tablet:** follow the [tablet guide](docs/tablet.md) to connect over Wi-Fi using HTTPS and a password. Skip board pairing and firmware entirely. A browser works; the [Android app](docs/tablet-app.md) adds saved offline scenes, screen-on behaviour and certificate pinning. Build it for your own computer and compare the certificate fingerprint before trusting the connection.
-- **Another display:** start from the tablet or small-screen version and [adapt it with AI](#make-it-yours-with-or-without-ai).
+Install the project as above, sign in to the official Claude Code and/or Codex CLI clients you use, and follow the [computer setup](docs/setup.md). Then choose whichever display you want:
 
-**Got a GeekMagic SmallTV Ultra?** That's a different integration, not the touchscreen firmware. See the [SmallTV guide](docs/smalltv-ultra.md).
+- **Tablet:** follow the [tablet guide](docs/tablet.md) to connect over your Wi-Fi. A browser works; the [Android app](docs/tablet-app.md) adds saved scenes, fullscreen and certificate pinning. No small board required.
+- **Small touchscreen:** check the [hardware guide](docs/hardware.md), [firmware instructions](firmware/board/README.md) and [pairing guide](docs/setup.md#2-connect-the-touchscreen-board). Flashing replaces whatever is currently on the board, including a mining app.
 
-### Keep the connection steady
+Using a **GeekMagic SmallTV Ultra**? That's a separate integration: [see its guide](docs/smalltv-ultra.md). If your board's address keeps changing, reserve its IP in your router; that's a DHCP reservation, not port forwarding. The project doesn't automatically install startup services. [Troubleshooting and startup notes](docs/setup.md#troubleshooting).
 
-If you use the small touchscreen, reserve its IP address in your router (a **DHCP reservation**) so it doesn't wander off after a restart. This is not port forwarding. If you see `NO DATA`, check power, Wi-Fi, the monitor and readers; the [setup guide](docs/setup.md#troubleshooting) walks through it. The repository doesn't install automatic startup for you; see the [Windows/WSL notes](docs/windows-startup-local.md) if you want it.
+## The local part
 
-## Local, not magic
+The display and dashboard run locally. Enabled usage readers still contact the **official providers**; optional weather uses Open-Meteo and is off by default. The small board uses local HTTP, and automatic discovery can share its pairing token with devices on the local subnet. Keep it on a trusted network and don't expose it to the internet.
 
-- Rendering and the computer dashboard are local. Enabled readers still contact the **official providers**; optional weather contacts Open-Meteo when enabled.
-- The computer and monitor must be running for fresh readings. A compatible small board can keep animating stored scenes, but old data becomes unavailable.
-- The Android app saves artwork and display preferences, **not live quotas, balances or computer readings**. Its offline scene cache stays in private app storage; interrupted downloads keep the last complete pack. [How it works](docs/tablet-offline.md).
-- The small board uses unencrypted HTTP on your local network. Use a trusted network and don't expose its ports to the Internet. Automatic rediscovery can send the pairing token to devices on the saved subnet; [read the details](docs/setup.md#troubleshooting).
-- Your accounts, credentials, pairing files and optional source artwork are yours. They aren't included in the repository.
+Fresh quotas and computer stats need the computer and readers running. The Android app can keep its saved scenery, clock and display settings when the computer is off; it does not save live quotas or PC readings in its scene cache. [Offline details](docs/tablet-offline.md) · [Network and setup details](docs/setup.md#troubleshooting).
 
-## Make it yours, with or without AI
+Your credentials, pairing information, private settings and optional source artwork are not in this repository. Some scenes require you to supply your own permitted artwork; no game ROMs or separate extracted game sprites are included. [What is and isn't included](ASSETS.md).
 
-Change colours, invent a scene or ask an AI to help: *“Read the Tidal Rush renderer, give it a purple sunset, keep the readings intact and show me a preview with fictional data.”* That's pretty much how this project acquired more screens than anyone strictly needs.
+## Make it yours
 
-An AI coding assistant can also help adapt **either version** to another display. Try: *“Adapt the tablet version to my [device] at [resolution] over [connection]. Keep the readings intact and show a preview with fictional data.”* Depending on the hardware, you may need a driver, firmware changes and a real-device test. Start with `token_tv/board_*.py` for the little screen or the [tablet guide](docs/tablet.md) for the browser version.
+Change the colours. Invent a scene. Make a quiet display for your office, or a tiny city that judges your token habits. You can do it by hand or ask an AI coding assistant to help. For example:
 
-Made something cool? Share it in an [issue](https://github.com/TonyRod116/ai-desk-display/issues) — with fictional readings, please. Run `python -m unittest discover -s tests` for the Python checks; some also need a C++ compiler, and the JavaScript checks use Node.
+> Adapt the tablet display to my device and resolution. Keep the usage readings intact and show me a preview with fictional data.
 
-## Credits and license
+Different hardware may need a driver, firmware changes and testing. The [tablet guide](docs/tablet.md), [small-screen guide](docs/board-control.md) and source are good places to start.
 
-Made by **Tony**, with a lot of help from **Claude Code and Codex**. Inspired by and retaining some components from [TokenTV](https://github.com/click6067-ship-it/token-tv); its MIT notice is in [LICENSE](LICENSE). Code is [MIT](LICENSE); fonts and artwork have their own [notes](ASSETS.md). This independent project isn't affiliated with the providers or hardware and game makers mentioned above.
+Built by **Tony**, with plenty of help from **Claude Code and Codex**. If you make something fun, share it in an [issue](https://github.com/TonyRod116/ai-desk-display/issues) — preferably without your real account data in the screenshot.
 
-[^mining-math]: Illustration checked on 2026-10-23: difficulty **140,577,680,051,919.6** from [mempool.space](https://mempool.space/api/v1/mining/hashrate/3d), assuming **1 MH/s** continuously and unchanged difficulty: `difficulty × 2^32 ÷ hashes_per_second ÷ 31,557,600` ≈ **19.13 billion years**. It's a statistical mean, not a countdown or guarantee; difficulty changes and a lucky block could arrive sooner. The assumed rate is not a measurement of this board. A solo miner wins a block reward plus fees, not exactly 1 BTC.
+Code: [MIT](LICENSE). Inspired by [TokenTV](https://github.com/click6067-ship-it/token-tv), whose attribution is retained in the license. Fonts and artwork have their own [notes](ASSETS.md); provider and hardware names belong to their respective owners.

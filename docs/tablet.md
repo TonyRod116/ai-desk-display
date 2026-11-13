@@ -42,7 +42,11 @@ python scripts/prepare_game_fighting.py --out "$SCENES" --manifest
 python scripts/prepare_game_handheld.py --out "$SCENES"
 ```
 
+Isometric City uses procedural artwork from this repository. Its buildings show weekly quota, and its lighting follows the configured location and time. Traffic, ferries, helicopters, markets and stadium events animate locally; if you enable weather, the city can reflect the current conditions reported by the existing weather feed. Weather is optional and off by default.
+
 These commands run locally and can take a while. The handheld demo uses simple original stand-in graphics and never requires a cartridge; its preparer refuses to overwrite an existing handheld scene. Reopen or reload the tablet page after they finish. The surf renderer can use a compatible locally prepared backdrop; the photo and cinematic tools likewise need images or footage you have permission to use. They are not generic one-click animation tools. See the scripts' `--help` for their inputs. My personal backgrounds, videos and game artwork are not distributed with the repository.
+
+After updating the project code, rebuild and update the Android app so it receives the new interface and scene engine. Regenerate changed scenes, then wait for the complete offline pack to finish saving before disconnecting the tablet. The browser version uses the updated code after a page reload.
 
 You can also prepare a slideshow from your own pictures with `python scripts/prepare_tablet_photos.py --help`. Source media stays on the computer; the Android app can save the prepared resources privately on the tablet. Its gallery only lists prepared scenes. [Offline operation and resource updates](tablet-offline.md).
 

@@ -8,7 +8,7 @@ const require = createRequire(import.meta.url);
 const games = require('../token_tv/tablet_web/stage-game.js');
 globalThis.TabletGames = games;
 const city = require('../token_tv/tablet_web/game-city-iso.js');
-const {weekCells, sessionCells, dataState, litFlags, sunAltitude, phaseWeights, lightLevel, batchAlphas, dayState, moonPhase, weatherFor, lightState, hiddenBy, isHidden,
+const {weekCells, sessionCells, dataState, litFlags, sunAltitude, phaseWeights, lightLevel, batchAlphas, dayState, moonPhase, lightState, hiddenBy, isHidden,
   makeTraffic, stepTraffic, cameraAt, rasterise, paintCells, vehicleSprite, heliSprite, pigeonSprite, courierSprite, VEHICLES, MAX_VEHICLES, STALE_MS} = city;
 
 const NOW = Date.parse('2026-11-09T12:00:00Z');
@@ -179,20 +179,12 @@ test('the evening of 9 November in Barcelona: day, then gold, then blue, then ni
   assert.ok(at('2026-11-09T16:10:00Z').rising < .1, 'sunset has evening light');
 });
 
-test('the moon has a phase that follows the month, and the weather of a night depends only on its date', () => {
+test('the moon has a phase that follows the month', () => {
   assert.ok(moonPhase(Date.UTC(2000, 0, 6, 18, 14)) < 0.001);
   assert.ok(Math.abs(moonPhase(Date.UTC(2000, 0, 21, 4, 40)) - 0.5) < 0.03, 'full moon on 21 January 2000');
   const nearNew = moonPhase(Date.UTC(2026, 10, 9, 13, 0));
   assert.ok(nearNew < 0.02 || nearNew > 0.98, 'new moon on 9 November 2026');
   for (let i = 0; i < 400; i++) { const p = moonPhase(Date.UTC(2026, 0, 1) + i * 86400000 * 1.7); assert.ok(p >= 0 && p < 1); }
-  const offset = -60;                                         // UTC+1: the local day starts an hour early in UTC
-  const local = (iso) => weatherFor(Date.parse(iso), offset);
-  assert.equal(local('2026-11-09T00:10:00+01:00'), local('2026-11-09T23:50:00+01:00'), 'one date, one weather');
-  assert.equal(weatherFor(NOW, offset), weatherFor(NOW + 1000, offset));
-  const counts = {clear: 0, rain: 0, fog: 0};
-  for (let d = 0; d < 720; d++) counts[weatherFor(Date.UTC(2026, 0, 1) + d * 86400000 + 43200000, offset)]++;
-  assert.equal(counts.clear + counts.rain + counts.fog, 720);
-  assert.ok(counts.clear > 720 * 0.6 && counts.rain > 720 * 0.08 && counts.fog > 720 * 0.03, JSON.stringify(counts));
 });
 
 /* ---------------------------------------------------------------------------------------------------------------------- traffic, lights and what hides what */
@@ -242,6 +234,19 @@ test('the id picture decides: no building, a lawn, a rail and a building', () =>
   assert.equal(isHidden(ids, 3, boxes, 5, 0, 10, 10, 0, false), false);
 });
 
+test('a rooftop helicopter is partly hidden by the nearer building, but remains visible on its own roof', () => {
+  const width = 291, ids = new Uint16Array(width * 451), boxes = [];
+  const gx = 68.5, gy = 63, z = 17.36, y = 329;
+  boxes[201] = [67, 61, 70, 65, 0, 27.36, 0];
+  boxes[204] = [71, 61, 72, 65, 0, 49, 0];
+  ids[y * width + 179] = 201; ids[y * width + 185] = 204;
+  const s = {W:width, ids, boxes, data:{proj:{hw:6,hh:3,ox:146,oy:-48}}};
+  const spr = {ax:0, ay:0, pixels:[[0,0,null,'#fff'],[6,0,null,'#fff']],canvas:{}};
+  const drawn = [], g = {drawImage(){ drawn.push('whole sprite'); }, fillRect(...rect){ drawn.push(rect); }};
+  assert.equal(city.blit(s,g,spr,gx,gy,z,false,undefined,undefined,201,true), true);
+  assert.deepEqual(drawn, [[179,y,1,1]], 'the neighbouring facade hides its own half of the helicopter');
+});
+
 const laneWithLight = () => [{a: [0, 26], b: [30, 26], axis: 'x', sign: 1, cross: [[10, 0]]}];
 const snapshot = (sim) => JSON.stringify(sim.lanes.map((l) => l.cars.map((c) => [c.kind, +c.s.toFixed(4), +c.v.toFixed(4)])));
 
@@ -275,6 +280,33 @@ test('cars keep a gap, queue at a red light, go on green, and leave at one end t
   for (let i = 0; i < 120 * 30; i++, t += 1 / 30) stepTraffic(sim, 1 / 30, t, rnd);
   assert.equal(entry.cars.length, count, 'the same number of vehicles for ever: those that leave come back');
   assert.ok(entry.cars.every((c) => Number.isFinite(c.s) && c.s > -40 && c.s < 40));
+});
+
+test('gradual braking keeps vehicle bodies apart in repeated stop-and-go traffic', () => {
+  const rnd = games.seeded(3);
+  const lanes = [{a: [0,0], b: [80,0], axis: 'x', sign: 1, cross: [[10,0], [25,1], [40,2], [55,3], [70,4]]}];
+  const sim = makeTraffic(lanes, rnd);
+  for (let i = 0; i < 9000; i++) {
+    stepTraffic(sim, 1/30, i/30, rnd);
+    const cars = [...sim.lanes[0].cars].sort((a,b) => b.s - a.s);
+    for (let k = 1; k < cars.length; k++) {
+      const gap = cars[k-1].s - cars[k-1].len/2 - cars[k].s - cars[k].len/2;
+      assert.ok(gap >= .119, `vehicle bodies must not overlap: ${gap}`);
+    }
+  }
+});
+
+test('a bus approaches and waits beside a real stop instead of stopping randomly in the road', () => {
+  const rnd = games.seeded(4), sim = makeTraffic([{a:[0,0], b:[20,0], axis:'x', sign:1, cross:[]}], rnd), e = sim.lanes[0];
+  e.pickup = city.nearestShelter(e.lane, 10, [[10,.5,'x']]);
+  e.cars = [{kind:'bus', s:6, v:.8, vmax:.9, len:.74}];
+  let waited = false;
+  for (let i=0; i<1800; i++) {
+    stepTraffic(sim, 1/30, i/30, rnd);
+    if (e.cars[0].stopLeft > 0) { waited = true; break; }
+  }
+  assert.ok(waited, 'the bus reached its stop');
+  assert.ok(Math.abs(e.cars[0].s - 10) < .2, `bus waited at ${e.cars[0].s}`);
 });
 
 test('a street with nothing in it makes no lane, and a tiny one is ignored', () => {
@@ -372,7 +404,7 @@ test('the occasional pigeons flap and a delivery drone has lights and moving thr
   assert.ok(hero.w <= 15 && hero.h <= 8, 'the drone remains small and completely opaque');
 });
 
-test('the flying hero is drawn at full opacity after the data-building windows', () => {
+test('the flying hero remains opaque while the data-building windows stay on top', () => {
   const api = fakeApi(7, null), scene = city.scene;
   scene.dbg = {now: NOW, noStale: true};
   scene.init(api);
@@ -390,7 +422,7 @@ test('the flying hero is drawn at full opacity after the data-building windows',
   scene.draw(api, ctx);
   const heroIndex = calls.findIndex(call => call.image === sprite.canvas);
   const towerIndexes = Object.values(scene.s.towers).map(tower => calls.findIndex(call => call.image === tower.canvas));
-  assert.ok(heroIndex >= 0 && towerIndexes.every(index => index >= 0 && index < heroIndex), 'no tower window is painted over the hero');
+  assert.ok(heroIndex >= 0 && towerIndexes.every(index => index > heroIndex), 'data windows stay readable');
   assert.equal(calls[heroIndex].alpha, 1);
   assert.equal(calls[heroIndex].mode, 'source-over');
 });
@@ -476,6 +508,191 @@ test('the scene is registered with the engine: portrait native size, needs its a
   assert.ok(267 * 3 >= 800 && 427 * 3 >= 1280 && 267 <= 512 && 427 <= 768, 'x3 on the panel and within the engine limit');
   assert.equal(scene.needsAtlas, true);
   for (const f of ['init', 'step', 'draw', 'poke']) assert.equal(typeof scene[f], 'function');
+});
+
+test('real weather uses the known observation, including day rain and snow; missing data never invents rain', () => {
+  const expected = new Map([[0, 'clear'], [1, 'clear'], [2, 'partly'], [3, 'cloud'], [45, 'fog'], [48, 'fog'], [51, 'rain'], [61, 'rain'], [82, 'rain'], [71, 'snow'], [86, 'snow'], [95, 'storm'], [99, 'storm']]);
+  for (const [code, kind] of expected) assert.equal(city.observedWeather({code}), kind);
+  for (const reading of [null, {}, {code: 52}, {code: 90}, {code: '61'}]) assert.equal(city.observedWeather(reading), 'unknown');
+  const scene = games.registry['city-iso'], api = fakeApi(4, null);
+  let weather = {code: 61}; api.weather = () => weather;
+  scene.dbg = {now: Date.parse('2026-11-09T12:00:00Z')}; scene.init(api);
+  for (let i = 0; i < 90; i++) scene.step(api, 1 / 30);
+  assert.equal(scene.s.weather, 'rain'); assert.ok(scene.s.rainAmount > 0, 'rain works in daylight');
+  weather = {code: 3}; for (let i = 0; i < 60; i++) scene.step(api, 1 / 30);
+  assert.equal(scene.s.weather, 'cloud');
+  weather = null; for (let i = 0; i < 60; i++) scene.step(api, 1 / 30);
+  assert.equal(scene.s.weather, 'unknown');
+});
+
+test('the timetable keeps the drawbridge closed to cars until it is down and repeats seamlessly', () => {
+  for (let t = 0; t < 240; t += .25) {
+    const p = city.lifePhase(t);
+    assert.ok(p.bridge >= 0 && p.bridge <= 1);
+    if (p.bridge > 0) assert.equal(p.bridgeClosed, true);
+  }
+  assert.deepEqual(city.lifePhase(0), city.lifePhase(240));
+  assert.equal(city.bridgeFerryX(124.99), null);
+  assert.equal(city.bridgeFerryX(190), null);
+  const crossingAt = 125 + (65 - 38) * 65 / 57;
+  assert.ok(Math.abs(city.bridgeFerryX(crossingAt) - 65) < .001 && city.lifePhase(crossingAt).bridge > .95, 'the scheduled ferry reaches the bridge only when it is raised');
+  const lane = {a: [65.5, 60], b: [65.5, 78], axis: 'y', sign: 1, cross: []};
+  const rnd = games.seeded(2), sim = makeTraffic([lane], rnd), entry = sim.lanes[0];
+  entry.cars = [{kind: 'car', s: 1, v: 1, vmax: 1, len: .33}];
+  for (let i = 0; i < 600; i++) stepTraffic(sim, 1 / 30, i / 30, rnd, {gx: 65, y0: 66, y1: 70});
+  assert.ok(entry.cars[0].s < 5.31, 'the car waits before the canal');
+  for (let i = 0; i < 300; i++) stepTraffic(sim, 1 / 30, i / 30, rnd, null);
+  assert.ok(entry.cars[0].s > 7, 'the car can continue after reopening');
+  const clearing = makeTraffic([{a: [65.5, 61], b: [65.5, 73.25], axis: 'y', sign: 1, cross: [[8.55, 51]]}], rnd);
+  clearing.lanes[0].cars = [{kind: 'bus', s: 5.2, v: 1.2, vmax: 1.2, len: .74, stopped: false}];
+  for (let i = 0; i < 150; i++) stepTraffic(clearing, 1 / 30, i / 30, rnd, {gx: 65, y0: 66, y1: 70, closed: true});
+  assert.ok(clearing.lanes[0].cars[0].s > 9.6, 'a bus already on the bridge clears it without stopping for an imaginary light');
+});
+
+test('a boat is clipped by the painted bridge deck, not by the water above it', () => {
+  // These are the actual legacy atlas coordinates of the first canal bridge:
+  // the road itself is on z=0, whereas the stored quad was recorded at z=3.
+  const old = [[[140,342], [146,345], [122,357], [116,354]]];
+  const s = {bridges: city.bridgeDeckQuads(old), life: {bridge: 0}};
+  assert.equal(city.underBridge(s)(140,342), false, 'open water must not cut the boat');
+  assert.equal(city.underBridge(s)(140,346), true, 'the road hides the boat while it passes beneath');
+  s.life.bridge = .5;
+  assert.equal(city.underBridge(s)(140,346), false, 'moving leaves are drawn over boats instead of retaining the old flat mask');
+  assert.deepEqual(old[0][0], [140,342], 'the scene does not mutate the shared atlas metadata');
+});
+
+test('both helicopters land on real pads and every in-view transition is continuous', () => {
+  const scene = games.registry['city-iso'], api = fakeApi(7, null);
+  api.json.living = {pads: [{point: [58, 58, 22]}, {point: [68.5, 63, 17]}], stadiums: [], bridge_grid: []};
+  scene.dbg = {now: NOW}; scene.init(api);
+  const at = (t, kind) => city.helicopterFlights(scene.s, t).find(v => v.kind === kind)?.point;
+  assert.deepEqual(at(24, 'rescue'), [58, 58, 22]);
+  assert.deepEqual(at(88, 'shuttle'), [58, 58, 22]);
+  assert.deepEqual(at(121, 'shuttle'), [68.5, 63, 17]);
+  for (const [t, kind] of [[17, 'rescue'], [22, 'rescue'], [32, 'rescue'], [37, 'rescue'], [58, 'shuttle'], [63, 'shuttle'], [70, 'shuttle'], [75, 'shuttle'], [94, 'shuttle'], [99, 'shuttle'], [106, 'shuttle'], [111, 'shuttle'], [240, 'shuttle']]) {
+    const a = at(t - .001, kind), b = at(t + .001, kind);
+    assert.ok(a && b && Math.hypot(...a.map((v, i) => v - b[i])) < .02, `${kind} at ${t}`);
+  }
+});
+
+test('the rescue helicopter lands at the hospital while the shuttle uses two other rooftops', () => {
+  const scene = games.registry['city-iso'], api = fakeApi(7, null);
+  api.json.living = {pads: [{point: [66.65,48,26], role: 'hospital'}, {point: [58,58,22], role: 'garage'}, {point: [68.5,63,17], role: 'rooftop'}], stadiums: [], bridge_grid: []};
+  scene.dbg = {now: NOW}; scene.init(api);
+  const at = (t, kind) => city.helicopterFlights(scene.s, t).find(v => v.kind === kind)?.point;
+  assert.deepEqual(at(24, 'rescue'), [66.65,48,26]);
+  assert.deepEqual(at(88, 'shuttle'), [58,58,22]);
+  assert.deepEqual(at(121, 'shuttle'), [68.5,63,17]);
+});
+
+test('the match and fireworks follow an actual station arrival and the supporters walking the route', () => {
+  const route = [[0,0], [2,0], [2,1]], len = city.routeLength(route), start = 100;
+  assert.equal(city.linkedStory(null, 1000, route).phase, 'waiting');
+  assert.equal(city.linkedStory(start, start + 1, route).phase, 'unloading');
+  assert.equal(city.linkedStory(start, start + 5, route).phase, 'fans');
+  assert.deepEqual(city.routePoint(route, 2.5), [2,.5]);
+  const match = start + 4 + len / city.GROUP_WALK_SPEED + 3;
+  assert.equal(city.linkedStory(start, match - .01, route).phase, 'fans');
+  assert.equal(city.linkedStory(start, match + 1, route).phase, 'match');
+  assert.equal(city.linkedStory(start, match + 71, route).phase, 'fireworks');
+  assert.equal(city.linkedStory(start, match + 86, route).phase, 'parade');
+  const scene = games.registry['city-iso'], api = fakeApi(7, null);
+  api.json.living = {pads: [], stadiums: [], bridge_grid: [], station: 13, fan_route: route};
+  scene.dbg = {now: NOW}; scene.init(api);
+  assert.equal(scene.s.story.started, null, 'no arrival means no story yet');
+  for (let i = 0; i < 1200 && scene.s.story.started === null; i++) scene.step(api, 1/30);
+  assert.ok(Number.isFinite(scene.s.story.started), 'the train arriving starts the story');
+  assert.equal(scene.s.storyState.phase, 'unloading');
+});
+
+test('market stalls open and close with the local clock, and rain sends nearby pedestrians to a shelter', () => {
+  const at = (hour, minute=0) => { const d = new Date(2026, 10, 9); d.setHours(hour, minute, 0, 0); return d.getTime(); };
+  assert.equal(city.marketOpen(at(7)), 0); assert.equal(city.marketOpen(at(8)), 1);
+  assert.equal(city.marketOpen(at(19)), 1); assert.equal(city.marketOpen(at(20)), 0);
+  assert.ok(city.marketOpen(at(7,45)) > 0 && city.marketOpen(at(7,45)) < 1);
+  const walk = {a: [0,0], b: [10,0]}, target = city.nearestShelter(walk, 0, [[3,.4,'x'], [8,5,'x']]);
+  assert.equal(target, 3);
+  const p = {walk, s: 0, len: 10, dir: 1, speed: .3, shelter: target};
+  for (let i = 0; i < 450; i++) city.stepPedestrian(p, 1/30, true);
+  assert.ok(p.sheltering && Math.abs(p.s - 3) < .08);
+  const stopped = p.s; for (let i = 0; i < 30; i++) city.stepPedestrian(p, 1/30, true);
+  assert.ok(Math.abs(p.s - stopped) < .08, 'person stays under shelter while it rains');
+  city.stepPedestrian(p, 1/30, false); assert.equal(p.sheltering, false); assert.ok(p.s > stopped, 'walking resumes in clear weather');
+});
+
+test('people move slower than traffic and the helicopter cruises faster than a car', () => {
+  assert.ok(city.GROUP_WALK_SPEED < VEHICLES.car.speed * .5);
+  for (const direction of [-1, 1]) {
+    const a = city.groupWalk(10, 2, 0, direction, 40), b = city.groupWalk(10, 3, 0, direction, 40);
+    assert.ok(Math.abs(b - a) <= city.GROUP_WALK_SPEED + 1e-9);
+  }
+  const scene = games.registry['city-iso'], api = fakeApi(7, null);
+  api.json.living = {pads: [{point: [58, 58, 22]}, {point: [68.5, 63, 17]}], stadiums: [], bridge_grid: []};
+  scene.dbg = {now: NOW}; scene.init(api);
+  const point = t => city.helicopterFlights(scene.s, t).find(h => h.kind === 'shuttle').point;
+  const a = point(66), b = point(67), speed = Math.hypot(b[0] - a[0], b[1] - a[1]);
+  assert.ok(speed > VEHICLES.car.speed, `helicopter ${speed.toFixed(2)} > car ${VEHICLES.car.speed}`);
+});
+
+test('the train and ferry slow to a stop at their station and quay, then start again', () => {
+  const scene = games.registry['city-iso'], api = fakeApi(7, null);
+  api.json.living = {pads: [], stadiums: [], bridge_grid: [], station: 13, ferry_dock: [74.1, 67.2]};
+  scene.dbg = {now: NOW}; scene.init(api);
+  const s = scene.s;
+  Object.assign(s.train, {on: true, dir: 1, x: 3, v: 0, stationDone: false, dwell: 0});
+  s.boats = [{lane: {a: [60,67.2], b: [80,67.2], kinds: 'f'}, len: 20, kind: 'f', s: 10, speed: .6, v: .6, wait: 0, wake: [], next: 0}];
+  const trainSpeeds = [], ferrySpeeds = [];
+  for (let i = 0; i < 1500 && (!s.train.stationDone || !s.boats[0].docked); i++) {
+    scene.step(api, 1/30); trainSpeeds.push(s.train.v); ferrySpeeds.push(s.boats[0].v);
+  }
+  assert.equal(s.train.stationDone, true); assert.equal(s.train.x, 13); assert.equal(s.train.v, 0);
+  assert.equal(s.boats[0].docked, true); assert.ok(Math.abs(s.boats[0].s - 14.1) < .02); assert.equal(s.boats[0].v, 0);
+  assert.ok(Math.max(...trainSpeeds) > .5 && trainSpeeds.some((v, i) => i && v < trainSpeeds[i-1]), 'train accelerates and brakes');
+  assert.ok(ferrySpeeds.some((v, i) => i && v < ferrySpeeds[i-1]), 'ferry brakes rather than stopping instantly');
+  for (let i = 0; i < 240; i++) scene.step(api, 1/30);
+  assert.ok(s.train.v > 0 && s.boats[0].v > 0, 'both accelerate away after their stops');
+});
+
+test('a ferry waiting at the quay stays visible instead of disappearing', () => {
+  const scene = games.registry['city-iso'], api = fakeApi(7, null);
+  scene.dbg = {now: NOW, weather: 'clear'}; scene.init(api);
+  scene.s.boats = [{lane: {a: [6,22.5], b: [40,22.5], kinds: 'f'}, len: 34, kind: 'f', s: 14, speed: .6, v: 0, wait: 6, docked: true, wake: [], next: 0}];
+  const visible = recorder(); scene.draw(api, visible.ctx);
+  scene.s.boats[0].docked = false;
+  const outside = recorder(); scene.draw(api, outside.ctx);
+  assert.ok(visible.calls.byName.drawImage > outside.calls.byName.drawImage, 'a docked ferry is drawn while an off-map waiting vessel is not');
+});
+
+test('stadium, cranes, bridge and helicopters draw without exceptions at representative times and touches', () => {
+  const scene = games.registry['city-iso'], api = fakeApi(7, null);
+  api.json.living = {pads: [{point: [58, 58, 22], id: 1}, {point: [68.5, 63, 17], id: 1}], stadiums: [{field: [46.95, 41.95, 49.05, 44.05, 5.6], id: 1}],
+    cranes: [{top: [89, 43], far: [108, 53], height: 30, id: 1}], markets: [[46, 51, 50, 55]], parks: [[36, 51, 45, 60]], bridge_grid: [[65, 66, 70]], station: 13, ferry_dock: [74.1, 67.2]};
+  const {ctx} = recorder();
+  for (const lifeTime of [9, 24, 70, 76, 88, 108, 126, 160, 190, 218]) {
+    scene.dbg = {now: NOW, lifeTime, weather: 'rain'}; scene.init(api);
+    scene.step(api, 1 / 30); scene.draw(api, ctx);
+    assert.equal(scene.s.off, undefined, `${lifeTime}: ${JSON.stringify(scene.s.off)}`);
+  }
+  scene.poke(api, 164, 207);
+  assert.ok(Number.isFinite(scene.s.matchStarted), 'touching the pitch starts a match');
+});
+
+test('the busiest living-city frames remain bounded and the lighter tier reduces detail', () => {
+  const scene = games.registry['city-iso'];
+  const measure = (tier, lifeTime) => {
+    const api = fakeApi(9, null, tier);
+    api.json.living = {pads: [{point: [58, 58, 22], id: 1}, {point: [68.5, 63, 17], id: 1}], stadiums: [{field: [46.95, 41.95, 49.05, 44.05, 5.6], id: 1}],
+      cranes: [{top: [89, 43], far: [108, 53], height: 30, id: 1}], markets: [[46, 51, 50, 55]], parks: [[36, 51, 45, 60]],
+      stalls: [[47, 52, 'x'], [48, 52, 'x']], shelters: [[40.4, 38, 'y']], picnics: [[39, 54]], fan_route: [[13,25.08], [35.92,25.08], [35.92,45.92], [46.8,45.92]],
+      bridge_grid: [[65, 66, 70]], station: 13, ferry_dock: [74.1, 67.2]};
+    scene.dbg = {now: Date.parse('2026-11-09T19:30:00Z'), weather: 'rain', lifeTime}; scene.init(api);
+    for (let i = 0; i < 150; i++) scene.step(api, 1 / 30);
+    const {ctx, calls} = recorder(); scene.draw(api, ctx);
+    assert.equal(scene.s.off, undefined, JSON.stringify(scene.s.off));
+    return calls.n;
+  };
+  for (const t of [23, 76, 108, 160, 190]) assert.ok(measure('high', t) < 1500, `bounded during event ${t}`);
+  assert.ok(measure('low', 76) < measure('high', 76), 'the device can shed small details');
 });
 
 test('the new visitors enter and leave naturally while the camera remains fixed', () => {
@@ -621,7 +838,7 @@ test('the readings reach the buildings and an old one is dropped by the scene it
   assert.equal(scene.s.towers.codex.sig, 'u', 'unknown, not frozen');
 });
 
-test('the scene lowers its small things by itself when its own drawing is slow (the engine never tells it again), and brings them back when it is fast', () => {
+test('the scene lowers its small things when its own drawing is slow and brings them back when it is fast', () => {
   const scene = games.registry['city-iso'], real = Object.getOwnPropertyDescriptor(globalThis, 'performance');
   let clock = 0, cost = 30;
   Object.defineProperty(globalThis, 'performance', {configurable: true, value: {now: () => (clock += cost)}});

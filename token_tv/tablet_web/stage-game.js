@@ -96,6 +96,13 @@
       return global.location && u.origin !== global.location.origin ? null : u.pathname + u.search;
     } catch (_) { return null; }
   };
+  function versionedLocalUrl(value, revision) {
+    const local = localUrl(value);
+    if (!local || typeof revision !== 'string' || !/^[a-f0-9]{64}$/.test(revision)) return local;
+    const url = new URL(local, global.location ? global.location.href : 'http://localhost/');
+    url.searchParams.set('adrev', revision);
+    return url.pathname + url.search;
+  }
 
   /* ---- the CRT pass */
   const VERT = 'attribute vec2 p; varying vec2 uv; uniform vec4 rect; void main(){ uv = p * 0.5 + 0.5; uv.y = 1.0 - uv.y; vec2 s = rect.xy + uv * rect.zw; gl_Position = vec4(s.x * 2.0 - 1.0, 1.0 - s.y * 2.0, 0.0, 1.0); }';
@@ -154,7 +161,7 @@
     const g = art.getContext('2d', { alpha: false });
     const gg = glowCanvas.getContext('2d', { alpha: false });
     const state = { info: null, module: null, api: null, ready: false, error: '', notes: [], paused: false, motion: true, live: true, quality: 'auto', level: 0, area: null,
-      raf: 0, last: 0, frames: 0, dropped: 0, fpsMark: 0, fps: 0, started: 0, time: 0, readings: null, token: 0, gl: null, dead: false, stillDrawn: false };
+      raf: 0, last: 0, frames: 0, dropped: 0, fpsMark: 0, fps: 0, started: 0, time: 0, readings: null, weather: null, token: 0, gl: null, dead: false, stillDrawn: false };
     const clock = makeClock(), governor = new Governor();
     const note = (text) => { state.notes.push(String(text).slice(0, 90)); if (state.notes.length > 8) state.notes.shift(); };
     const emit = () => { if (typeof opts.onStatus === 'function') { try { opts.onStatus(status()); } catch (_) { /* the page's callback must not break the stage */ } } };
@@ -300,7 +307,7 @@
       state.raf = 0; state.ready = false; state.error = ''; state.stillDrawn = false;
       if (!info) { state.info = null; state.module = null; canvas.style.opacity = '0'; if (state.cssArt) state.cssArt.style.opacity = '0'; if (state.cssPixels) { state.cssPixels.style.display = 'none'; state.cssGrid.style.display = 'none'; } emit(); return; }
       const name = String(info.name || '').toLowerCase().replace(/[^a-z0-9-]/g, '').slice(0, 40), module = registry[name];
-      state.info = { name, atlas: info.media && localUrl(info.media.url), data: localUrl(info.data) };
+      state.info = { name, atlas: info.media && versionedLocalUrl(info.media.url, info.resourceRevision), data: versionedLocalUrl(info.data, info.resourceRevision) };
       if (!module) { fail('no game named ' + name); return; }
       const loadImage = (url) => new Promise((resolve) => { if (!url) { resolve(null); return; } const img = new global.Image(); const timer = setTimeout(() => resolve(null), 20000); img.onload = () => { clearTimeout(timer); resolve(img); }; img.onerror = () => { clearTimeout(timer); resolve(null); }; img.src = url; });
       const loadJson = (url) => (url ? global.fetch(url, { cache: 'no-cache' }).then((r) => (r.ok ? r.json() : null)).catch(() => null) : Promise.resolve(null));
@@ -310,7 +317,7 @@
       const size = Array.isArray(module.size) && module.size.length === 2 && module.size.every(finite) ? [clamp(Math.round(module.size[0]), 32, 512), clamp(Math.round(module.size[1]), 32, 768)] : [200, 320];
       art.width = size[0]; art.height = size[1]; glowCanvas.width = Math.max(8, size[0] >> 1); glowCanvas.height = Math.max(8, size[1] >> 1);
       const random = seeded(0x5eed ^ name.length * 7919);
-      state.api = { name, size, atlas, json, time: 0, tier: LEVELS[state.level].name, random, view: { top: 0, bottom: size[1] }, readings: () => state.readings,
+      state.api = { name, size, atlas, json, time: 0, tier: LEVELS[state.level].name, random, view: { top: 0, bottom: size[1] }, readings: () => state.readings, weather: () => state.weather,
         sprite(ctx, frameName, x, y, flip) {
           const f = json && json.frames && json.frames[frameName]; if (!f || !atlas) return false;
           if (flip) { ctx.save(); ctx.translate(Math.round(x) + f[2], Math.round(y)); ctx.scale(-1, 1); ctx.drawImage(atlas, f[0], f[1], f[2], f[3], 0, 0, f[2], f[3]); ctx.restore(); }
@@ -337,6 +344,7 @@
       setQuality(q) { state.quality = q === 'high' || q === 'low' ? q : 'auto'; state.level = q === 'low' ? LEVELS.length - 1 : 0; if (state.api) state.api.tier = LEVELS[state.level].name; governor.reset(state.last); emit(); },
       setLive() { /* the game IS the live effect; the page's switch only concerns the photo effects */ },
       setReadings(latest) { state.readings = latest || null; },
+      setWeather(latest) { state.weather = latest || null; },
       pause() { state.paused = true; if (state.raf && global.cancelAnimationFrame) global.cancelAnimationFrame(state.raf); state.raf = 0; emit(); },
       resume() { if (!state.paused) return; state.paused = false; state.last = 0; clock.reset(); governor.reset(0); schedule(); emit(); },
       poke(x, y) {
@@ -351,7 +359,7 @@
     };
   }
 
-  const api = { define, create, coverLayout, visibleRows, makeClock, seeded, Governor, STEP, LEVELS, localUrl, registry, FRAG, VERT };
+  const api = { define, create, coverLayout, visibleRows, makeClock, seeded, Governor, STEP, LEVELS, localUrl, versionedLocalUrl, registry, FRAG, VERT };
   global.TabletGames = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })(typeof window !== 'undefined' ? window : globalThis);

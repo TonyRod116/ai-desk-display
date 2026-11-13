@@ -8,6 +8,19 @@ const games = require('../token_tv/tablet_web/stage-game.js');
 const {coverLayout, visibleRows, makeClock, seeded, Governor, define, registry, STEP, LEVELS, FRAG} = games;
 const close = (a, b, eps = 1e-6) => assert.ok(Math.abs(a - b) <= eps, `${a} is not ${b}`);
 
+test('an updated offline scene uses distinct same-origin image and data URLs', () => {
+  const previous = globalThis.location;
+  globalThis.location = {href: 'https://tablet.example/', origin: 'https://tablet.example'};
+  try {
+    const old = 'a'.repeat(64), next = 'b'.repeat(64);
+    assert.equal(games.versionedLocalUrl('/assets/scene-city-iso.png', old), '/assets/scene-city-iso.png?adrev=' + old);
+    assert.notEqual(games.versionedLocalUrl('/assets/scene-city-iso.png', old), games.versionedLocalUrl('/assets/scene-city-iso.png', next));
+    assert.equal(games.versionedLocalUrl('/assets/scene-city-iso.json?foo=1', next), '/assets/scene-city-iso.json?foo=1&adrev=' + next);
+    assert.equal(games.versionedLocalUrl('/assets/scene-city-iso.png', 'bad'), '/assets/scene-city-iso.png');
+    assert.equal(games.versionedLocalUrl('https://evil.example/a.png', next), null);
+  } finally { if (previous === undefined) delete globalThis.location; else globalThis.location = previous; }
+});
+
 test('the art covers the whole screen, top aligned, and never leaves a gap', () => {
   for (const [w, h] of [[601, 961], [768, 1024], [480, 854], [1200, 1740], [800, 1280]]) {
     const l = coverLayout(w, h, 200, 320);

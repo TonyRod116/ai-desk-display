@@ -10,7 +10,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest import mock
 
-from PIL import Image
+from PIL import Image, ImageChops
 
 from scripts import prepare_game_city_iso as city
 from scripts import tablet_media as media
@@ -61,6 +61,92 @@ class Built(unittest.TestCase):
     def setUpClass(cls):
         cls.atlas, cls.data, cls.thumb = city.build(2026, quick=True)
         cls.pictures = {name: cls.atlas.crop((x, y, x + w, y + h)) for name, (x, y, w, h) in cls.data['frames'].items()}
+
+    def test_living_city_uses_visible_real_rooftops_and_pitch(self):
+        living = self.data['living']
+        self.assertGreaterEqual(len(living['pads']), 3)
+        self.assertIn('hospital', {p.get('role') for p in living['pads']})
+        self.assertGreaterEqual(len(living['stadiums']), 1)
+        self.assertGreaterEqual(len(living['cranes']), 1)
+        self.assertGreaterEqual(len(living['markets']), 1)
+        self.assertGreaterEqual(len(living['parks']), 1)
+        self.assertGreater(len(living['stalls']), 0)
+        self.assertGreater(len(living['shelters']), 0)
+        self.assertGreaterEqual(len(living['fan_route']), 3)
+        self.assertEqual(len(living['bridge_grid']), len(city.BRIDGES))
+        self.assertIsNotNone(living['station'])
+        ids = self.pictures['idmap'].convert('RGB')
+        def owner(point):
+            x, y = city.proj(*point)
+            r, g, _ = ids.getpixel((round(x), round(y)))
+            return r + 256 * g
+        buildings, _ = city.make_plan(2026)
+        hero_ids = {b.id for b in buildings if b.kind == 'hero'}
+        for pad in living['pads']:
+            self.assertEqual(owner(pad['point']), pad['id'], 'a pad must not be hidden by another building')
+            self.assertNotIn(pad['id'], hero_ids)
+        field = living['stadiums'][0]
+        x0, y0, x1, y1, z = field['field']
+        self.assertGreater(x1, x0); self.assertGreater(y1, y0)
+        self.assertEqual(owner(((x0 + x1) / 2, (y0 + y1) / 2, z)), field['id'])
+
+    def test_riverfront_has_distinct_forms_materials_and_heights_on_both_banks(self):
+        buildings, _ = city.make_plan(2026)
+        front = [b for b in buildings if b.kind == 'city' and b.style.get('riverfront')]
+        self.assertTrue(any(b.y1 < city.CANAL[0] for b in front))
+        self.assertTrue(any(b.y0 > city.CANAL[1] for b in front))
+        self.assertGreaterEqual(len({b.style['arch'] for b in front}), 7)
+        self.assertGreaterEqual(len({b.material for b in front}), 3)
+        self.assertGreaterEqual(max(b.h for b in front) - min(b.h for b in front), 15)
+        for b in front:
+            self.assertLessEqual(b.h, city.height_cap(b, city.place_heroes()))
+
+    def test_foreground_has_varied_shapes_and_does_not_hide_the_helipad_support(self):
+        buildings, _ = city.make_plan(2026)
+        front = [b for b in buildings if b.kind == 'city' and b.style.get('foreground')]
+        self.assertGreaterEqual(len(front), 5)
+        self.assertGreaterEqual(len({b.style['arch'] for b in front}), 5)
+        edge = [b for b in front if b.style.get('foreground_edge')]
+        self.assertEqual(len(edge), 3)
+        self.assertEqual({b.style['arch'] for b in edge}, {'wedge', 'terrace_block', 'round'})
+        pad = next(p for p in self.data['living']['pads'] if p.get('role') == 'garage')
+        x, y = city.proj(*pad['point'])
+        ids = self.pictures['idmap'].convert('RGB')
+        owner = lambda xx, yy: (lambda c: c[0] + 256*c[1])(ids.getpixel((round(xx), round(yy))))
+        self.assertGreaterEqual(sum(owner(x, y + dy) == pad['id'] for dy in range(4, 18)), 6,
+                                'enough of the supporting building is visible below the roof')
+
+    def test_supporter_route_follows_streets_and_is_partly_visible(self):
+        route = self.data['living']['fan_route']
+        buildings, heroes = city.make_plan(2026)
+        _, covered = city.plan_regions(buildings)
+        covered += city.streets_under(heroes)
+        ids = self.pictures['idmap'].convert('RGB')
+        visible = total = 0
+        for a, b in zip(route, route[1:]):
+            self.assertTrue(abs(a[0] - b[0]) < 1e-6 or abs(a[1] - b[1]) < 1e-6, 'each segment follows a street')
+            steps = max(1, math.ceil(math.dist(a, b) * 3))
+            for i in range(steps + 1):
+                t = i / steps
+                gx, gy = a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t
+                self.assertFalse(any(r[0] - .05 <= gx <= r[2] + .05 and r[1] - .05 <= gy <= r[3] + .05 for r in covered))
+                x, y = city.proj(gx, gy)
+                if 0 <= round(x) < ids.width and 0 <= round(y - 1) < ids.height:
+                    rgb = ids.getpixel((round(x), round(y - 1)))
+                    visible += rgb[0] + 256 * rgb[1] == 0
+                    total += 1
+        self.assertGreater(visible / max(1, total), .35, 'supporters should be visible for a meaningful part of the walk')
+
+    def test_industrial_gallery_and_chimney_have_actual_supports(self):
+        buildings, _ = city.make_plan(2026)
+        b = next(b for b in buildings if getattr(b, 'style', {}).get('arch') == 'silos')
+        layout = city.silo_layout(b)
+        self.assertEqual(len(layout['stacks']), 3)
+        self.assertLess(layout['gallery_z'], min(h for _, _, h in layout['stacks']))
+        self.assertGreater(layout['chimney_base'], 0)
+        self.assertGreater(layout['chimney_top'], layout['chimney_base'])
+        for x, y, h in layout['stacks']:
+            self.assertTrue(b.x0 < x < b.x1 and b.y0 < y < b.y1 and h > layout['gallery_z'])
 
     def test_the_atlas_follows_the_contract_of_the_game_engine(self):
         self.assertLessEqual(self.atlas.width, 4096)
@@ -537,6 +623,89 @@ class Variety(unittest.TestCase):
         self.assertGreaterEqual(len({b.style.get('roof_colour') for b in self.city}), 10, 'roofs of many colours')
         self.assertGreaterEqual(len({b.style.get('facade') for b in self.city}), 6, 'facades of many kinds')
 
+    def test_visible_codex_neighbours_have_three_distinct_forms_in_the_same_lots(self):
+        accents = [b for b in self.city if b.style.get('codex_accent')]
+        self.assertEqual(len(accents), 4)
+        self.assertEqual({b.style['arch'] for b in accents}, {'glass_slab', 'wedge', 'twin', 'tapered'})
+        mirror = next(b for b in accents if b.style.get('facade') == 'mirror')
+        self.assertEqual((mirror.x0, mirror.y0, mirror.x1, mirror.y1), (26, 41, 30, 45))
+        self.assertEqual(mirror.material, 'glass')
+        self.assertEqual(mirror.tiers, 1, 'the reflective facade stays continuous')
+        self.assertLess(mirror.h, self.heroes['codex'].top)
+        right = next(b for b in self.city if b.style.get('codex_flank'))
+        self.assertEqual(right.style['arch'], 'round')
+        self.assertTrue(right.style['round_ribbon'])
+        self.assertLessEqual(right.lit, .10, 'ordinary lights stay subordinate to the quota tower')
+        self.assertNotEqual(right.style['arch'], mirror.style['arch'], 'the two sides of Codex must have visibly different volumes')
+        mirrors = [b for b in self.city if b.style.get('facade') == 'mirror']
+        self.assertGreaterEqual(len(mirrors), 2, 'more than one building uses mirror glass')
+        self.assertTrue(any(b.style.get('mirror_accent') for b in mirrors))
+
+    def test_facade_details_are_varied_across_the_city_and_neighbours(self):
+        ordinary = [b for b in self.city if not b.style.get('landmark')]
+        self.assertGreaterEqual(len(ordinary), 150)
+        self.assertTrue(all(b.style.get('detail') for b in ordinary))
+        self.assertGreaterEqual(len({b.style['detail'] for b in ordinary}), 7)
+        pairs = same = 0
+        for i, p in enumerate(ordinary):
+            for q in ordinary[i+1:]:
+                distance = abs((p.x0+p.x1-q.x0-q.x1)/2) + abs((p.y0+p.y1-q.y0-q.y1)/2)
+                if distance < 7:
+                    pairs += 1
+                    same += p.style['detail'] == q.style['detail']
+        self.assertGreater(pairs, 100)
+        self.assertLess(same / pairs, .10, 'neighbours should not repeat the same detail')
+
+    def test_each_facade_detail_changes_the_rendered_material(self):
+        import random
+        b = city.Building(26, 41, 30, 45, 42, 'glass')
+        b.id, b.lit = 5, .5
+        base = city.faces_base(b.x0, b.y0, b.x1, b.y1)[0]
+        def painted(detail):
+            cv, rec = city.Cv(city.WORLD, 2), city.Rec()
+            cv.bid = b.id
+            style = city.base_style('glass_steel', random.Random(3))
+            style.update(facade='classic', detail=detail, detail_phase=1)
+            city.paint_face(cv, rec, b, base, 0, b.h, city.FLOOR, 0, style, random.Random(19), windows=True)
+            return cv.albedo
+        plain = painted(None)
+        for detail in ('vertical_fins', 'horizontal_bands', 'framed_bays', 'recessed_edge', 'sunshades', 'stone_courses', 'glass_reflection'):
+            with self.subTest(detail=detail):
+                self.assertIsNotNone(ImageChops.difference(plain, painted(detail)).getbbox(), 'the detail must affect actual pixels')
+
+    def test_mirror_is_a_glass_skin_and_keeps_a_few_real_light_panels(self):
+        import random
+        b = city.Building(26, 41, 30, 45, 49, 'glass'); b.id = 5; b.lit = .5
+        base = city.faces_base(b.x0, b.y0, b.x1, b.y1)[0]
+        cv, rec = city.Cv(city.WORLD, 2), city.Rec(); cv.bid = b.id
+        style = city.base_style('glass_pearl', random.Random(2)); style['facade'] = 'mirror'
+        city.paint_face(cv, rec, b, base, 0, b.h, city.FLOOR, 0, style, random.Random(2), windows=True)
+        self.assertGreater(sum(v == city.GLASS_L for v in pixels(cv.cls)), 500)
+        self.assertGreater(len(rec.wins), 0)
+        self.assertLess(len(rec.wins), 10, 'a mirror has a few lit rooms, not the usual dense grid')
+        self.assertTrue(all(win[3] == b.id for win in rec.wins))
+
+    def test_mirror_near_codex_has_no_large_animated_billboard(self):
+        b = next(b for b in self.city if b.style.get('codex_accent') and b.style.get('facade') == 'mirror')
+        with mock.patch.object(city, 'led_wall') as billboard:
+            city.paint_building(city.Cv(city.WORLD, 1), city.Rec(), b)
+        billboard.assert_not_called()
+
+    def test_ribbon_accent_changes_one_face_without_losing_windows(self):
+        import random
+        b = next(b for b in self.city if b.style.get('ribbon_accent'))
+        base = city.faces_base(b.x0, b.y0, b.x1, b.y1)[1]
+        def render(ribbon):
+            cv, rec = city.Cv(city.WORLD, 2), city.Rec(); cv.bid = b.id
+            style = dict(b.style)
+            if not ribbon:
+                style.pop('ribbon_side', None)
+            city.paint_face(cv, rec, b, base, 0, b.h, city.FLOOR, 1, style, random.Random(9), windows=True)
+            return cv.albedo, rec
+        plain, a = render(False); striped, b_rec = render(True)
+        self.assertIsNotNone(ImageChops.difference(plain, striped).getbbox())
+        self.assertEqual(len(a.wins), len(b_rec.wins), 'decorative glazing does not remove night lighting')
+
     def test_no_kind_and_no_palette_takes_over_the_city(self):
         for label, group, arch_limit, scheme_limit in (('city', self.city, .18, .10), ('the rows above the dock', self.visible(), .20, .12)):
             for key, limit in (('arch', arch_limit), ('scheme', scheme_limit)):
@@ -613,8 +782,9 @@ class Variety(unittest.TestCase):
     def test_central_block_has_volume_and_neighbourhood_buildings_leave_heroes_clear(self):
         central = [b for b in self.city if (b.x0, b.y0, b.x1, b.y1) == (31, 36, 35, 40)]
         self.assertEqual(len(central), 1)
-        self.assertEqual(central[0].style['arch'], 'terrace_block')
-        self.assertEqual(central[0].style['scheme'], 'limestone')
+        self.assertEqual(central[0].style['arch'], 'round')
+        self.assertEqual(central[0].style['scheme'], 'glass_titanium')
+        self.assertTrue(central[0].style.get('codex_flank'))
         added = [b for b in self.city if b.style.get('neighbourhood')]
         self.assertGreaterEqual(len(added), 3)
         self.assertGreaterEqual(len({b.style['arch'] for b in added}), 3)
