@@ -5,7 +5,9 @@ import contextlib
 import io
 import json
 import re
+import shutil
 import stat
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -19,6 +21,79 @@ from token_tv import tablet_server
 ROOT = Path(__file__).resolve().parents[1]
 SCENE = (ROOT / 'token_tv/tablet_web/game-token-run.js').read_text(encoding='utf-8')
 SCRIPT = (ROOT / 'scripts/prepare_game_token_run.py').read_text(encoding='utf-8')
+
+
+@unittest.skipUnless(shutil.which('node'), 'needs node')
+class LightingTests(unittest.TestCase):
+    def run_node(self, code):
+        result = subprocess.run(['node', '-e', code], cwd=ROOT, capture_output=True, text=True, timeout=30)
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_headlights_are_wide_short_and_move_with_the_car(self):
+        self.run_node(r'''
+          const assert = require('node:assert/strict');
+          const run = require('./token_tv/tablet_web/game-token-run.js');
+          const base = run.pack([35, 48, 65]), carRow = 236, y = carRow - 35;
+          function row(centre, amount = 1, at = y) {
+            const buf = new Uint32Array(run.W * run.H).fill(base);
+            run.headlightRow(buf, at, 0, run.W, centre, carRow, amount);
+            return Array.from(buf.slice(at * run.W, (at + 1) * run.W));
+          }
+          const lit = row(100), moved = row(107), day = row(100, 0);
+          const spans = []; let start = -1;
+          for (let i = 0; i <= lit.length; i++) {
+            if (lit[i] !== base && i < lit.length && start < 0) start = i;
+            if ((i === lit.length || lit[i] === base) && start >= 0) { spans.push(i - start); start = -1; }
+          }
+          assert.equal(spans.length, 2);
+          assert.ok(spans.every(width => width >= 40), `each beam should be much broader: ${spans}`);
+          assert.deepEqual(lit.slice(30, 160), moved.slice(37, 167));
+          assert.ok(day.every(pixel => pixel === base));
+          assert.ok(row(100, 1, carRow - 60).every(pixel => pixel === base));
+        ''')
+
+    def test_rear_lights_fit_each_vehicle_and_disappear_with_daylight_or_occlusion(self):
+        self.run_node(r'''
+          const assert = require('node:assert/strict');
+          global.ImageData = class { constructor(w, h) { this.data = new Uint8ClampedArray(w * h * 4); } };
+          const run = require('./token_tv/tablet_web/game-token-run.js');
+          const atlas = {naturalWidth: 80, naturalHeight: 80};
+          const json = {frames: {'rival-blue-24': [0, 0, 24, 18], 'rival-white-24': [25, 0, 24, 28]},
+            anchors: {'rival-blue-24': [12, 17], 'rival-white-24': [12, 27]},
+            ladders: {'rival-blue': ['rival-blue-24'], 'rival-white': ['rival-white-24']}};
+          function render(colour, lamps, x = 0, another = false) {
+            const api = {atlas, json, random: () => .5, view: {bottom: 320}};
+            const scene = Object.create(run.scene); scene.init(api);
+            const world = scene.s.world;
+            world.rivals = [{z: 1000, x, colour}];
+            if (another) world.rivals.push({z: 1100, x: 0, colour: 2});
+            world.scenery = [];
+            world.track.curve.fill(0); world.track.height.fill(0); world.camZ = 0; world.camX = 0;
+            world.light = {...run.lightAt(-20), lamps};
+            const calls = [];
+            const g = {fillStyle: '', globalCompositeOperation: 'source-over', putImageData() {}, save() {}, restore() {},
+              drawImage(...a) { calls.push(['sprite', ...a]); }, fillRect(...a) { calls.push(['light', this.fillStyle, ...a]); }};
+            scene.draw(api, g);
+            return calls;
+          }
+          for (const colour of [0, 2]) {
+            const calls = render(colour, 1), sprite = calls.find(c => c[0] === 'sprite');
+            const lights = calls.filter(c => c[0] === 'light' && c[1].startsWith('rgba(255,'));
+            assert.equal(lights.length, 2);
+            for (const c of lights) {
+              assert.ok(c[4] <= 4 && c[5] <= 2, `tail light too large: ${c}`);
+              assert.ok(c[2] >= sprite[6] && c[2] + c[4] <= sprite[6] + sprite[8]);
+              assert.ok(c[3] >= sprite[7] && c[3] + c[5] <= sprite[7] + sprite[9]);
+            }
+            assert.equal(render(colour, 0).filter(c => c[0] === 'light').length, 0);
+          }
+          const original = render(0, 1), moved = render(0, 1, 200);
+          const lightX = calls => calls.find(c => c[0] === 'light')[2];
+          const spriteX = calls => calls.find(c => c[0] === 'sprite')[6];
+          assert.equal(lightX(moved) - lightX(original), spriteX(moved) - spriteX(original), 'lights move with the vehicle');
+          assert.deepEqual(render(0, 1, 0, true).map(c => c[0]), ['sprite', 'light', 'light', 'sprite', 'light', 'light'],
+            'a nearer vehicle can cover the more distant vehicle and its lights');
+        ''')
 
 
 def scene_constants():

@@ -65,12 +65,13 @@
    * keeps going below the car, seen through the dock and in picture
    * mode. The vertical focal length follows from the two rows (the car's tyres touch their row at depth ZP), so the road always looks right, and the anchors ease a few
    * steps toward new targets: a tap on the clock slides the picture instead of jumping. */
-  const ANCHOR = { horizonShare: 1 / 3, carGap: 84, dockGap: 42, dockBelow: 190, pictureFrom: 280, minBottom: 104 };
+  const ANCHOR = { horizonShare: 1 / 3, carGap: 84, dockGap: 65, dockBelow: 190, pictureFrom: 280, minBottom: 104 };
   /** The horizon row and the car's row (art pixels) for a visible bottom row. */
   function anchorsFor(viewBottom) {
     const vb = clamp(Math.round(finite(viewBottom) ? viewBottom : H), ANCHOR.minBottom, H);
     const dock = 1 - smooth(clamp((vb - ANCHOR.dockBelow) / (ANCHOR.pictureFrom - ANCHOR.dockBelow), 0, 1));       // 1 with the dock up, 0 with the whole picture showing
-    return { horizon: Math.round(vb * ANCHOR.horizonShare), carRow: Math.round(vb - ANCHOR.carGap - (ANCHOR.dockGap - ANCHOR.carGap) * dock) };
+    const horizon = Math.round(vb * ANCHOR.horizonShare);
+    return { horizon, carRow: Math.max(horizon + 24, Math.round(vb - ANCHOR.carGap - (ANCHOR.dockGap - ANCHOR.carGap) * dock)) };
   }
   /** What the projection needs for a horizon row and a car row. `contrast` rescales rows below the horizon so the haze and the stripes fade at the same distance
    *  whatever the layout; `zCut` is the depth nearer than which a thing is below the picture. */
@@ -167,19 +168,34 @@
     return Math.max(420, 760 + 360 * Math.sin(i * 0.011 + 1.3) + 220 * Math.sin(i * 0.037 + 0.4));
   }
 
-  /** Curves are gentle bumps between straights (they begin and end at zero, so the road is smooth); hills are a few whole waves around the track, so it closes. */
-  function buildTrack(rand, count = TRACK) {
+  /** Optional private turn samples are adapted from a user's original road.
+   * Invalid or missing data keeps the self-contained procedural drive. */
+  function validRoute(samples) {
+    return Array.isArray(samples) && samples.length >= 64 && samples.length <= 2048 &&
+      samples.every((v) => Number.isInteger(v) && v >= -127 && v <= 127);
+  }
+  /** Curves and hills close smoothly at the end of the perpetual drive. */
+  function buildTrack(rand, count = TRACK, route = null) {
+    const sourced = validRoute(route);
+    if (sourced) count = route.length * 14;
     const curve = new Float32Array(count), height = new Float32Array(count + 1);
-    let i = 0;
-    while (i < count) {
-      const len = Math.min(count - i, 50 + Math.floor(rand() * 110));
-      const first = i < 80 || i + len >= count - 80;                                // the start and the end of the loop are straight
-      const strength = first || rand() < 0.28 ? 0 : (0.25 + rand() * 0.6) * (rand() < 0.5 ? -1 : 1);
-      for (let k = 0; k < len; k++) {
-        const t = k / len;
-        curve[i + k] = strength * smooth(Math.min(1, t / 0.3)) * smooth(Math.min(1, (1 - t) / 0.3));
+    if (sourced) {
+      for (let k = 0; k < count; k++) {
+        const sample = k / 14, i = Math.floor(sample), t = sample - i;
+        curve[k] = lerp(route[i], route[(i + 1) % route.length], t) / 127;
       }
-      i += len;
+    } else {
+      let i = 0;
+      while (i < count) {
+        const len = Math.min(count - i, 50 + Math.floor(rand() * 110));
+        const first = i < 80 || i + len >= count - 80;                              // the start and the end of the loop are straight
+        const strength = first || rand() < 0.28 ? 0 : (0.25 + rand() * 0.6) * (rand() < 0.5 ? -1 : 1);
+        for (let k = 0; k < len; k++) {
+          const t = k / len;
+          curve[i + k] = strength * smooth(Math.min(1, t / 0.3)) * smooth(Math.min(1, (1 - t) / 0.3));
+        }
+        i += len;
+      }
     }
     const waves = [[7, 300 + rand() * 80, rand() * 6.28], [19, 60 + rand() * 40, rand() * 6.28], [3, 200 + rand() * 80, rand() * 6.28]];
     for (let k = 0; k <= count; k++) {
@@ -187,13 +203,14 @@
       for (const [n, a, phase] of waves) y += a * Math.sin(2 * Math.PI * n * k / count + phase);
       height[k] = y;
     }
-    return { count, curve, height, length: count * SEG };
+    return { count, curve, height, length: count * SEG, sourced };
   }
 
   /** How big each kind of roadside thing really is (world units tall); the atlas draws it at a ladder of pixel heights and the scene picks the nearest. */
   const KINDS = {
-    palm0: 1500, palm1: 1250, pine: 1300, bush: 380, rock0: 520, rock1: 420, post: 480, sign0: 1000, sign1: 1000, billboard: 1700, house0: 1050, house1: 950,
+    palm0: 1500, palm1: 1000, pine: 1300, bush: 380, rock0: 520, rock1: 420, post: 480, sign0: 1000, sign1: 1000, billboard: 1700, house0: 1050, house1: 950,
     block: 2200, lamp: 1500, parasol: 450, boat: 800, windsurf: 900, bridge: 1260,
+    windmill: 1850, billboard1: 1700, icecream: 1000, crowd: 560, forksign: 1150,
   };
 
   function buildScenery(rand, track) {
@@ -244,6 +261,13 @@
     }
     for (let k = 70, flip = 0; k < n; k += 70 + Math.floor(rand() * 50), flip ^= 1) add(k, flip ? 'sign0' : 'sign1', (flip ? 1 : -1) * (ROAD + 420));       // a sign every 15 s or so
     for (let k = 90; k < n; k += 140 + Math.floor(rand() * 120)) add(k, 'billboard', ROAD + between(1100, 1900));                                        // and a billboard: a sunset over the sea
+    for (let k = 180; k < n - 30; k += 320 + Math.floor(rand() * 180)) {
+      // A few distinctive original-game sights, interspersed rather than
+      // arranged as a repeating strip of identical billboards.
+      const kind = ['windmill', 'icecream', 'billboard1', 'forksign'][Math.floor(rand() * 4)];
+      add(k, kind, ROAD + between(1400, 2600));
+      if (kind === 'icecream' || kind === 'forksign') add(k + 5, 'crowd', ROAD + between(1100, 1700));
+    }
     for (let k = 260; k < n - 40; k += 520 + Math.floor(rand() * 380)) add(k, 'bridge', 0);                        // an overpass now and then
     for (let k = 20; k < n - 20; k += 22 + Math.floor(rand() * 26)) {                                               // sailboats in the sea on the left
       add(k, rand() < 0.7 ? 'boat' : 'windsurf', -(ROAD + beachAt(k) + between(1500, 8500)), { drift: (rand() < 0.5 ? -1 : 1) * between(0, 40) });
@@ -311,7 +335,7 @@
   function createWorld(options) {
     const o = Object.assign({ seed: 20261109, clock: () => new Date(), random: null }, options);
     const rand = typeof o.random === 'function' ? o.random : seeded(o.seed);
-    const track = buildTrack(rand), scenery = buildScenery(rand, track);
+    const track = buildTrack(rand, TRACK, o.route), scenery = buildScenery(rand, track);
     const world = {
       track, scenery, rand, steps: 0, time: 0, camZ: 0, camX: 0, camY: CAM_H, speed: CRUISE, light: null, sun: null, clockAt: -1, solar: 12,
       player: { x: 0, vx: 0, lane: 1, cooldown: 45, lean: 0, leanHold: 0, hop: 0, honk: 0, changes: 0 },
@@ -557,26 +581,31 @@
     }
   }
 
-  /** Two soft pools ahead of the car, painted into the road itself before scenery and vehicles. */
-  function headlightRow(buf, y, left, right, centre, inv, amount) {
-    const distance = 1 / inv - ZP;
-    if (amount <= 0.2 || distance <= 0 || distance >= 4000) return;
-    const separation = 220 * FX * inv, radius = (175 + distance * 0.20) * FX * inv;
-    const strength = 0.20 * amount * Math.sin(Math.PI * distance / 4000);
+  /** The player's sprite and its light use the same screen position. */
+  const playerScreenX = (world) => CX + Math.round((world.player.x - world.camX) * FX / ZP);
+
+  /** Two short, widening arcade headlight beams immediately ahead of the car. */
+  function headlightRow(buf, y, left, right, centre, carRow, amount) {
+    const distance = carRow - 23 - y;
+    if (amount <= 0.2 || distance < 0 || distance >= 34) return;
+    const separation = 16 + Math.floor(distance * 0.58), radius = 13 + Math.floor(distance * 0.75);
+    const strength = 0.72 * amount * (1 - smooth(distance / 34));
     const from = Math.max(0, left, Math.floor(centre - separation - radius));
     const to = Math.min(W, right, Math.ceil(centre + separation + radius));
     for (let x = from; x < to; x++) {
-      const d = Math.min(Math.abs(x - centre - separation), Math.abs(x - centre + separation)) / radius;
-      if (d >= 1) continue;
-      const a = strength * (1 - d * d) ** 2, index = y * W + x, pixel = buf[index];
+      const d = Math.min(Math.abs(x - centre - separation), Math.abs(x - centre + separation));
+      if (d >= radius) continue;
+      const band = d < radius * 0.45 ? 1 : d < radius * 0.75 ? 0.65 : 0.35;
+      const a = strength * band, index = y * W + x, pixel = buf[index];
       const r = pixel & 255, green = (pixel >>> 8) & 255, b = (pixel >>> 16) & 255;
-      buf[index] = (0xff000000 | (Math.round(b + (165 - b) * a) << 16) | (Math.round(green + (226 - green) * a) << 8) | Math.round(r + (255 - r) * a)) >>> 0;
+      buf[index] = (0xff000000 | (Math.round(b + (220 - b) * a) << 16) | (Math.round(green + (240 - green) * a) << 8) | Math.round(r + (255 - r) * a)) >>> 0;
     }
   }
 
   /** The ground: sea on the left, beach, kerbs, the road and grass on the right, row by row from the segments the projection found. */
   function paintGround(buf, proj, pal, world, light) {
     const camZ = proj.camZ, wave = world.wave, glit = world.sunScreen && light.alt < 24 ? world.sunScreen : null, hz = proj.geo.horizon, kc = proj.geo.contrast;
+    const carX = playerScreenX(world), carRow = proj.geo.carRow + (world.player.hop > 0 ? HOP[HOP.length - world.player.hop] : 0);
     let lastX = CX, lastTop = H, prevCell = -1;
     for (let k = 0; k < DRAW; k++) {
       const top = proj.top[k], bot = proj.bot[k];
@@ -622,7 +651,7 @@
           fillSpan(buf, y, Math.round(xc - third - dw / 2), Math.round(xc - third - dw / 2) + dw, pal.lane[li]);
           fillSpan(buf, y, Math.round(xc + third - dw / 2), Math.round(xc + third - dw / 2) + dw, pal.lane[li]);
         }
-        if (light.lamps > 0.2) headlightRow(buf, y, eL, eR, xc + world.player.x * FX * inv, inv, light.lamps);
+        if (light.lamps > 0.2) headlightRow(buf, y, eL, eR, carX, carRow, light.lamps);
         lastX = xc;
       }
       lastTop = Math.min(lastTop, top);
@@ -683,7 +712,7 @@
     return { x: dx, y: dy, w: e.w, h: e.h };
   }
   /** How tall an overpass must be for the car to drive under it in this layout: its deck has to clear the camera in the stretched ground view, or it would sink onto the car. */
-  const bridgeHeight = (geo) => Math.max(KINDS.bridge, 1.25 * CAM_H * geo.fy / FX);
+  const bridgeHeight = (geo) => Math.max(KINDS.bridge, 1.4 * CAM_H * geo.fy / FX);
   /** An overpass: the atlas's sprite hung from the row where the structure's top really is (so its deck rises out of the picture over the car instead of coming down on it,
    *  whatever the layout and even when the biggest rung is smaller than the real thing), on pillars drawn as plain rectangles down to the road. */
   function drawOverpass(g, s, e, x, foot, zn, geo, tint) {
@@ -726,11 +755,11 @@
         const e = pickRung(atlas.ladders['rival-' + RIVAL_NAMES[r.colour]], RIVAL_WIDTH * FX / it.z, 'nominal');
         if (!e) continue;
         const box = blit(g, s, e, road.x + r.x * FX / it.z, road.y, proj.clip[road.k]);
-        if (box && lamps) lamps.push([box.x + Math.round(box.w * 0.13), box.y + Math.round(box.h * 0.58), Math.max(2, box.w >> 3), 1], [box.x + Math.round(box.w * 0.87), box.y + Math.round(box.h * 0.58), Math.max(2, box.w >> 3), 1]);
+        if (box && lamps) rivalLights(g, box, e, proj.clip[road.k], light.lamps);
       } else {
         const p = world.player, hop = p.hop > 0 ? HOP[HOP.length - p.hop] : 0;
         const phase = ((world.steps / CAR_PHASE_STEPS) | 0) & 3, name = 'car-' + (p.lean + 2) + '-' + phase, e = atlas.frame(name);
-        const carX = CX + Math.round((p.x - world.camX) * FX / ZP);
+        const carX = playerScreenX(world);
         if (e) {
           const box = blit(g, s, e, carX, geo.carRow + hop, H);
           if (box && light.lamps > 0.2) rearLights(g, box, e, phase, light.lamps);
@@ -738,6 +767,18 @@
         }
       }
     }
+  }
+  /** Small horizontal tail lamps, on the vehicle and behind any nearer sprites. */
+  function rivalLights(g, box, sprite, clip, amount) {
+    const y = box.y + Math.max(0, Math.round(sprite.ay - sprite.w * 0.25));
+    const height = Math.min(Math.max(1, Math.round(sprite.h * 0.045)), clip - y);
+    if (height <= 0) return;
+    const width = Math.max(1, Math.round(sprite.w * 0.12)), inset = Math.max(0, Math.round(sprite.w * 0.10));
+    g.save(); g.globalCompositeOperation = 'lighter';
+    g.fillStyle = 'rgba(255,60,40,' + (0.8 * clamp(amount, 0, 1)) + ')';
+    g.fillRect(box.x + inset, y, width, height);
+    g.fillRect(box.x + box.w - inset - width, y, width, height);
+    g.restore();
   }
   function rearLights(g, box, sprite, phase, amount) {
     const centre = box.x + sprite.ax, y = box.y + sprite.ay - 7 - (phase === 1 || phase === 2 ? 1 : 0);
@@ -788,7 +829,7 @@
 
   /* ---- the plain stand-in when the atlas is missing: the road, sea, sky and mountains still draw; the car is a simple red box */
   function drawPlainCar(g, world, geo) {
-    const x = CX + Math.round((world.player.x - world.camX) * FX / ZP) - 22, y = geo.carRow - 24;
+    const x = playerScreenX(world) - 22, y = geo.carRow - 24;
     g.fillStyle = '#252e40'; g.fillRect(x - 1, y + 20, 46, 4);
     g.fillStyle = '#701d36'; g.fillRect(x, y + 6, 44, 18); g.fillStyle = '#ef343d'; g.fillRect(x + 2, y + 8, 40, 10); g.fillStyle = '#261f32'; g.fillRect(x + 3, y + 18, 38, 5);
     g.fillStyle = '#85c9d4'; g.fillRect(x + 10, y, 24, 7);
@@ -800,7 +841,8 @@
   const scene = {
     size: [W, H],
     init(api) {
-      const world = createWorld({ random: typeof api.random === 'function' ? api.random : null });
+      const route = api.json && api.json.route && api.json.route.turns;
+      const world = createWorld({ random: typeof api.random === 'function' ? api.random : null, route });
       const lib = api.json && api.atlas ? readAtlas(api.json) : null;
       const anchor = anchorsFor(viewBottom(api));
       const s = { world, lib, atlas: api.atlas || null, sheet: api.atlas || null, list: [], glow: [], proj: makeProjection(), palKey: '', pal: null, tintKey: '',
@@ -840,8 +882,8 @@
   const logic = {
     W, H, HORIZON, CX, SEG, ROAD, LANE, CAM_H, FX, FY, ZP, CAR_ROW, DRAW, TRACK, BAND, HILL_GAIN, STEP, CRUISE, LANE_SPEED, KINDS, HOP, KEYS, LEVELS, ANCHOR, DEFAULT_GEO, SKY_ROWS,
     anchorsFor, geometry, easeAnchors,
-    seeded, rgb, pack, mixRgb, sunState, lightAt, phaseName, sunPlace, moonPlace, beachAt, buildTrack, buildScenery, makeProjection, projectRoad, sampleRoad, wrapZ, laneX, heightAt,
-    createWorld, buildPalette, makeSkyMap, makeRidge, readAtlas, pickRung, headlightRow,
+    seeded, rgb, pack, mixRgb, sunState, lightAt, phaseName, sunPlace, moonPlace, beachAt, validRoute, buildTrack, buildScenery, makeProjection, projectRoad, sampleRoad, wrapZ, laneX, heightAt,
+    createWorld, buildPalette, makeSkyMap, makeRidge, readAtlas, pickRung, playerScreenX, headlightRow,
   };
   if (global.TabletGames && typeof global.TabletGames.define === 'function') global.TabletGames.define('token-run', scene);
   if (typeof module !== 'undefined' && module.exports) module.exports = Object.assign({ scene }, logic);

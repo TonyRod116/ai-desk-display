@@ -32,12 +32,6 @@ Then an old tablet joined in. Then I made a few screens. Then a few more. You kn
 
 Isometric City has a little life of its own: windows show remaining quota while traffic, boats, helicopters and city stories carry on around them. Its light follows the time of day and, if you enable weather, it can react to the conditions outside. The GIF above uses accelerated time and simulated weather; waiting for actual sunset made for a rather long README.
 
-Prefer to fly? **Blue Lightning** is a fast-moving tablet flight scene with changing altitude, clouds and airborne encounters. Its public demo uses fictional graphics; optional original artwork must be supplied by you and stays local. [Explore the flight scene](docs/tablet-blue-lightning.md).
-
-<p align="center">
-  <img src="docs/images/tablet-blue-lightning-demo.gif" width="220" alt="Fictional Blue Lightning demo with animated flight and sample AI usage">
-</p>
-
 ## One project, two desk toys
 
 **A tablet.** Use a portrait tablet on its own, with the dashboard or picture mode. Tap the clock to enjoy the scenery, swipe to change scenes, and double-tap to open the scene picker. The optional Android app can keep prepared scenes on the tablet for offline viewing.
@@ -45,10 +39,18 @@ Prefer to fly? **Blue Lightning** is a fast-moving tablet flight scene with chan
 <p align="center">
   <img src="docs/images/tablet-city-dashboard.png" width="170" alt="The tablet dashboard with fictional AI quotas, CPU, GPU, memory and multiple drives">
   <img src="docs/images/tablet-picture-token-run.gif" width="170" alt="Token Run: an animated coastal drive in tablet picture mode with fictional usage">
+</p>
+<p align="center"><b>Dashboard</b> · <b>Token Run</b></p>
+<p align="center">
+  <img src="docs/images/tablet-picture-blue-lightning.gif" width="170" alt="Blue Lightning: an animated flight above changing landscapes with fictional usage">
+  <img src="docs/images/tablet-picture-peaceful-house.gif" width="170" alt="Peaceful House: a calm seaside scene in tablet picture mode with fictional usage">
+</p>
+<p align="center"><b>Blue Lightning</b> · <b>Peaceful House</b></p>
+<p align="center">
   <img src="docs/images/tablet-picture-versus.gif" width="170" alt="Versus: original Codex and Claude fighters in an animated tablet scene">
   <img src="docs/images/tablet-picture-infinite-express.gif" width="170" alt="Infinite Express: a moving view through a train window in tablet picture mode">
 </p>
-<p align="center"><b>Dashboard</b> · <b>Token Run</b> · <b>Versus</b> · <b>Infinite Express</b></p>
+<p align="center"><b>Versus</b> · <b>Infinite Express</b></p>
 
 **A little touchscreen.** A compatible ESP32 touchscreen can show animated scenes and cycle through eight selected screens. Many NerdMiner V2 devices use the ESP32-2432S028R / Cheap Yellow Display family, but check your exact board and display controller first.
 
@@ -66,7 +68,7 @@ Tap the small screen to change scenes. Hold for two seconds and release to cycle
 
 **Use either display, or both.** Neither needs the other. If yours is different, start with the closest version and [adapt it](#make-it-yours).
 
-<sub>All readings in these previews are fictional. Isometric City's time and weather are accelerated and simulated. Some previews use optional custom artwork that is not included in the repository; see the [artwork notes](ASSETS.md).</sub>
+<sub>All readings in these previews are fictional. Isometric City's time and weather are accelerated and simulated. Some GIFs show optional custom artwork whose source files are not included; see the [artwork notes](ASSETS.md).</sub>
 
 ## Try it without a display or an account
 
@@ -119,7 +121,7 @@ Change the colours. Invent a scene. Make a quiet display for your office, or a t
 
 > Adapt the tablet display to my device and resolution. Keep the usage readings intact and show me a preview with fictional data.
 
-Other hardware may need a driver, firmware changes and testing. The [tablet guide](docs/tablet.md), [small-screen guide](docs/board-control.md) and source are good places to start.
+Other hardware may need a driver, firmware changes and testing. The [tablet guide](docs/tablet.md), [flight scene guide](docs/tablet-blue-lightning.md), [small-screen guide](docs/board-control.md) and source are good places to start.
 
 Built by **Tony**, with plenty of help from **Claude Code and Codex**. If you make something fun, share it in an [issue](https://github.com/TonyRod116/ai-desk-display/issues) — preferably without your real account data in the screenshot.
 

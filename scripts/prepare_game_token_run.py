@@ -537,6 +537,12 @@ def build_sprites():
     for colour, body, light, style in RIVAL_STYLES:
         for width in RIVAL_WIDTHS:
             add(f'rival-{colour}', f'rival-{colour}-{width:02d}', rival(width, body, light, style))
+    # Generic artwork keeps the newer optional roadside sights working even
+    # when a private arcade atlas is unavailable. The private builder replaces
+    # these aliases with its separately prepared authentic sprite ladders.
+    for alias, existing in (('windmill', 'block'), ('billboard1', 'billboard'), ('icecream', 'sign0'),
+                            ('crowd', 'bush'), ('forksign', 'sign1')):
+        ladders[alias] = list(ladders[existing])
     for ladder in ladders.values():
         ladder.sort(key=lambda name: (frames[name][0].height, name))
     return frames, ladders

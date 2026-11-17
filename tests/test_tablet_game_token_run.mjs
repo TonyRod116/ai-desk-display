@@ -28,7 +28,7 @@ test('registered as token-run in the engine, with the native portrait size', () 
 test('anchors: with the dock up the horizon is a third of the visible rows and the car sits just above the clock; with the whole picture the car is at the bottom', () => {
   const dock = anchorsFor(186);                                   // the tablet's dock covers about 42 %: rows 0-185 stay visible
   assert.equal(dock.horizon, 62, 'a third of the 186 visible rows');
-  assert.ok(dock.carRow <= 186 - 24 && dock.carRow >= 186 - 46, `the car's tyres at row ${dock.carRow} are above the page's date and clock`);
+  assert.ok(dock.carRow <= 186 - 60 && dock.carRow >= 186 - 68, `the car's tyres at row ${dock.carRow} are above the page's date and clock`);
   const picture = anchorsFor(320);
   assert.equal(picture.horizon, Math.round(320 / 3));
   assert.equal(picture.carRow, 320 - 84, 'the car is above the picture-mode clock and usage lines');
@@ -98,6 +98,21 @@ test('the track repeats the same for a seed, closes on itself and begins and end
 });
 
 const flatTrack = (curve = 0) => ({ count: 400, length: 400 * SEG, curve: new Float32Array(400).fill(curve), height: new Float32Array(401) });
+
+test('private route samples produce a long continuous looping road, while invalid samples safely fall back', () => {
+  const route = Array.from({length: 128}, (_, i) => Math.round(85 * Math.sin(2 * Math.PI * i / 128)));
+  const track = run.buildTrack(run.seeded(9), run.TRACK, route);
+  assert.equal(track.sourced, true);
+  assert.equal(track.count, route.length * 14);
+  assert.ok(track.curve.some(v => v > .5) && track.curve.some(v => v < -.5));
+  for (let i = 1; i < track.count; i++) assert.ok(Math.abs(track.curve[i] - track.curve[i - 1]) < .02);
+  assert.ok(Math.abs(track.curve[track.count - 1] - track.curve[0]) < .02);
+  close(track.height[track.count], track.height[0], 1e-3);
+  for (const bad of [null, [], Array(70).fill(128), Array(70).fill(NaN), Array(2050).fill(0)]) {
+    assert.equal(run.validRoute(bad), false);
+    assert.equal(run.buildTrack(run.seeded(9), run.TRACK, bad).sourced, false);
+  }
+});
 
 test('projection: the road tiles the rows from the nearest to the horizon with no gap, narrowing with distance', () => {
   const out = run.makeProjection();
@@ -437,23 +452,43 @@ test('the atlas reader: ladders sorted by height, anchors default to the foot, j
 
 /* ---- drawing, with a fake canvas --------------------------------------------------------------------------------------------------------- */
 
-test('headlights illuminate only the road ahead at night and fade away at both ends', () => {
+test('arcade headlights remain short, follow the car and stay on the road', () => {
   const base = run.pack([35, 48, 65]);
-  const row = (distance, amount, left = 40, right = 160) => {
+  const carRow = 236;
+  const row = (y, amount, centre = 100, left = 40, right = 160) => {
     const pixels = new Uint32Array(W * H).fill(base);
-    run.headlightRow(pixels, 120, left, right, 100, 1 / (ZP + distance), amount);
+    run.headlightRow(pixels, y, left, right, centre, carRow, amount);
     return pixels;
   };
   const sum = (p) => p.reduce((n, colour) => n + (colour & 255) - (base & 255), 0);
-  const lit = row(2000, 1);
+  const y = carRow - 35, lit = row(y, 1);
   assert.ok(sum(lit) > 0, 'a dark road is lit');
-  assert.equal(sum(row(2000, 0)), 0, 'no lights in daylight');
-  assert.equal(sum(row(-20, 1)), 0, 'not behind the car');
-  assert.equal(sum(row(4001, 1)), 0, 'not beyond the beams');
-  assert.ok(sum(row(20, 1)) < sum(lit), 'no hard edge by the car');
-  assert.ok(sum(row(3980, 1)) < sum(lit), 'no hard edge in the distance');
-  const clipped = row(2000, 1, 90, 110);
-  for (let x = 0; x < W; x++) if (x < 90 || x >= 110) assert.equal(clipped[120 * W + x], base, 'never spills onto scenery');
+  const core = lit[y * W + 86];
+  assert.ok((core & 255) - (base & 255) >= 90, 'the headlight core is visibly bright');
+  assert.ok(((core >>> 16) & 255) - ((base >>> 16) & 255) >= 60, 'the beam reads as warm white rather than a faint yellow stripe');
+  assert.equal(sum(row(y, 0)), 0, 'no lights in daylight');
+  assert.equal(sum(row(carRow - 20, 1)), 0, 'no lights behind the front of the car');
+  assert.ok(sum(row(carRow - 54, 1)) > 0, 'the beams reach a little farther');
+  assert.equal(sum(row(carRow - 60, 1)), 0, 'the lights do not reach far down the road');
+  assert.ok(sum(row(carRow - 50, 1)) < sum(lit), 'the light fades at the far edge');
+  const moved = row(y, 1, 107);
+  for (let x = 50; x < 145; x++) assert.equal(lit[y * W + x], moved[y * W + x + 7], 'the lights move exactly with the car');
+  const widths = (pixels, yy) => {
+    const spans = []; let start = null;
+    for (let x = 0; x <= W; x++) {
+      const on = x < W && pixels[yy * W + x] !== base;
+      if (on && start === null) start = x;
+      if (!on && start !== null) { spans.push(x - start); start = null; }
+    }
+    return spans;
+  };
+  const nearY = carRow - 26, forwardY = carRow - 42;
+  const near = widths(row(nearY, 1), nearY), forward = widths(row(forwardY, 1), forwardY);
+  assert.equal(near.length, 2, 'each headlight has its own beam');
+  assert.equal(forward.length, 2, 'the beams stay distinct ahead of the car');
+  assert.ok(forward[0] >= near[0] + 8 && forward[1] >= near[1] + 8, 'each beam opens out like a flashlight');
+  const clipped = row(y, 1, 100, 90, 110);
+  for (let x = 0; x < W; x++) if (x < 90 || x >= 110) assert.equal(clipped[y * W + x], base, 'never spills onto scenery');
 });
 
 globalThis.ImageData = globalThis.ImageData || class ImageData { constructor(w, h) { this.width = w; this.height = h; this.data = new Uint8ClampedArray(w * h * 4); } };
@@ -470,6 +505,22 @@ function makeScene(options = {}) {
   return {scene, api};
 }
 const opaque = (buf) => { let holes = 0; for (let i = 0; i < buf.length; i++) if ((buf[i] >>> 24) !== 255) holes++; return holes; };
+
+test('road bends do not drag the headlights away from the player car', () => {
+  const {scene, api} = makeScene({atlas: false}), world = scene.s.world, g = fakeContext();
+  world.player.x = 0; world.camX = 0; world.camZ = 0;
+  const positions = [];
+  for (const bend of [0, 0.02, -0.02]) {
+    world.track.curve.fill(bend);
+    world.light = {...run.lightAt(-20), lamps: 0}; scene.draw(api, g);
+    const dark = Uint32Array.from(scene.s.buf), y = scene.s.geo.carRow - 35;
+    world.light = {...run.lightAt(-20), lamps: 1}; scene.draw(api, g);
+    positions.push(Array.from({length: W}, (_, x) => x).filter(x => dark[y * W + x] !== scene.s.buf[y * W + x]));
+  }
+  assert.ok(positions[0].length > 4, 'the road receives two visible pools');
+  assert.deepEqual(positions[1], positions[0]);
+  assert.deepEqual(positions[2], positions[0]);
+});
 
 test('every pixel is painted: the picture has no holes at any hour, layout or point of the drive', () => {
   for (const bottom of [186, 320, 240]) for (const hour of [3, 7.5, 13, 18, 20.5]) {
