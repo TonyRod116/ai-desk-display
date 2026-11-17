@@ -59,7 +59,7 @@ for _file in sorted(WEB.glob('*')):
             and re.fullmatch(r'[a-z0-9-]{1,40}\.(js|css)', _file.name)):
         _STATIC.setdefault('/' + _file.name, (_file.name, _PACKAGE_TYPES[_file.suffix]))
 SCENES = ('city', 'paradise', 'surf', 'token-run', 'city-iso', 'fighting',
-          'game-boy', 'neon-city', 'neon-district', 'violet-horizon',
+          'blue-lightning', 'game-boy', 'neon-city', 'neon-district', 'violet-horizon',
           'infinite-express', 'midnight-video-club')
 # Internal time-of-day variants are assets, not separate choices or settings.
 EXPRESS_VARIANTS = tuple('infinite-express-' + part for part in ('dawn', 'day', 'dusk', 'night'))

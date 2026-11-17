@@ -73,8 +73,8 @@ def parse_origin(url) -> tuple[str, str, int]:
     try:
         parts = urllib.parse.urlsplit(text)
         port = parts.port
-    except ValueError as exc:
-        raise BuildError(f'Not a usable server address: {text!r}') from exc
+    except ValueError:
+        raise BuildError('Not a usable server address') from None
     if parts.scheme != 'https':
         raise BuildError('The server address must start with https:// (the tablet service only speaks HTTPS)')
     if parts.username is not None or parts.password is not None or parts.query or parts.fragment or parts.path not in ('', '/'):
@@ -524,6 +524,9 @@ def main(argv=None) -> int:
     key_file = Path(args.keystore_dir).expanduser() / ('debug.p12' if args.debug else 'release.p12')
     first_key = not key_file.exists()
     try:
+        if args.url:
+            parse_origin(args.url)
+            parse_fingerprint(args.fingerprint)
         tools = find_toolchain(args.sdk, args.jdk)
         url, fingerprint = (args.url, args.fingerprint) if args.url else fetch_setup(args.setup_url)
         info = build(url, fingerprint, out_dir=args.out, debug=args.debug, keystore_dir=args.keystore_dir, tools=tools)

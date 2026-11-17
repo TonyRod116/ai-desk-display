@@ -10,9 +10,9 @@ Turn an old tablet, a tiny touchscreen, or another display into an animated home
 [![License: MIT](https://img.shields.io/badge/code-MIT-58a06a)](LICENSE)
 [![Local display](https://img.shields.io/badge/display-local-8064ce)](#the-local-part)
 
-[Try the demo](#try-it-without-a-display-or-an-account) · [Choose your screen](#one-project-two-desk-toys) · [Set it up](#bring-it-to-your-desk) · [Make it yours](#make-it-yours)
+[Try the demo](#try-it-without-a-display-or-an-account) · [Pick your screen](#one-project-two-desk-toys) · [Set it up](#bring-it-to-your-desk) · [Make it yours](#make-it-yours)
 
-<img src="docs/images/tablet-isometric-weather.gif" width="280" alt="Isometric City in tablet picture mode, with fictional Codex and Claude readings, transitioning through day, sunset, night and rain">
+<img src="docs/images/tablet-isometric-weather.gif" width="280" alt="Isometric City in tablet picture mode, with fictional AI usage, passing through day, sunset, night and rain">
 <img src="docs/images/tablet-picture-tidal-rush.gif" width="280" alt="A surfer rides a wave behind the tablet's fictional AI usage readings">
 
 **Isometric City** · **Tidal Rush**
@@ -25,22 +25,28 @@ Then an old tablet joined in. Then I made a few screens. Then a few more. You kn
 
 ## Your quota, with a view
 
-- **Know what's left:** see weekly Claude and Codex usage remaining and their reset times, plus Claude's five-hour window when available. Percentages mean **remaining**, not used.
-- **See the extras:** saved resets appear when the provider reports them. A confirmed positive credit balance can replace the percentage after the weekly quota is exhausted. If a reading isn't available, it stays unknown.
-- **Keep an eye on your PC:** the tablet can also show CPU and GPU readings, memory, multiple drives, time and date. Sensor availability depends on your hardware and operating system.
-- **Let it live:** switch scenes, rotate them automatically, use picture mode, or add your own photos. The two displays have independent settings.
+- **See what's left.** Weekly Claude and Codex usage, their reset times, and Claude's five-hour window when available. The percentages show **remaining**, not used.
+- **Spot the extras.** Saved resets appear when a provider reports them. After Codex's weekly quota is exhausted, a confirmed positive credit balance can replace the percentage. Missing data stays unknown.
+- **Watch your computer.** The tablet can also show CPU and GPU readings, memory, multiple drives, time and date. Available sensors depend on your hardware and operating system.
+- **Pick the mood.** Change scenes, rotate them automatically, try picture mode or add your own photos. The two displays have independent settings.
 
-In **Isometric City**, windows show remaining quota while traffic, boats, helicopters and little city stories carry on around them. The light follows the time of day; if you enable weather, the city can react to clouds, rain and other conditions. The GIF above speeds up the day and uses simulated weather, because waiting until sunset makes for a rather long README.
+Isometric City has a little life of its own: windows show remaining quota while traffic, boats, helicopters and city stories carry on around them. Its light follows the time of day and, if you enable weather, it can react to the conditions outside. The GIF above uses accelerated time and simulated weather; waiting for actual sunset made for a rather long README.
+
+Prefer to fly? **Blue Lightning** is a fast-moving tablet flight scene with changing altitude, clouds and airborne encounters. Its public demo uses fictional graphics; optional original artwork must be supplied by you and stays local. [Explore the flight scene](docs/tablet-blue-lightning.md).
+
+<p align="center">
+  <img src="docs/images/tablet-blue-lightning-demo.gif" width="220" alt="Fictional Blue Lightning demo with animated flight and sample AI usage">
+</p>
 
 ## One project, two desk toys
 
-**A tablet.** Use it on its own, in portrait, with the dashboard or picture mode. Tap the clock to enjoy the scenery, swipe to change scenes, and double-tap to open the scene picker. The Android app can save prepared scenes for offline viewing.
+**A tablet.** Use a portrait tablet on its own, with the dashboard or picture mode. Tap the clock to enjoy the scenery, swipe to change scenes, and double-tap to open the scene picker. The optional Android app can keep prepared scenes on the tablet for offline viewing.
 
 <p align="center">
-  <img src="docs/images/tablet-city-dashboard.png" width="220" alt="The tablet dashboard with fictional AI quotas, CPU, GPU, memory and multiple drives">
-  <img src="docs/images/tablet-picture-token-run.gif" width="220" alt="Token Run: an animated coastal drive in tablet picture mode with fictional usage">
-  <img src="docs/images/tablet-picture-versus.gif" width="220" alt="Versus: original Codex and Claude fighters in an animated tablet scene">
-  <img src="docs/images/tablet-picture-infinite-express.gif" width="220" alt="Infinite Express: a moving view through a train window in tablet picture mode">
+  <img src="docs/images/tablet-city-dashboard.png" width="170" alt="The tablet dashboard with fictional AI quotas, CPU, GPU, memory and multiple drives">
+  <img src="docs/images/tablet-picture-token-run.gif" width="170" alt="Token Run: an animated coastal drive in tablet picture mode with fictional usage">
+  <img src="docs/images/tablet-picture-versus.gif" width="170" alt="Versus: original Codex and Claude fighters in an animated tablet scene">
+  <img src="docs/images/tablet-picture-infinite-express.gif" width="170" alt="Infinite Express: a moving view through a train window in tablet picture mode">
 </p>
 <p align="center"><b>Dashboard</b> · <b>Token Run</b> · <b>Versus</b> · <b>Infinite Express</b></p>
 
@@ -49,22 +55,22 @@ In **Isometric City**, windows show remaining quota while traffic, boats, helico
 ### Eight screens, zero boredom
 
 <p align="center">
-  <img src="docs/images/game-boy.gif" width="210" alt="Green handheld-inspired screen with fictional usage updates">
-  <img src="docs/images/arcade.gif" width="210" alt="A retro fighting scene where the AI competitors have usage bars">
-  <img src="docs/images/dials.gif" width="210" alt="Token Run: an animated coastal road on the small display">
-  <img src="docs/images/countdown.gif" width="210" alt="A small isometric city showing fictional remaining usage">
+  <img src="docs/images/game-boy.gif" width="170" alt="Green handheld-inspired screen with fictional usage updates">
+  <img src="docs/images/arcade.gif" width="170" alt="A retro fighting scene where the AI competitors have usage bars">
+  <img src="docs/images/dials.gif" width="170" alt="Token Run: an animated coastal road on the small display">
+  <img src="docs/images/countdown.gif" width="170" alt="A small isometric city showing fictional remaining usage">
 </p>
 <p align="center"><b>Game Boy</b> · <b>Versus</b> · <b>Token Run</b> · <b>Quota City</b></p>
 
-Tap the small screen to change scenes; hold for two seconds to cycle rotation between off, 30 minutes and one hour; hold for five seconds to open the connection screen. Compatible firmware lets you adjust the hold times. The [screen library](docs/board-control.md) lets you preview, reorder and swap scenes from your computer.
+Tap the small screen to change scenes. Hold for two seconds and release to cycle rotation between off, 30 minutes and one hour; hold for five seconds and release to open the connection screen. Compatible firmware can adjust those hold times. From the computer, the [screen library](docs/board-control.md) lets you preview, reorder and swap scenes.
 
-**Neither device requires the other.** Have a different display? Start with the version closest to yours and adapt it. More on that [below](#make-it-yours).
+**Use either display, or both.** Neither needs the other. If yours is different, start with the closest version and [adapt it](#make-it-yours).
 
-<sub>All quota and computer readings in these previews are fictional. The Isometric City time and weather are accelerated and simulated. Some previews use optional custom artwork that is not included in the repository; see [artwork notes](ASSETS.md).</sub>
+<sub>All readings in these previews are fictional. Isometric City's time and weather are accelerated and simulated. Some previews use optional custom artwork that is not included in the repository; see the [artwork notes](ASSETS.md).</sub>
 
 ## Try it without a display or an account
 
-You can explore the local demos with made-up data before connecting anything. You'll need Python 3.10+ and Git:
+Want to look around first? The local demos use made-up data and don't contact your accounts or hardware. You'll need Python 3.10+ and Git:
 
 ~~~bash
 git clone https://github.com/TonyRod116/ai-desk-display.git
@@ -73,37 +79,47 @@ python3 -m venv .venv
 source .venv/bin/activate
 pip install -e .
 
-# Draw the public Isometric City, then open the fictional tablet demo
+# Prepare two fictional tablet scenes and open the demo
 python scripts/prepare_game_city_iso.py --out preview/scenes --manifest
+python scripts/prepare_game_blue_lightning_demo.py --out preview/scenes
 python scripts/sample_tablet.py --scenes preview/scenes
 ~~~
 
-Open **http://127.0.0.1:18861/**. No provider account or hardware is contacted. On Windows, use <code>py -m venv .venv</code> and activate it with <code>.venv\Scripts\Activate.ps1</code>; the full setup is tested mainly on Linux/WSL. For a still gallery of the small-screen scenes, run <code>python scripts/render_gallery.py --out preview</code> and open <code>preview/gallery.png</code>.
+Open **http://127.0.0.1:18861/**. On Windows, run the commands above inside Ubuntu/WSL; the demo currently requires the Linux environment rather than native Windows Python.
+
+For a still gallery of the small-screen scenes, run <code>python scripts/render_gallery.py --out preview</code> and open <code>preview/gallery.png</code>.
 
 ## Bring it to your desk
 
-Install the project as above, sign in to the official Claude Code and/or Codex CLI clients you use, and follow the [computer setup](docs/setup.md). Then choose whichever display you want:
+Install the project as above, sign in to the official Claude Code and/or Codex CLI clients you use, and start with:
 
-- **Tablet:** follow the [tablet guide](docs/tablet.md) to connect over your Wi-Fi. A browser works; the [Android app](docs/tablet-app.md) adds saved scenes, fullscreen and certificate pinning. No small board required.
-- **Small touchscreen:** check the [hardware guide](docs/hardware.md), [firmware instructions](firmware/board/README.md) and [pairing guide](docs/setup.md#2-connect-the-touchscreen-board). Flashing replaces whatever is currently on the board, including a mining app.
+~~~bash
+ai-desk-display setup
+ai-desk-display doctor
+~~~
 
-Using a **GeekMagic SmallTV Ultra**? That's a separate integration: [see its guide](docs/smalltv-ultra.md). If your board's address keeps changing, reserve its IP in your router; that's a DHCP reservation, not port forwarding. The project doesn't automatically install startup services. [Troubleshooting and startup notes](docs/setup.md#troubleshooting).
+Then follow the [computer setup guide](docs/setup.md) to enable the readers and keep the monitor running. Choose whichever display suits your desk:
+
+- **Tablet:** follow the [tablet guide](docs/tablet.md) to connect over your trusted Wi-Fi. A browser works; the [Android app](docs/tablet-app.md) adds saved scenes, fullscreen and certificate pinning. No small board required.
+- **Small touchscreen:** check the [hardware guide](docs/hardware.md), [firmware instructions](firmware/board/README.md) and [pairing guide](docs/setup.md#2-connect-the-touchscreen-board). Flashing replaces the program on the board, including a mining app.
+
+Using a **GeekMagic SmallTV Ultra**? That's a different integration: [see its guide](docs/smalltv-ultra.md). If the board keeps changing address, a DHCP reservation in your router can keep its local IP stable. That's not port forwarding. [Troubleshooting and startup notes](docs/setup.md#troubleshooting).
 
 ## The local part
 
-The display and dashboard run locally. Enabled usage readers still contact the **official providers**; optional weather uses Open-Meteo and is off by default. The small board uses local HTTP, and automatic discovery can share its pairing token with devices on the local subnet. Keep it on a trusted network and don't expose it to the internet.
+The dashboard and display run locally. Enabled usage readers still contact the **official providers** for fresh readings; optional weather uses Open-Meteo and is off by default. The small board uses local HTTP, and automatic discovery can share its pairing token with devices on the local subnet. Use a trusted network and don't expose it to the internet.
 
-Fresh quotas and computer stats need the computer and readers running. The Android app can keep its saved scenery, clock and display settings when the computer is off; it does not save live quotas or PC readings in its scene cache. [Offline details](docs/tablet-offline.md) · [Network and setup details](docs/setup.md#troubleshooting).
+Fresh quotas and computer stats need the computer and readers running. The Android app can keep its saved scenery, clock and display settings when the computer is off; it does not save live quotas or PC readings in its scene cache. The repository does not install startup services automatically. [Offline details](docs/tablet-offline.md) · [Network and setup details](docs/setup.md#troubleshooting).
 
-Your credentials, pairing information, private settings and optional source artwork are not in this repository. Some scenes require you to supply your own permitted artwork; no game ROMs or separate extracted game sprites are included. [What is and isn't included](ASSETS.md).
+Your credentials, pairing information, private settings and optional source artwork are not in this repository. Some scenes need artwork you have permission to use; game ROMs and separately extracted game sprites are not included. [What is and isn't included](ASSETS.md).
 
 ## Make it yours
 
-Change the colours. Invent a scene. Make a quiet display for your office, or a tiny city that judges your token habits. You can do it by hand or ask an AI coding assistant to help. For example:
+Change the colours. Invent a scene. Make a quiet display for your office, or a tiny city that judges your token habits. You can do it yourself or ask an AI coding assistant to help. For example:
 
 > Adapt the tablet display to my device and resolution. Keep the usage readings intact and show me a preview with fictional data.
 
-Different hardware may need a driver, firmware changes and testing. The [tablet guide](docs/tablet.md), [small-screen guide](docs/board-control.md) and source are good places to start.
+Other hardware may need a driver, firmware changes and testing. The [tablet guide](docs/tablet.md), [small-screen guide](docs/board-control.md) and source are good places to start.
 
 Built by **Tony**, with plenty of help from **Claude Code and Codex**. If you make something fun, share it in an [issue](https://github.com/TonyRod116/ai-desk-display/issues) — preferably without your real account data in the screenshot.
 

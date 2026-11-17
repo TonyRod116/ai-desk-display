@@ -58,7 +58,7 @@
   const slot = $('#slot'), dock = $('#dock'), stageBox = $('#stage'), intro = $('#intro'), machine = $('#machine'), pager = $('#pager');
   const sceneNames = { city:['Cyberpunk City','Ciudad Cyberpunk'], paradise:['Paradise','Paraíso'], surf:['Tidal Rush','Tidal Rush'],
     'token-run':['Token Run','Token Run'], 'city-iso':['Isometric City','Ciudad isométrica'], fighting:['Versus','Versus'],
-    'game-boy':['Game Boy','Game Boy'],
+    'blue-lightning':['Blue Lightning','Blue Lightning'], 'game-boy':['Game Boy','Game Boy'],
     'neon-city':['Neon City','Neon City'], 'neon-district':['Cozy Mountain Home','Casa acogedora en la montaña'], 'violet-horizon':['Violet Horizon','Violet Horizon'],
     'infinite-express':['Infinite Express','El expreso infinito'], 'midnight-video-club':['Peaceful House','Casa tranquila'] };
   const sceneOpen = $('#scene-open'), sceneDialog = $('#scene-dialog'), sceneClose = $('#scene-close'), sceneGrid = $('#scene-grid');

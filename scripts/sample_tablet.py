@@ -146,6 +146,11 @@ class SampleHandler(tablet_server.Handler):
         return self.headers.get('Origin', '') == 'http://' + self.headers.get('Host', '')
 
     def do_GET(self):
+        if self.path.partition('?')[0] == '/assets/city.png' and not (self.server.private / 'city.png').is_file():
+            # The page's initial background is fictional too, even with a single-scene demo folder.
+            buffer = io.BytesIO()
+            procedural('city', (320, 480), 0).save(buffer, format='PNG')
+            return self._respond(200, buffer.getvalue(), 'image/png')
         if self.path.startswith('/sample/weather'):
             query = dict(part.split('=', 1) for part in self.path.partition('?')[2].split('&') if '=' in part)
             try:
@@ -196,6 +201,10 @@ def prepare_scenes(directory):
     for index, scene in enumerate(tablet_server.SCENES):
         if scene == 'game-boy':
             from scripts.prepare_game_handheld import prepare_assets
+            manifest[scene] = prepare_assets(directory)
+            continue
+        if scene == 'blue-lightning':
+            from scripts.prepare_game_blue_lightning_demo import prepare_assets
             manifest[scene] = prepare_assets(directory)
             continue
         pixel = scene in ('surf', 'token-run', 'city-iso', 'fighting')

@@ -35,3 +35,17 @@ dist/
 .playwright-cli/
 *.apk.json
 build-counter.txt
+
+# Keep locally supplied game cartridges and BIOS files outside public commits.
+*.[Ss][Ff][Cc]
+*.[Ss][Mm][Cc]
+*.[Nn][Ee][Ss]
+*.[Gg][Bb]
+*.[Gg][Bb][Cc]
+*.[Gg][Bb][Aa]
+*.[Ll][Nn][Xx]
+*.[Ll][Yy][Xx]
+*.[Rr][Oo][Mm]
+*.[Zz][Ii][Pp]
+*.7[Zz]
+/roms/

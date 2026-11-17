@@ -327,13 +327,31 @@ class ArgumentTests(unittest.TestCase):
         self.assertEqual(stop.exception.code, 2)
         self.assertIn('--url and --fingerprint', captured.getvalue())
         with tempfile.TemporaryDirectory() as directory, contextlib.redirect_stderr(io.StringIO()) as captured:
-            code = app.main(['--url', FICTIONAL_URL, '--fingerprint', FICTIONAL_PIN, '--sdk', directory, '--out', directory])
+            code = app.main(['--url', FICTIONAL_URL, '--fingerprint', FICTIONAL_PIN, '--sdk', directory, '--out', directory,
+                             '--keystore-dir', directory])
         self.assertEqual(code, 1)
         self.assertIn('error: No Android SDK', captured.getvalue())
-        with contextlib.redirect_stderr(io.StringIO()) as captured:
-            code = app.main(['--url', 'http://192.0.2.10:8667', '--fingerprint', FICTIONAL_PIN])
+        with tempfile.TemporaryDirectory() as directory, contextlib.redirect_stderr(io.StringIO()) as captured:
+            code = app.main(['--url', 'http://192.0.2.10:8667', '--fingerprint', FICTIONAL_PIN, '--keystore-dir', directory])
         self.assertEqual(code, 1)
         self.assertIn('https://', captured.getvalue())
+
+    def test_invalid_explicit_connection_is_rejected_before_sdk_discovery(self):
+        for url, fingerprint, expected in (
+                ('http://192.0.2.10:8667', FICTIONAL_PIN, 'https://'),
+                (FICTIONAL_URL, 'invalid', 'fingerprint')):
+            with self.subTest(expected=expected), tempfile.TemporaryDirectory() as directory, \
+                    mock.patch.object(app, 'find_toolchain') as find_tools, contextlib.redirect_stderr(io.StringIO()) as captured:
+                code = app.main(['--url', url, '--fingerprint', fingerprint, '--keystore-dir', directory])
+                self.assertEqual(code, 1)
+                self.assertIn(expected, captured.getvalue())
+                find_tools.assert_not_called()
+
+    def test_malformed_url_does_not_echo_embedded_credentials(self):
+        marker = 'fictional-password-marker'
+        with self.assertRaises(app.BuildError) as caught:
+            app.parse_origin(f'https://user:{marker}@example.invalid:not-a-port')
+        self.assertNotIn(marker, str(caught.exception))
 
 
 class MainOutputTests(unittest.TestCase):
