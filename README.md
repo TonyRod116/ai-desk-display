@@ -12,11 +12,13 @@ I was waiting for my NerdMiner V2 to find a Bitcoin block. Turns out I hit my AI
 </p>
 <p align="center"><sub>Isometric City on tablet · Versus on NerdMiner</sub></p>
 
-See your **weekly quota remaining and reset times** at a glance, plus Claude’s five-hour window when available. Saved resets show up when the provider reports them, and Codex can show your extra credits after you’ve used up the weekly allowance. The tablet can also show the clock, CPU, GPU, memory and free disk space when your computer supplies those readings.
+In **Isometric City**, the Claude and Codex towers double as quota bars. As you use up your weekly allowance, windows go dark. The city follows the time of day and can react to the weather if you turn it on. The little helicopter has no opinion about your token habits. Probably.
+
+You can also see **what’s left this week and when it resets**, plus Claude’s five-hour window when available. Saved resets show up when the provider reports them, and Codex can show extra credits when the weekly allowance runs out.
 
 ## One project, two desk toys
 
-**Tablet.** Open it in a browser, set it upright and tap the clock to switch to picture mode. Swipe to change scenes or let them rotate on their own. Isometric City follows the time of day and can react to the weather. On days when the city feels a bit much, there’s a house by the sea.
+**Tablet.** Open it in a browser, set it upright and tap the clock to switch to picture mode. Swipe to change scenes or let them rotate on their own. **Peaceful House** can go from sunrise to moonlight as the day goes by, once you’ve prepared its time-of-day backgrounds. The waves get to take it easy even when you don’t.
 
 <p align="center">
   <img src="docs/images/tablet-picture-token-run.gif" width="170" alt="Token Run, a retro drive along a palm-lined coast">
@@ -28,6 +30,13 @@ See your **weekly quota remaining and reset times** at a glance, plus Claude’s
   <img src="docs/images/tablet-picture-tidal-rush.gif" width="170" alt="Tidal Rush, a surfer riding inside a breaking wave">
 </p>
 <p align="center"><b>Blue Lightning · Tidal Rush</b></p>
+
+Want all the numbers handy? The **tablet dashboard** puts the clock, quotas and computer readings on one screen. It can show CPU and GPU load and temperatures, memory, and free disk space, depending on your computer and sensors.
+
+<p align="center">
+  <a href="docs/images/tablet-city-dashboard.png"><img src="docs/images/tablet-city-dashboard.png" width="260" alt="Tablet dashboard with sample quotas, CPU and GPU temperatures, memory and free space on four drives"></a>
+</p>
+<p align="center"><sub>Isometric City with the full dashboard · sample data</sub></p>
 
 ### Eight screens, zero boredom
 
@@ -41,7 +50,7 @@ See your **weekly quota remaining and reset times** at a glance, plus Claude’s
 
 Use either display on its own, or run both. The [screen library](docs/board-control.md) lets you pick and reorder scenes for the little one.
 
-<sub>The GIFs show sample readings. The city preview speeds up time and simulates the weather. Some scenes use optional artwork you supply locally. See the [artwork notes](ASSETS.md).</sub>
+<sub>The previews show sample readings. The city GIF speeds up time and simulates the weather. Some scenes use optional artwork you supply locally. See the [artwork notes](ASSETS.md).</sub>
 
 ## Try it without a display or an account
 
