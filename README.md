@@ -1,56 +1,48 @@
 # AI Desk Display
 
-**See what’s left of your Claude and Codex quota on an old tablet or a tiny touchscreen.**
+**A free, open-source display for your Claude and Codex quota.** Give an old tablet or a tiny touchscreen a second life.
 
 I was waiting for my NerdMiner V2 to find a Bitcoin block. Turns out I hit my AI limits a lot more often. So I gave it a new job, dug out an old tablet, and got a little carried away with the backgrounds.
 
-[Try the demo](#try-it-without-a-display-or-an-account) · [See the screens](#one-project-two-desk-toys) · [Set it up](#bring-it-to-your-desk)
+[Install it for free](#bring-it-to-your-desk) · [Try it without an account](#try-it-without-a-display-or-an-account)
 
 <p align="center">
-  <img src="docs/images/tablet-isometric-weather.gif" width="170" alt="Tablet showing an isometric city as daylight gives way to rain and night">
-  <img src="docs/images/arcade.gif" width="170" alt="NerdMiner touchscreen showing Claude and Codex as arcade fighters with quota bars">
+  <a href="docs/images/tablet-city-quota.gif"><img src="docs/images/tablet-city-quota.gif" width="360" alt="Isometric City dashboard showing Claude and Codex quotas falling as windows turn off in their towers, with CPU, GPU, memory and disk readings below"></a>
 </p>
-<p align="center"><sub>Isometric City on tablet · Versus on NerdMiner</sub></p>
+<p align="center"><sub>One lit window is 1% of the weekly quota left. Watch both towers go dark with the sample readings.</sub></p>
 
 In **Isometric City**, the Claude and Codex towers double as quota bars. As you use up your weekly allowance, windows go dark. The city follows the time of day and can react to the weather if you turn it on. The little helicopter has no opinion about your token habits. Probably.
 
-You can also see **what’s left this week and when it resets**, plus Claude’s five-hour window when available. Saved resets show up when the provider reports them, and Codex can show extra credits when the weekly allowance runs out.
+You can also see **what’s left this week and when it resets**, plus Claude’s five-hour window when available. Saved resets show up when the provider reports them, and Codex can show extra credits when the weekly allowance runs out. The tablet dashboard also fits in CPU and GPU load and temperatures, memory, and free disk space when your computer supplies those readings.
 
 ## One project, two desk toys
 
 **Tablet.** Open it in a browser, set it upright and tap the clock to switch to picture mode. Swipe to change scenes or let them rotate on their own. **Peaceful House** can go from sunrise to moonlight as the day goes by, once you’ve prepared its time-of-day backgrounds. The waves get to take it easy even when you don’t.
 
 <p align="center">
-  <img src="docs/images/tablet-picture-token-run.gif" width="170" alt="Token Run, a retro drive along a palm-lined coast">
+  <img src="docs/images/tablet-isometric-weather.gif" width="170" alt="Isometric City changing from daylight to rain and night">
   <img src="docs/images/tablet-picture-peaceful-house.gif" width="170" alt="Peaceful House, with waves rolling in beyond the window">
 </p>
-<p align="center"><b>Token Run · Peaceful House</b></p>
+<p align="center"><b>Isometric City after hours · Peaceful House</b></p>
 <p align="center">
+  <img src="docs/images/tablet-picture-token-run.gif" width="170" alt="Token Run, a retro drive along a palm-lined coast">
   <img src="docs/images/tablet-picture-blue-lightning.gif" width="170" alt="Blue Lightning, a jet banking above fields under a moving cloud ceiling">
-  <img src="docs/images/tablet-picture-tidal-rush.gif" width="170" alt="Tidal Rush, a surfer riding inside a breaking wave">
 </p>
-<p align="center"><b>Blue Lightning · Tidal Rush</b></p>
-
-Want all the numbers handy? The **tablet dashboard** puts the clock, quotas and computer readings on one screen. It can show CPU and GPU load and temperatures, memory, and free disk space, depending on your computer and sensors.
-
-<p align="center">
-  <a href="docs/images/tablet-city-dashboard.png"><img src="docs/images/tablet-city-dashboard.png" width="260" alt="Tablet dashboard with sample quotas, CPU and GPU temperatures, memory and free space on four drives"></a>
-</p>
-<p align="center"><sub>Isometric City with the full dashboard · sample data</sub></p>
+<p align="center"><b>Token Run · Blue Lightning</b></p>
 
 ### Eight screens, zero boredom
 
 **NerdMiner V2 or compatible ESP32 touchscreen.** Pick eight scenes, tap to switch, or set them to rotate on the half hour or the hour. In Versus, the fighter who runs out of quota gets knocked out. I find this a surprisingly effective reminder to go make coffee.
 
 <p align="center">
+  <img src="docs/images/arcade.gif" width="170" alt="NerdMiner touchscreen showing Claude and Codex as arcade fighters with quota bars">
   <img src="docs/images/game-boy.gif" width="170" alt="Handheld-inspired green screen showing Claude and Codex quota">
-  <img src="docs/images/countdown.gif" width="170" alt="Isometric buildings on the small touchscreen with quota shown in their windows">
 </p>
-<p align="center"><b>Game Boy · Quota City</b></p>
+<p align="center"><b>Versus · Game Boy</b></p>
 
 Use either display on its own, or run both. The [screen library](docs/board-control.md) lets you pick and reorder scenes for the little one.
 
-<sub>The previews show sample readings. The city GIF speeds up time and simulates the weather. Some scenes use optional artwork you supply locally. See the [artwork notes](ASSETS.md).</sub>
+<sub>The previews show sample readings. The weather clip runs through a simulated day. Some scenes use optional artwork you supply locally. See the [artwork notes](ASSETS.md).</sub>
 
 ## Try it without a display or an account
 
@@ -71,6 +63,8 @@ python scripts/sample_tablet.py --scenes preview/scenes
 Open [the local demo](http://127.0.0.1:18861/) and choose **Isometric City** or **Blue Lightning** in the scene picker. The demo runs without logging in or connecting any hardware. For a gallery of the tiny-screen scenes, run `python scripts/render_gallery.py --out preview` and open `preview/gallery.png`.
 
 ## Bring it to your desk
+
+AI Desk Display is free to install and use. For live readings, it uses your existing Claude or Codex account.
 
 1. Sign in to Claude Code, the Codex CLI, or both on the computer that will send the readings. Follow the [computer setup guide](docs/setup.md) to start the monitor and the readers you need.
 2. Pick your display. The [tablet guide](docs/tablet.md) gets you going over Wi-Fi, and the optional [Android app](docs/tablet-app.md) can keep scenery on the tablet for offline viewing. For a touchscreen board, check the [hardware guide](docs/hardware.md) for your exact model and follow the [firmware guide](firmware/board/README.md). Flashing replaces whatever is on the board, including the mining app on a NerdMiner.

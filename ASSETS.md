@@ -19,6 +19,8 @@
 
 - The Isometric City dashboard screenshot and day/night/weather GIF are generated from the public procedural city and its bundled mascots, with fictional readings and simulated, accelerated time and weather. No private scene files or account data are used.
 
+- The Isometric City quota GIF (`docs/images/tablet-city-quota.gif`) shows the same public city renderer with both fictional weekly readings dropping together. Its tower windows and dashboard respond to the same sample values. Temperatures, memory and disk readings are also fictional.
+
 - Blue Lightning's public demo uses new geometric aircraft and clouds drawn by `scripts/prepare_game_blue_lightning_demo.py`, with fictional readings. Its flight engine, terrain and effects are code; the demo contains no cartridge pixels or extracted game graphics. The separate optional cartridge reader is source code only: ROMs, references, traced palettes and prepared atlases are not distributed. The game name identifies the inspiration; this project is not an official port or an endorsement. See `docs/tablet-blue-lightning.md`.
 
 - The maintainer specifically authorized the README GIFs of the actual Blue Lightning, Token Run and Peaceful House scenes. They were captured locally with fictional usage and computer readings. The GIFs show artwork from privately supplied games and media; their underlying ROMs, source images, videos and prepared atlases are not included. This permission does not establish rights to redistribute that artwork outside this project.
