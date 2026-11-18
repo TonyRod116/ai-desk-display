@@ -30,6 +30,11 @@ You can also see **what’s left this week and when it resets**, plus Claude’s
 </p>
 <p align="center"><b>Token Run · Blue Lightning</b></p>
 
+<p align="center">
+  <a href="docs/images/tablet-scene-picker.png"><img src="docs/images/tablet-scene-picker.png" width="560" alt="The tablet scene picker with twelve scene previews and two automatic modes"></a>
+</p>
+<p align="center"><sub>See all twelve scenes at a glance. Open the image to see them full size.</sub></p>
+
 ### Eight screens, zero boredom
 
 **NerdMiner V2 or compatible ESP32 touchscreen.** Pick eight scenes, tap to switch, or set them to rotate on the half hour or the hour. In Versus, the fighter who runs out of quota gets knocked out. I find this a surprisingly effective reminder to go make coffee.

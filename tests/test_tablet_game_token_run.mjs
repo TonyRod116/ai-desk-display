@@ -452,12 +452,12 @@ test('the atlas reader: ladders sorted by height, anchors default to the foot, j
 
 /* ---- drawing, with a fake canvas --------------------------------------------------------------------------------------------------------- */
 
-test('arcade headlights remain short, follow the car and stay on the road', () => {
+test('arcade headlights follow the car and fade onto the shoulders', () => {
   const base = run.pack([35, 48, 65]);
   const carRow = 236;
-  const row = (y, amount, centre = 100, left = 40, right = 160) => {
+  const row = (y, amount, centre = 100, left = 40, right = 160, sandStart = 0) => {
     const pixels = new Uint32Array(W * H).fill(base);
-    run.headlightRow(pixels, y, left, right, centre, carRow, amount);
+    run.headlightRow(pixels, y, left, right, centre, carRow, amount, sandStart);
     return pixels;
   };
   const sum = (p) => p.reduce((n, colour) => n + (colour & 255) - (base & 255), 0);
@@ -487,8 +487,13 @@ test('arcade headlights remain short, follow the car and stay on the road', () =
   assert.equal(near.length, 2, 'each headlight has its own beam');
   assert.equal(forward.length, 2, 'the beams stay distinct ahead of the car');
   assert.ok(forward[0] >= near[0] + 8 && forward[1] >= near[1] + 8, 'each beam opens out like a flashlight');
-  const clipped = row(y, 1, 100, 90, 110);
-  for (let x = 0; x < W; x++) if (x < 90 || x >= 110) assert.equal(clipped[y * W + x], base, 'never spills onto scenery');
+  const spill = row(y, 1, 100, 90, 110, 74);
+  const leftCore = 77, rightCore = 123;
+  for (const x of [leftCore, rightCore]) {
+    assert.ok((spill[y * W + x] & 255) > (base & 255), 'both shoulders receive light');
+    assert.ok((spill[y * W + x] & 255) < (lit[y * W + x] & 255), 'less light reaches the shoulder than the asphalt');
+  }
+  for (let x = 0; x < 74; x++) assert.equal(spill[y * W + x], base, 'the sea remains unlit');
 });
 
 globalThis.ImageData = globalThis.ImageData || class ImageData { constructor(w, h) { this.width = w; this.height = h; this.data = new Uint8ClampedArray(w * h * 4); } };

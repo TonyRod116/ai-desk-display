@@ -584,19 +584,22 @@
   /** The player's sprite and its light use the same screen position. */
   const playerScreenX = (world) => CX + Math.round((world.player.x - world.camX) * FX / ZP);
 
-  /** Two short, widening arcade headlight beams immediately ahead of the car. */
-  function headlightRow(buf, y, left, right, centre, carRow, amount) {
+  /** Two short arcade beams that reach the shoulders and stop at the waterline. */
+  function headlightRow(buf, y, left, right, centre, carRow, amount, sandStart = 0) {
     const distance = carRow - 23 - y;
     if (amount <= 0.2 || distance < 0 || distance >= 34) return;
     const separation = 16 + Math.floor(distance * 0.58), radius = 13 + Math.floor(distance * 0.75);
     const strength = 0.72 * amount * (1 - smooth(distance / 34));
-    const from = Math.max(0, left, Math.floor(centre - separation - radius));
-    const to = Math.min(W, right, Math.ceil(centre + separation + radius));
+    const shoulderReach = 34;
+    const from = Math.max(0, sandStart, left - shoulderReach, Math.floor(centre - separation - radius));
+    const to = Math.min(W, right + shoulderReach, Math.ceil(centre + separation + radius));
     for (let x = from; x < to; x++) {
       const d = Math.min(Math.abs(x - centre - separation), Math.abs(x - centre + separation));
       if (d >= radius) continue;
       const band = d < radius * 0.45 ? 1 : d < radius * 0.75 ? 0.65 : 0.35;
-      const a = strength * band, index = y * W + x, pixel = buf[index];
+      const shoulderDistance = Math.max(0, left - x, x - right + 1);
+      const a = strength * band * (1 - smooth(shoulderDistance / shoulderReach));
+      const index = y * W + x, pixel = buf[index];
       const r = pixel & 255, green = (pixel >>> 8) & 255, b = (pixel >>> 16) & 255;
       buf[index] = (0xff000000 | (Math.round(b + (220 - b) * a) << 16) | (Math.round(green + (240 - green) * a) << 8) | Math.round(r + (255 - r) * a)) >>> 0;
     }
@@ -651,7 +654,7 @@
           fillSpan(buf, y, Math.round(xc - third - dw / 2), Math.round(xc - third - dw / 2) + dw, pal.lane[li]);
           fillSpan(buf, y, Math.round(xc + third - dw / 2), Math.round(xc + third - dw / 2) + dw, pal.lane[li]);
         }
-        if (light.lamps > 0.2) headlightRow(buf, y, eL, eR, carX, carRow, light.lamps);
+        if (light.lamps > 0.2) headlightRow(buf, y, eL, eR, carX, carRow, light.lamps, shore + foam);
         lastX = xc;
       }
       lastTop = Math.min(lastTop, top);
