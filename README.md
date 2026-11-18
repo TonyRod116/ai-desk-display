@@ -20,13 +20,13 @@ You can also see **what’s left this week and when it resets**, plus Claude’s
 **Tablet.** Open it in a browser, set it upright and tap the clock to switch to picture mode. Swipe to change scenes or let them rotate on their own. **Peaceful House** can go from sunrise to moonlight as the day goes by, once you’ve prepared its time-of-day backgrounds. The waves get to take it easy even when you don’t.
 
 <p align="center">
-  <img src="docs/images/tablet-isometric-weather.gif" width="170" alt="Isometric City changing from daylight to rain and night">
-  <img src="docs/images/tablet-picture-peaceful-house.gif" width="170" alt="Peaceful House, with waves rolling in beyond the window">
+  <img src="docs/images/tablet-isometric-weather.gif" width="46%" alt="Isometric City changing from daylight to rain and night">
+  <img src="docs/images/tablet-picture-peaceful-house.gif" width="46%" alt="Peaceful House, with waves rolling in beyond the window">
 </p>
 <p align="center"><b>Isometric City after hours · Peaceful House</b></p>
 <p align="center">
-  <img src="docs/images/tablet-picture-token-run.gif" width="170" alt="Token Run, a retro drive along a palm-lined coast">
-  <img src="docs/images/tablet-picture-blue-lightning.gif" width="170" alt="Blue Lightning, a jet banking above fields under a moving cloud ceiling">
+  <img src="docs/images/tablet-picture-token-run.gif" width="46%" alt="Token Run, a retro drive along a palm-lined coast">
+  <img src="docs/images/tablet-picture-blue-lightning.gif" width="46%" alt="Blue Lightning, a jet banking above fields under a moving cloud ceiling">
 </p>
 <p align="center"><b>Token Run · Blue Lightning</b></p>
 
@@ -40,23 +40,23 @@ You can also see **what’s left this week and when it resets**, plus Claude’s
 **NerdMiner V2 or compatible ESP32 touchscreen.** Pick eight scenes, tap to switch, or set them to rotate on the half hour or the hour. In Versus, the fighter who runs out of quota gets knocked out. I find this a surprisingly effective reminder to go make coffee.
 
 <p align="center">
-  <a href="docs/images/game-boy.gif"><img src="docs/images/game-boy.gif" width="42%" alt="Game Boy. Green LCD-style quota bars and reset hearts"></a>
-  <a href="docs/images/paradise.gif"><img src="docs/images/paradise.gif" width="42%" alt="Paradise. Waves rolling onto a beach beneath the quota cards"></a>
+  <a href="docs/images/game-boy.gif"><img src="docs/images/game-boy.gif" width="36%" alt="Game Boy. Green LCD-style quota bars and reset hearts"></a>
+  <a href="docs/images/paradise.gif"><img src="docs/images/paradise.gif" width="36%" alt="Paradise. Waves rolling onto a beach beneath the quota cards"></a>
 </p>
 <p align="center"><b>Game Boy · Paradise</b></p>
 <p align="center">
-  <a href="docs/images/code-forge.gif"><img src="docs/images/code-forge.gif" width="42%" alt="Neon City. A cyberpunk skyline with quota lights under the bridge"></a>
-  <a href="docs/images/surf.gif"><img src="docs/images/surf.gif" width="42%" alt="Tidal Rush. A pixel surfer riding a curling wave at sunset"></a>
+  <a href="docs/images/code-forge.gif"><img src="docs/images/code-forge.gif" width="36%" alt="Neon City. A cyberpunk skyline with quota lights under the bridge"></a>
+  <a href="docs/images/surf.gif"><img src="docs/images/surf.gif" width="36%" alt="Tidal Rush. A pixel surfer riding a curling wave at sunset"></a>
 </p>
 <p align="center"><b>Neon City · Tidal Rush</b></p>
 <p align="center">
-  <a href="docs/images/dials.gif"><img src="docs/images/dials.gif" width="42%" alt="Token Run. A coastal arcade racer with two quota gauges"></a>
-  <a href="docs/images/arcade.gif"><img src="docs/images/arcade.gif" width="42%" alt="Versus. Claude and Codex as arcade fighters with quota bars"></a>
+  <a href="docs/images/dials.gif"><img src="docs/images/dials.gif" width="36%" alt="Token Run. A coastal arcade racer with two quota gauges"></a>
+  <a href="docs/images/arcade.gif"><img src="docs/images/arcade.gif" width="36%" alt="Versus. Claude and Codex as arcade fighters with quota bars"></a>
 </p>
 <p align="center"><b>Token Run · Versus</b></p>
 <p align="center">
-  <a href="docs/images/cockpit.gif"><img src="docs/images/cockpit.gif" width="42%" alt="Platform. A side-scrolling platform game with a quota HUD"></a>
-  <a href="docs/images/countdown.gif"><img src="docs/images/countdown.gif" width="42%" alt="City. An isometric skyline with quota windows and traffic"></a>
+  <a href="docs/images/cockpit.gif"><img src="docs/images/cockpit.gif" width="36%" alt="Platform. A side-scrolling platform game with a quota HUD"></a>
+  <a href="docs/images/countdown.gif"><img src="docs/images/countdown.gif" width="36%" alt="City. An isometric skyline with quota windows and traffic"></a>
 </p>
 <p align="center"><b>Platform · City</b></p>
 
