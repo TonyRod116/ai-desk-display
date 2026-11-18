@@ -40,10 +40,25 @@ You can also see **what’s left this week and when it resets**, plus Claude’s
 **NerdMiner V2 or compatible ESP32 touchscreen.** Pick eight scenes, tap to switch, or set them to rotate on the half hour or the hour. In Versus, the fighter who runs out of quota gets knocked out. I find this a surprisingly effective reminder to go make coffee.
 
 <p align="center">
-  <img src="docs/images/arcade.gif" width="170" alt="NerdMiner touchscreen showing Claude and Codex as arcade fighters with quota bars">
-  <img src="docs/images/game-boy.gif" width="170" alt="Handheld-inspired green screen showing Claude and Codex quota">
+  <a href="docs/images/game-boy.gif"><img src="docs/images/game-boy.gif" width="42%" alt="Game Boy. Green LCD-style quota bars and reset hearts"></a>
+  <a href="docs/images/paradise.gif"><img src="docs/images/paradise.gif" width="42%" alt="Paradise. Waves rolling onto a beach beneath the quota cards"></a>
 </p>
-<p align="center"><b>Versus · Game Boy</b></p>
+<p align="center"><b>Game Boy · Paradise</b></p>
+<p align="center">
+  <a href="docs/images/code-forge.gif"><img src="docs/images/code-forge.gif" width="42%" alt="Neon City. A cyberpunk skyline with quota lights under the bridge"></a>
+  <a href="docs/images/surf.gif"><img src="docs/images/surf.gif" width="42%" alt="Tidal Rush. A pixel surfer riding a curling wave at sunset"></a>
+</p>
+<p align="center"><b>Neon City · Tidal Rush</b></p>
+<p align="center">
+  <a href="docs/images/dials.gif"><img src="docs/images/dials.gif" width="42%" alt="Token Run. A coastal arcade racer with two quota gauges"></a>
+  <a href="docs/images/arcade.gif"><img src="docs/images/arcade.gif" width="42%" alt="Versus. Claude and Codex as arcade fighters with quota bars"></a>
+</p>
+<p align="center"><b>Token Run · Versus</b></p>
+<p align="center">
+  <a href="docs/images/cockpit.gif"><img src="docs/images/cockpit.gif" width="42%" alt="Platform. A side-scrolling platform game with a quota HUD"></a>
+  <a href="docs/images/countdown.gif"><img src="docs/images/countdown.gif" width="42%" alt="City. An isometric skyline with quota windows and traffic"></a>
+</p>
+<p align="center"><b>Platform · City</b></p>
 
 Use either display on its own, or run both. The [screen library](docs/board-control.md) lets you pick and reorder scenes for the little one.
 
