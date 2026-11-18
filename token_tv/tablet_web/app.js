@@ -9,7 +9,7 @@
       awake_on_title:'The screen stays on while this page is full screen.', awake_blocked_title:'The browser refused to keep the screen on; it may turn off.',
       awake_unsupported_title:'This browser cannot keep the screen on; it may turn off.',
       settings:'Settings', computer_open:'Open the computer details', picture_on:'Hide the numbers', picture_off:'Show the numbers',
-      update:'UPDATE', update_title:'A new version of this page is ready: tap to load it', auto_every:'Change every', pool_rotate:'Scenes in the rotation', pool_dawn:'Scenes at dawn', pool_day:'Scenes by day', pool_dusk:'Scenes at dusk', pool_night:'Scenes at night', pool_all:'All', pool_suggested:'Suggested', pool_count:'of', pool_hint:'Tap to add or remove scenes. At least one stays on.', pool_reset:'Use the suggested ones', pool_done:'Done', app_update:'APP UPDATE', app_update_title:'A new version of the app is ready: tap to install it', app_update_ready:'App update', app_update_button:'Update the app', app_up_to_date:'App is up to date', app_state_downloading:'Downloading the app update…', app_state_confirm:'Confirm on the Android screen to finish', app_state_done:'App updated: open it again if it closed', app_state_failed:'The app update did not work: try again, or install it from Chrome', app_state_busy:'An update is already running', more:'DETAILS', most_active:'MOST ACTIVE', battery:'BATTERY', charging:'charging', plugged:'plugged in', uptime:'UP',
+      update:'UPDATE', update_title:'A new version of this page is ready: tap to load it', auto_every:'Change every', remote_active:'Active', scene_manage:'Choose active scenes', pool_library:'Active scenes', pool_enable_all:'Enable all', pool_rotate:'Scenes in the rotation', pool_dawn:'Scenes at dawn', pool_day:'Scenes by day', pool_dusk:'Scenes at dusk', pool_night:'Scenes at night', pool_all:'All', pool_suggested:'Suggested', pool_count:'of', pool_hint:'Tap to add or remove scenes. At least one stays on.', pool_reset:'Use the suggested ones', pool_done:'Done', app_update:'APP UPDATE', app_update_title:'A new version of the app is ready: tap to install it', app_update_ready:'App update', app_update_button:'Update the app', app_up_to_date:'App is up to date', app_state_downloading:'Downloading the app update…', app_state_confirm:'Confirm on the Android screen to finish', app_state_done:'App updated: open it again if it closed', app_state_failed:'The app update did not work: try again, or install it from Chrome', app_state_offline:'Connect to the computer to download the update', app_state_busy:'An update is already running', more:'DETAILS', most_active:'MOST ACTIVE', battery:'BATTERY', charging:'charging', plugged:'plugged in', uptime:'UP',
       network:'NETWORK', down:'DOWN', up:'UP', disks:'DISKS', last_hour_note:'The trend lines show the last hour.',
       page_home:'Home', page_computer:'Computer', page_remote:'Small screen',
       remote_title:'SMALL SCREEN', remote_note:'This only changes the small screen. The tablet has its own settings (the gear).', remote_screen:'SCREEN', remote_rotation:'ROTATION',
@@ -33,7 +33,7 @@
       awake_on_title:'La pantalla se mantiene encendida mientras esta página está a pantalla completa.', awake_blocked_title:'El navegador no ha permitido mantener la pantalla encendida; puede apagarse.',
       awake_unsupported_title:'Este navegador no puede mantener la pantalla encendida; puede apagarse.',
       settings:'Ajustes', computer_open:'Abrir los detalles del ordenador', picture_on:'Ocultar los números', picture_off:'Mostrar los números',
-      update:'ACTUALIZAR', update_title:'Hay una versión nueva de esta página: toca para cargarla', auto_every:'Cambiar cada', pool_rotate:'Escenas de la rotación', pool_dawn:'Escenas al amanecer', pool_day:'Escenas de día', pool_dusk:'Escenas al atardecer', pool_night:'Escenas de noche', pool_all:'Todas', pool_suggested:'Sugeridas', pool_count:'de', pool_hint:'Toca para añadir o quitar escenas. Siempre queda al menos una.', pool_reset:'Usar las sugeridas', pool_done:'Hecho', app_update:'ACTUALIZAR APP', app_update_title:'Hay una versión nueva de la app: toca para instalarla', app_update_ready:'Actualización de la app', app_update_button:'Actualizar la app', app_up_to_date:'La app está al día', app_state_downloading:'Descargando la actualización de la app…', app_state_confirm:'Confirma en la pantalla de Android para terminar', app_state_done:'App actualizada: ábrela otra vez si se ha cerrado', app_state_failed:'La actualización de la app no ha funcionado: prueba otra vez o instálala desde Chrome', app_state_busy:'Ya hay una actualización en marcha', more:'DETALLES', most_active:'LO QUE MÁS GASTA', battery:'BATERÍA', charging:'cargando', plugged:'enchufado', uptime:'ENCENDIDO',
+      update:'ACTUALIZAR', update_title:'Hay una versión nueva de esta página: toca para cargarla', auto_every:'Cambiar cada', remote_active:'Activa', scene_manage:'Elegir escenas activas', pool_library:'Escenas activas', pool_enable_all:'Activar todas', pool_rotate:'Escenas de la rotación', pool_dawn:'Escenas al amanecer', pool_day:'Escenas de día', pool_dusk:'Escenas al atardecer', pool_night:'Escenas de noche', pool_all:'Todas', pool_suggested:'Sugeridas', pool_count:'de', pool_hint:'Toca para añadir o quitar escenas. Siempre queda al menos una.', pool_reset:'Usar las sugeridas', pool_done:'Hecho', app_update:'ACTUALIZAR APP', app_update_title:'Hay una versión nueva de la app: toca para instalarla', app_update_ready:'Actualización de la app', app_update_button:'Actualizar la app', app_up_to_date:'La app está al día', app_state_downloading:'Descargando la actualización de la app…', app_state_confirm:'Confirma en la pantalla de Android para terminar', app_state_done:'App actualizada: ábrela otra vez si se ha cerrado', app_state_failed:'La actualización de la app no ha funcionado: prueba otra vez o instálala desde Chrome', app_state_offline:'Conecta la tablet al ordenador para descargar la actualización', app_state_busy:'Ya hay una actualización en marcha', more:'DETALLES', most_active:'LO QUE MÁS GASTA', battery:'BATERÍA', charging:'cargando', plugged:'enchufado', uptime:'ENCENDIDO',
       network:'RED', down:'BAJADA', up:'SUBIDA', disks:'DISCOS', last_hour_note:'Las líneas muestran la última hora.',
       page_home:'Inicio', page_computer:'Ordenador', page_remote:'Pantalla pequeña',
       remote_title:'PANTALLA PEQUEÑA', remote_note:'Esto solo cambia la pantalla pequeña. La tablet tiene sus propios ajustes (la rueda).', remote_screen:'PANTALLA', remote_rotation:'ROTACIÓN',
@@ -105,7 +105,7 @@
   }
 
   /* The tablet's OWN settings, kept on the PC (the small screen has its own, in its own control room). These are the defaults until they arrive. */
-  const DEFAULT_SETTINGS = { scene: 'auto', motion: 'auto', auto: { mode: 'daypart', minutes: 20, rotate: [], parts: { dawn: [], day: [], dusk: [], night: [] } }, night: { enabled: true, start: '23:00', end: '07:30', level: 25, clock_only: false },
+  const DEFAULT_SETTINGS = { scene: 'auto', disabled_scenes: [], motion: 'auto', auto: { mode: 'daypart', minutes: 20, rotate: [], parts: { dawn: [], day: [], dusk: [], night: [] } }, night: { enabled: true, start: '23:00', end: '07:30', level: 25, clock_only: false },
     sound: { enabled: true, volume: 60, at_night: false }, alerts: { quota: 10, disk: 5, resets: true }, photos: { seconds: 20 }, place: { lat: 41.39, lon: 2.17 }, weather: { enabled: false } };
   function cleanSettings(value, schema = DEFAULT_SETTINGS, prefix = '') {
     const out = {};
@@ -194,7 +194,7 @@
   }
   function settingsChanged(path) {
     if (path === '*' || path === 'motion') applyMotion();
-    if (path === '*' || path === 'scene' || path.startsWith('auto.') || path.startsWith('photos.') || path.startsWith('place.')) { resolveScene(); }
+    if (path === '*' || path === 'scene' || path === 'disabled_scenes' || path.startsWith('auto.') || path.startsWith('photos.') || path.startsWith('place.')) { resolveScene(); }
     if (path === '*' || path.startsWith('night.')) tickNight();
     if (path === '*' || path.startsWith('weather.')) renderWeather();
     if (path.startsWith('place.') || path === 'weather.enabled') setTimeout(loadWeather, 2500);       // the PC looks at the new place within seconds
@@ -467,13 +467,18 @@
 
   /* Which scene is on: one the user chose, one that suits the time of day (computed here from the place, no internet) or a rotation, or the photos. */
   let photoMode = false, photoInfo = null, photos = [], photoIndex = 0, photoTimer = 0, scenePulse = 0;
+  function enabledScenes() {
+    const enabled = availableScenes.filter(name => !settings.disabled_scenes.includes(name));
+    return enabled.length ? enabled : availableScenes;
+  }
   function resolveScene() {
+    const enabled = enabledScenes();
     if (!availableScenes.length && settings.scene !== 'photos') return;
     if (settings.scene === 'photos' && photos.length) { startPhotos(); return; }
     stopPhotos();
     let target = settings.scene;
-    if (target === 'auto' || target === 'photos') target = window.TabletSchedule ? TabletSchedule.autoScene({ now: Date.now(), lat: settings.place.lat, lon: settings.place.lon, mode: settings.auto.mode, minutes: settings.auto.minutes, available: availableScenes, rotate: settings.auto.rotate, parts: settings.auto.parts }) : availableScenes[0];
-    if (!availableScenes.includes(target)) target = availableScenes.includes('city') ? 'city' : availableScenes[0];
+    if (target === 'auto' || target === 'photos') target = window.TabletSchedule ? TabletSchedule.autoScene({ now: Date.now(), lat: settings.place.lat, lon: settings.place.lon, mode: settings.auto.mode, minutes: settings.auto.minutes, available: enabled, rotate: settings.auto.rotate, parts: settings.auto.parts }) : enabled[0];
+    if (!enabled.includes(target)) target = enabled.includes('city') ? 'city' : enabled[0];
     if (target && availableScenes.includes(target) && (target !== selectedScene || !document.body.classList.contains('stage-on') || sceneVariant(target) !== activeSceneVariant)) setScene(target, false);
     sceneLabel();
   }
@@ -506,37 +511,64 @@
   }
   /* Which scenes the automatic modes may show (Tony, 2026-11-10): one list for the rotation and one for each part of the day. An empty list means the suggested scenes
      (all of them for the rotation, the built-in ones for a part of the day); the dialog shows what is really in use and never lets the last scene be switched off. */
-  const POOL_PATHS = { rotate: 'auto.rotate', dawn: 'auto.parts.dawn', day: 'auto.parts.day', dusk: 'auto.parts.dusk', night: 'auto.parts.night' };
+  const POOL_PATHS = { library: 'disabled_scenes', rotate: 'auto.rotate', dawn: 'auto.parts.dawn', day: 'auto.parts.day', dusk: 'auto.parts.dusk', night: 'auto.parts.night' };
   const poolOf = (which) => which === 'rotate' ? settings.auto.rotate : settings.auto.parts[which];
-  const suggestedPool = (which) => which === 'rotate' ? availableScenes.slice() : (window.TabletSchedule ? TabletSchedule.POOLS[which] : []).filter((name) => availableScenes.includes(name));
-  function activePool(which) { const mine = (poolOf(which) || []).filter((name) => availableScenes.includes(name)); return mine.length ? mine : suggestedPool(which); }
+  function sceneThumbnail(name) {
+    const path = '/assets/thumb-' + name + '.webp';
+    const pack = localApp && offlineInfo();
+    return pack?.ready && window.TabletGames?.versionedLocalUrl
+      ? TabletGames.versionedLocalUrl(path, pack.revision) : path;
+  }
+  const suggestedPool = (which) => which === 'rotate' ? enabledScenes() : (window.TabletSchedule ? TabletSchedule.POOLS[which] : []).filter(name => enabledScenes().includes(name));
+  function activePool(which) {
+    if (which === 'library') return enabledScenes();
+    const enabled = enabledScenes(), mine = (poolOf(which) || []).filter(name => enabled.includes(name));
+    const suggested = suggestedPool(which);
+    return mine.length ? mine : suggested.length ? suggested : enabled;
+  }
   function poolSummary(which) {
-    const mine = (poolOf(which) || []).filter((name) => availableScenes.includes(name)), w = words[language];
-    if (!mine.length) return which === 'rotate' ? w.pool_all + ' (' + availableScenes.length + ')' : w.pool_suggested + ' (' + suggestedPool(which).length + ')';
-    return mine.length + ' ' + w.pool_count + ' ' + availableScenes.length;
+    const enabled = enabledScenes(), active = activePool(which), w = words[language];
+    const custom = (poolOf(which) || []).some(name => enabled.includes(name));
+    if (!custom) return (active.length === enabled.length ? w.pool_all : w.pool_suggested) + ' (' + active.length + ')';
+    return active.length + ' ' + w.pool_count + ' ' + enabled.length;
   }
   function choosePool(which) {
     if (!Object.hasOwn(POOL_PATHS, which)) return;
     const dialog = $('#pool-dialog'), grid = $('#pool-grid'), w = words[language];
+    const library = which === 'library';
+    const candidates = library ? availableScenes : enabledScenes();
     $('#pool-title').textContent = w['pool_' + which];
     const draw = () => {
       const active = activePool(which);
       grid.replaceChildren();
-      for (const name of availableScenes) {
+      for (const name of candidates) {
         const on = active.includes(name), button = el('button', 'scene-option'); button.type = 'button'; button.setAttribute('aria-pressed', String(on));
-        const picture = el('img'); picture.src = '/assets/thumb-' + name + '.webp'; picture.alt = '';
-        button.append(picture, el('span', '', sceneNames[name][language === 'es' ? 1 : 0]), el('i', 'pool-check', on ? '✓' : ''));
+        button.disabled = on && active.length === 1;
+        const picture = el('img'); picture.src = sceneThumbnail(name); picture.alt = '';
+        const check = el('i', 'pool-check', on ? '✓' : '');
+        check.setAttribute('aria-hidden', 'true');
+        button.append(picture, el('span', '', sceneNames[name][language === 'es' ? 1 : 0]), check);
         button.addEventListener('click', () => {
-          const now = activePool(which), next = on ? now.filter((n) => n !== name) : availableScenes.filter((n) => n === name || now.includes(n));
-          if (!next.length) return;                                    // the last scene stays on
-          setSetting(POOL_PATHS[which], next); draw();
+          const next = on ? active.filter(n => n !== name) : candidates.filter(n => n === name || active.includes(n));
+          if (!next.length) return;
+          if (library) {
+            const unavailable = settings.disabled_scenes.filter(n => !availableScenes.includes(n));
+            setSetting('disabled_scenes', [...unavailable, ...candidates.filter(n => !next.includes(n))]);
+            if (settings.scene === name && on) setSetting('scene', selectedScene);
+          } else setSetting(POOL_PATHS[which], next);
+          draw();
+          grid.querySelectorAll('button')[candidates.indexOf(name)]?.focus();
+
         });
         grid.append(button);
       }
     };
     $('#pool-reset').onclick = () => { setSetting(POOL_PATHS[which], []); draw(); };
-    $('#pool-reset').textContent = w.pool_reset; $('#pool-hint').textContent = w.pool_hint; $('#pool-close').textContent = w.pool_done;
-    draw(); dialog.onclose = () => { if (window.TabletPanels && settingsDialog.open) TabletPanels.renderSettings(); };
+    $('#pool-reset').textContent = library ? w.pool_enable_all : w.pool_reset; $('#pool-hint').textContent = w.pool_hint; $('#pool-close').textContent = w.pool_done;
+    draw(); dialog.onclose = () => {
+      if (library) { showScenes(); $('#scene-manage').focus(); }
+      else if (window.TabletPanels && settingsDialog.open) TabletPanels.renderSettings();
+    };
     dialog.showModal();
   }
   function showScenes() {
@@ -549,8 +581,9 @@
     tile('auto-day', null, words[language].auto_day_title, settings.scene === 'auto' && settings.auto.mode === 'daypart');
     tile('auto-rotate', null, words[language].auto_rotate_title, settings.scene === 'auto' && settings.auto.mode === 'rotate');
     if (photos.length) tile('photos', null, words[language].scene_photos, settings.scene === 'photos');
-    availableScenes.forEach((name) => tile(name, '/assets/thumb-' + name + '.webp', sceneNames[name][language === 'es' ? 1 : 0], settings.scene === name));
-    if (availableScenes.length || photos.length) sceneDialog.showModal();
+    $('#scene-manage').hidden = availableScenes.length < 2;
+    enabledScenes().forEach((name) => tile(name, sceneThumbnail(name), sceneNames[name][language === 'es' ? 1 : 0], settings.scene === name));
+    if (!sceneDialog.open && (availableScenes.length || photos.length)) sceneDialog.showModal();
   }
   async function loadScenes() {
     try {
@@ -816,7 +849,7 @@
     const dx = event.clientX - pictureGesture.x, dy = event.clientY - pictureGesture.y;
     pictureGesture = null;
     if (Math.abs(dx) < Math.max(48, picturePage.clientWidth * .08) || Math.abs(dx) <= Math.abs(dy) * 1.25) return;
-    const choices = photos.length ? [...availableScenes, 'photos'] : availableScenes;
+    const enabled = enabledScenes(), choices = photos.length ? [...enabled, 'photos'] : enabled;
     if (choices.length < 2) return;
     clearPictureTap();
     const current = photoMode ? 'photos' : selectedScene, index = choices.indexOf(current);
@@ -949,6 +982,7 @@
   sceneClose.addEventListener('click',() => sceneDialog.close());
   settingsOpen.addEventListener('click', () => { if (window.TabletPanels) TabletPanels.renderSettings(); settingsDialog.showModal(); });
   settingsClose.addEventListener('click', () => settingsDialog.close());
+  $('#scene-manage').addEventListener('click', () => { sceneDialog.close(); choosePool('library'); });
   $('#pool-close').addEventListener('click', () => $('#pool-dialog').close());
   updateChip.addEventListener('click', () => { if (bridge) native('reload'); else window.location.reload(); });
   appUpdateChip.addEventListener('click', startAppUpdate);
@@ -996,12 +1030,12 @@
     if (value && value.ready && value.revision && value.revision !== offlineRevision) {
       offlineRevision = value.revision;
       const previous = selectedScene;
-      // A game atlas can have new bytes at the same URL. Once the complete
-      // pack is installed, reload the still-selected game without changing its
-      // settings or the picture mode; never switch during a partial transfer.
+      // Scene files and thumbnails can have new bytes at the same URL.
+      // Refresh the selection only after the pack is complete.
       loadScenes().then(() => {
         const info = displayInfo(previous);
-        if (!photoMode && selectedScene === previous && info && info.look === 'game') setScene(previous, false);
+        if (!photoMode && selectedScene === previous && info) setScene(previous, false);
+        if (sceneDialog.open) showScenes();
       });
       loadPhotos();
     }

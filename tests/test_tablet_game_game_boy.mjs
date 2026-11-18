@@ -14,6 +14,18 @@ const secs = (ms) => ms / 1000;
 const week = (remaining, hours = 100) => ({remaining, resets_at: secs(NOW) + hours * 3600});
 const provider = (weekly, resets = {count: 2, old: false}, session = null) => ({weekly, session, aged: false, resets, credits: null});
 
+test('four environments cycle and change the generated level even with the same seed', () => {
+  const levels = Array.from({length: 8}, (_, number) => gb.buildLevel(seeded(8), {number}));
+  assert.deepEqual(levels.map(level => level.biome), ['sand', 'coast', 'grotto', 'forest', 'sand', 'coast', 'grotto', 'forest']);
+  assert.notDeepEqual(levels[0].features, levels[1].features);
+  assert.ok(levels.every(level => level.route && level.route.length === 15));
+  const routes = levels.slice(0, 4).map(level => {
+    const {col, length} = level.route;
+    return Array.from({length: ROWS}, (_, row) => Array.from(level.tiles.slice(row * level.cols + col, row * level.cols + col + length)));
+  });
+  assert.equal(new Set(routes.map(route => JSON.stringify(route))).size, 4);
+});
+
 /* ---- the readings-to-HUD mapping -------------------------------------------------------------------------------------------------------------------- */
 
 test('registered as game-boy: only the screen uses crisp pixels, without a grid on the casing', () => {

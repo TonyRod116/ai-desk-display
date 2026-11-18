@@ -32,6 +32,7 @@ const orderGrid = document.getElementById('order-grid');
 const orderNote = document.getElementById('order-note');
 const orderSave = orderDialog.querySelector('.dialog-save');
 const orderOpen = document.getElementById('reorder-open');
+const enabledHint = document.getElementById('enabled-screens-hint');
 let orderOriginal = null;
 let orderDraft = [];
 let orderDrag = null;
@@ -81,7 +82,17 @@ defaultNames.forEach((name, index) => {
   change.textContent = 'Change screen';
   change.disabled = true;
   change.addEventListener('click', () => openSceneDialog(index));
-  slot.append(button, change);
+  const actions = document.createElement('div');
+  actions.className = 'screen-slot-actions';
+  const activeLabel = document.createElement('label');
+  activeLabel.className = 'screen-enabled';
+  activeLabel.hidden = true;
+  const active = document.createElement('input');
+  active.type = 'checkbox';
+  active.addEventListener('change', () => command('enable', {page: index, enabled: active.checked}));
+  activeLabel.append(active, ' Active');
+  actions.append(change, activeLabel);
+  slot.append(button, actions);
   grid.append(slot);
 });
 
@@ -424,18 +435,30 @@ function render(status, message) {
   connection.dataset.state = status.state;
   connection.querySelector('span').textContent = descriptions[status.state] || 'Connecting';
   const usable = status.state === 'connected' || (status.state === 'busy' && status.page !== null);
+  const mask = Number.isInteger(status.enabled_pages) ? status.enabled_pages : null;
+  enabledHint.hidden = !usable;
+  enabledHint.textContent = mask === null ? 'Update the display firmware to choose which screens are active.' :
+    'Inactive slots are skipped on touch and in automatic rotation. Keep at least one active.';
   const showingConnection = status.showing_connection === true;
   const sceneState = JSON.stringify([status.scene_ids, status.scene_pending]);
   if (lastSceneState && lastSceneState !== sceneState) refreshPreviews();
   lastSceneState = sceneState;
   document.querySelectorAll('.screen-card').forEach((card, index) => {
     const selected = !showingConnection && status.page === index;
-    card.disabled = sending || !usable;
+    const enabled = mask === null || Boolean(mask & (1 << index));
+    card.disabled = sending || !usable || !enabled;
+    card.closest('.screen-slot').dataset.inactive = String(!enabled);
     card.setAttribute('aria-pressed', String(selected));
     const name = sceneName(status.scene_ids?.[index], defaultNames[index]);
     card.querySelector('strong').textContent = name;
     card.querySelector('small').textContent = status.scene_pending?.[index] ? (status.scene_delivered_ids?.[index] === null ? 'CHECKING' : 'QUEUED') : selected ? 'ON DISPLAY' : String(index + 1).padStart(2, '0');
     const change = card.parentElement.querySelector('.screen-change');
+    const activeLabel = card.parentElement.querySelector('.screen-enabled');
+    const active = activeLabel.querySelector('input');
+    activeLabel.hidden = mask === null || index >= status.available_slots;
+    active.checked = enabled;
+    active.disabled = sending || !usable || mask === (1 << index);
+    active.setAttribute('aria-label', `Active screen ${index + 1}: ${name}`);
     change.disabled = sending || !status.scene_catalog || status.scene_settings_error;
     change.setAttribute('aria-label', `Change screen ${index + 1}: ${name}`);
   });

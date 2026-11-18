@@ -15,6 +15,10 @@ Mario's speed does not change Paradise, for example. Firmware 26 uses one speed
 for all scenes. Speed changes how fast a scene moves; it does not set its frame
 rate.
 
+With firmware 46 or later, **Active** controls which slots a tap or the timed
+rotation will visit. Keep at least one slot active. The control appears when the
+connected display reports support for it.
+
 Each of the eight slots also has a **Change screen** button. It opens a local
 visual library with previews of the current screens and earlier versions, including Deep Space,
 Game Boy Pocket, Prism, older Code Forge and Neon City designs, and the original

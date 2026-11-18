@@ -43,7 +43,7 @@ class FakeBoard:
         self.state['page'] = page + 1
         self.state['animation_speed'] = self.state['animation_speeds'][page]
 
-    def configure(self, cycle=None, speed=None, speed_page=None, mode_hold=None, connect_hold=None):
+    def configure(self, cycle=None, speed=None, speed_page=None, mode_hold=None, connect_hold=None, enabled_pages=None):
         self.calls.append(('configure', cycle, speed))
         if cycle is not None:
             self.state['rotation_minutes'] = cycle
@@ -55,6 +55,8 @@ class FakeBoard:
         if mode_hold is not None:
             self.state['mode_hold_seconds'] = mode_hold
             self.state['connect_hold_seconds'] = connect_hold
+        if enabled_pages is not None:
+            self.state['enabled_pages'] = enabled_pages
 
 
 class BoardControlTests(unittest.TestCase):
@@ -77,6 +79,11 @@ class BoardControlTests(unittest.TestCase):
         self.assertEqual(calls, ['/config?cycle=30&speed=125'])
         board.configure(speed=75, speed_page=6, mode_hold=1, connect_hold=7)
         self.assertEqual(calls[-1], '/config?speed=75&speedpage=6&holdmode=1&holdconnect=7')
+        board.configure(enabled_pages=132)
+        self.assertEqual(calls[-1], '/config?enabled=132')
+        for mask in (0, 256, True, '12'):
+            with self.assertRaises(ValueError):
+                board.configure(enabled_pages=mask)
         for value in (True, -1, 1, '30'):
             with self.assertRaises(ValueError):
                 board.configure(cycle=value)
@@ -107,6 +114,22 @@ class BoardControlTests(unittest.TestCase):
         for invalid in ({'mode': 1, 'connect': 4}, {'mode': 1, 'connect': True}, {'mode': 1}):
             with self.assertRaises(ValueError):
                 control.execute('touch', invalid)
+
+    def test_enabled_slots_are_applied_and_read_back_without_losing_other_choices(self):
+        board = FakeBoard()
+        control = BoardControl(board)
+        with self.assertRaisesRegex(ValueError, 'Display update'):
+            control.execute('enable', {'page': 2, 'enabled': False})
+        board.state.update(active=8, enabled_pages=255)
+        self.assertEqual(control.execute('enable', {'page': 2, 'enabled': False})['enabled_pages'], 251)
+        self.assertEqual(control.execute('enable', {'page': 7, 'enabled': False})['enabled_pages'], 123)
+        with self.assertRaisesRegex(ValueError, 'disabled'):
+            control.execute('page', 2)
+        self.assertEqual(control.execute('enable', {'page': 2, 'enabled': True})['enabled_pages'], 127)
+        board.state['enabled_pages'] = 4
+        with self.assertRaisesRegex(ValueError, 'at least one'):
+            control.execute('enable', {'page': 2, 'enabled': False})
+        self.assertEqual(board.state['enabled_pages'], 4)
 
     def test_status_does_not_interrupt_an_active_board_transfer(self):
         board = FakeBoard()

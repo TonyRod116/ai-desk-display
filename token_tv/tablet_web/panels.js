@@ -230,12 +230,27 @@
 
     const slots = el('section', 'remote-block'); slots.append(el('h3', 'block-title', t('remote_screen')));
     const grid = el('div', 'slots');
-    const list = s && Array.isArray(s.slots) && s.slots.length ? s.slots : Array.from({ length: 8 }, (_, i) => ({ index: i, name: String(i + 1) }));
+    const list = Array.from({ length: s?.available_slots ?? 8 }, (_, i) =>
+      s?.slots?.find(slot => slot.index === i) || { index: i, name: String(i + 1) });
+    const mask = Number.isInteger(s?.enabled_pages) ? s.enabled_pages : null;
     list.slice(0, 8).forEach((slot) => {
-      const b = el('button', 'slot-button'); b.type = 'button'; b.disabled = off; b.setAttribute('aria-pressed', String(s && s.page === slot.index));
+      const bit = 1 << slot.index, enabled = mask === null || !!(mask & bit);
+      const b = el('button', 'slot-button'); b.type = 'button'; b.disabled = off || !enabled; b.setAttribute('aria-pressed', String(s && s.page === slot.index));
       const preview = usable && remoteVisible() ? slotPreview(slot) : null; if (preview) b.append(preview);
       b.append(el('i', '', String(slot.index + 1)), el('span', '', slot.name || String(slot.index + 1)));
-      b.addEventListener('click', () => sendRemote('page', slot.index)); grid.append(b);
+      b.addEventListener('click', () => sendRemote('page', slot.index));
+      if (mask === null) {
+        grid.append(b);
+        return;
+      }
+      const tile = el('div', 'remote-slot'), label = el('label', 'remote-active'), toggle = el('input');
+      tile.dataset.inactive = String(!enabled);
+      toggle.type = 'checkbox'; toggle.checked = enabled; toggle.disabled = off || mask === bit;
+      const title = t('remote_active');
+      toggle.setAttribute('aria-label', title + ' · ' + (slot.name || String(slot.index + 1)));
+      toggle.addEventListener('change', () => sendRemote('enable', {page:slot.index, enabled:toggle.checked}));
+      label.append(toggle, el('span', '', title));
+      tile.append(b, label); grid.append(tile);
     });
     slots.append(grid); root.append(slots);
     pumpPreviews();  // at most two local reads; never request pictures on another page

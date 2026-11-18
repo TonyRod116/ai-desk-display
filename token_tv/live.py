@@ -328,7 +328,7 @@ def handler(store, preferences=None, board_control=None, history=None):
             path = urlparse(self.path).path
             if path not in ('/display/style', '/display/resets', '/display/reset-refresh', '/display/usage-refresh',
                             '/board/page', '/board/rotation', '/board/speed', '/board/touch', '/board/scene',
-                            '/board/order', '/board/night'):
+                            '/board/order', '/board/night', '/board/enable'):
                 self.send_error(404)
                 return
             if path.startswith('/board/') and board_control is None:

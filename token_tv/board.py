@@ -184,10 +184,14 @@ class BoardDisplay:
         raise OSError('The board did not come back after the update')
 
     def configure(self, rotation=None, invert=None, swap_red_blue=None, swap_bytes=None, pages=None,
-                  cycle=None, speed=None, speed_page=None, mode_hold=None, connect_hold=None, bright=None):
+                  cycle=None, speed=None, speed_page=None, mode_hold=None, connect_hold=None, bright=None, enabled_pages=None):
         """Panel options kept on the board: 1 or 3 for landscape either way up, inverted colours,
         red and blue swapped, byte order of each pixel swapped, how many page slots are cycled."""
         options = []
+        if enabled_pages is not None:
+            if type(enabled_pages) is not int or not 0 < enabled_pages < 1 << PAGES:
+                raise ValueError('Invalid enabled screens')
+            options.append(f'enabled={enabled_pages}')
         if cycle is not None:
             if type(cycle) is not int or cycle not in (0, 30, 60):
                 raise ValueError('Cycle must be fixed, 30 minutes or one hour')

@@ -276,10 +276,17 @@ class ValidationTests(unittest.TestCase):
                 clean_value(name, value)
 
     def test_the_other_routes_of_the_control_room_are_not_part_of_the_remote(self):
-        self.assertEqual(tablet_board.COMMANDS, ('page', 'rotation', 'speed', 'night'))
+        self.assertEqual(tablet_board.COMMANDS, ('page', 'rotation', 'speed', 'night', 'enable'))
         for name in ('scene', 'order', 'touch'):                                 # real routes of /board, deliberately left out
             with self.subTest(name=name), self.assertRaises(ValueError):
                 clean_value(name, {'slot': 0, 'scene': 'surf'})
+
+    def test_only_a_boolean_change_to_an_existing_slot_crosses_the_bridge(self):
+        value = {'page': 7, 'enabled': False}
+        self.assertEqual(clean_value('enable', value), value)
+        for bad in ({'page': 8, 'enabled': False}, {'page': 3, 'enabled': 0}, {'page': True, 'enabled': True}):
+            with self.assertRaises(ValueError):
+                clean_value('enable', bad)
 
     def test_a_night_schedule_is_rebuilt_not_passed_through(self):
         class Sneaky(dict):

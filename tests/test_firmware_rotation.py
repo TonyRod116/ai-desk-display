@@ -12,8 +12,15 @@ class RotationTests(unittest.TestCase):
     def test_gestures_boundaries_clock_corrections_and_millis_wrap(self):
         source = r'''
 #include "rotation.h"
+#include "screen_selection.h"
 #include <cassert>
 int main() {
+ assert(pageMask(8)==255);
+ assert(nextEnabledPage(0,8,0b10000101,255)==2);
+ assert(nextEnabledPage(7,8,0b10000101,255)==0);
+ assert(nextEnabledPage(2,8,0b10000101,0b00000011)==0);
+ assert(nextEnabledPage(0,8,0b10000000,1)==7);
+ assert(nextEnabledPage(7,8,0b10000000,255)==7);
  assert(gesture(30)==Gesture::None);
  assert(gesture(31)==Gesture::Page);
  assert(gesture(699)==Gesture::Page);   // a tap, even a slow one

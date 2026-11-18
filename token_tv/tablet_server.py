@@ -69,6 +69,9 @@ MOUNTAIN_VARIANTS = tuple('neon-district-' + part for part in ('dawn', 'day', 'd
 ASSET_TYPES = {'webp': 'image/webp', 'webm': 'video/webm', 'jpg': 'image/jpeg', 'png': 'image/png', 'json': 'application/json'}
 MEDIA_EXTENSIONS = ('webp', 'webm', 'jpg', 'png')             # what a scene's picture or film may be
 SCENE_EXTENSIONS = {'scene': MEDIA_EXTENSIONS + ('json',), 'thumb': ('webp',)}      # a game scene also has its atlas data (frames) as scene-<name>.json
+WILDLIFE_ASSET = 'scene-wildlife.png'
+WILDLIFE_SCENES = {'paradise', 'neon-district', 'midnight-video-club', 'city', 'violet-horizon', *MOUNTAIN_VARIANTS, *HOUSE_VARIANTS}
+_STATIC['/assets/' + WILDLIFE_ASSET] = ('@' + WILDLIFE_ASSET, 'image/png')
 for _scene in SCENES + EXPRESS_VARIANTS + HOUSE_VARIANTS + MOUNTAIN_VARIANTS:
     for _kind, _extensions in SCENE_EXTENSIONS.items():
         for _ext in _extensions:
@@ -189,6 +192,8 @@ def _scene_info(scene, entry, directory):
         live = tablet_live.live_info(entry['live'], scene)
         if live:
             result['live'] = live
+    if scene in WILDLIFE_SCENES and entry.get('wildlife') is True and _size_ok(directory / WILDLIFE_ASSET, MAX_IMAGE_BYTES):
+        result.setdefault('live', {})['wildlife'] = '/assets/' + WILDLIFE_ASSET
     return result
 
 

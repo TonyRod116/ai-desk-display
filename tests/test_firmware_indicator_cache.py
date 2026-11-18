@@ -9,7 +9,8 @@ from pathlib import Path
 @unittest.skipUnless(shutil.which('g++'), 'needs g++')
 class IndicatorCacheTests(unittest.TestCase):
     def test_cached_page_dots_follow_storage_and_capacity_changes(self):
-        source = (Path(__file__).resolve().parents[1] / 'firmware/board/src/main.cpp').read_text()
+        sources = Path(__file__).resolve().parents[1] / 'firmware/board/src'
+        source = (sources / 'main.cpp').read_text()
         cache = source[source.index('static uint8_t indicatorPageMask'):
                        source.index('// A quiet page marker')]
         draw = source[source.index('static void drawIndicator()'):
@@ -19,7 +20,9 @@ class IndicatorCacheTests(unittest.TestCase):
 #include <cstdint>
 #include <string>
 #include <vector>
+#include "screen_selection.h"
 static int activePages=8, page=2, checks=0;
+static unsigned enabledPageMask=pageMask(8);
 static bool present[8]={true,false,true,false,false,false,true,false};
 static std::string pagePath(int n) { return std::to_string(n); }
 struct FS { bool exists(const std::string &name) { ++checks; return present[std::stoi(name)]; } } LittleFS;
@@ -40,6 +43,11 @@ int main() {
   assert(checks==8 && tft.dots==std::vector<uint16_t>({2,1,2}));
   present[1]=true; indicatorMaskValid=false; tft.dots.clear(); drawIndicator();
   assert(checks==16 && tft.dots==std::vector<uint16_t>({2,2,1,2}));
+  enabledPageMask=pageMask(3); tft.dots.clear(); drawIndicator();
+  assert(checks==16 && tft.dots==std::vector<uint16_t>({2,2,1}));
+  enabledPageMask=1; tft.dots.clear(); drawIndicator();
+  assert(checks==16 && tft.dots.empty());
+  enabledPageMask=pageMask(8);
   activePages=2; indicatorMaskValid=false; tft.dots.clear(); drawIndicator();
   assert(checks==18 && tft.dots==std::vector<uint16_t>({2,2}));
 }
@@ -48,7 +56,7 @@ int main() {
             cpp = Path(tmp) / 'indicator.cpp'
             exe = Path(tmp) / 'indicator'
             cpp.write_text(mock + cache + draw + check)
-            subprocess.run([shutil.which('g++'), '-std=c++17', '-O1', str(cpp), '-o', str(exe)],
+            subprocess.run([shutil.which('g++'), '-std=c++17', '-O1', '-I', str(sources), str(cpp), '-o', str(exe)],
                            check=True, capture_output=True, text=True)
             result = subprocess.run([str(exe)], capture_output=True, text=True)
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)

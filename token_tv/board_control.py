@@ -258,6 +258,7 @@ class BoardControl:
             return {'state': state, 'page': None, 'rotation_minutes': None,
                     'speed_percent': None, 'controls': False, 'clock_synced': False}
         page = info.get('page')
+        enabled = info.get('enabled_pages')
         return {'state': state, 'page': page - 1 if type(page) is int and 1 <= page <= PAGES else None,
                 'showing_connection': info.get('info') == 1,
                 'rotation_minutes': info.get('rotation_minutes'),
@@ -268,7 +269,9 @@ class BoardControl:
                 'mode_hold_seconds': info.get('mode_hold_seconds'),
                 'connect_hold_seconds': info.get('connect_hold_seconds'),
                 'controls': info.get('board_controls') == 1,
-                'clock_synced': info.get('clock_synced') is True}
+                'clock_synced': info.get('clock_synced') is True,
+                'available_slots': info.get('active'),
+                'enabled_pages': enabled if type(enabled) is int and 0 < enabled < 1 << PAGES else None}
 
     def execute(self, command, value):
         if command == 'night':
@@ -289,6 +292,11 @@ class BoardControl:
         if command == 'page':
             if type(value) is not int or not 0 <= value < PAGES:
                 raise ValueError('Unknown screen')
+        elif command == 'enable':
+            if (not isinstance(value, dict) or set(value) != {'page', 'enabled'}
+                    or type(value['page']) is not int or not 0 <= value['page'] < PAGES
+                    or type(value['enabled']) is not bool):
+                raise ValueError('Invalid enabled screen')
         elif command == 'rotation':
             if type(value) is not int or value not in (0, 30, 60):
                 raise ValueError('Unsupported rotation')
@@ -314,9 +322,24 @@ class BoardControl:
         try:
             before = board.info()
             if command == 'page':
+                mask = before.get('enabled_pages')
+                if type(mask) is int and 0 < mask < 1 << PAGES and not mask & (1 << value):
+                    raise ValueError('This screen is disabled')
                 board.show(value)
             elif before.get('board_controls') != 1:
                 raise ValueError('Display update needed for this setting')
+            elif command == 'enable':
+                mask, count = before.get('enabled_pages'), before.get('active')
+                if type(count) is not int or not 1 <= count <= PAGES or type(mask) is not int or not 0 < mask < 1 << count:
+                    raise ValueError('Display update needed for choosing active screens')
+                if value['page'] >= count:
+                    raise ValueError('This screen slot is unavailable')
+                bit = 1 << value['page']
+                enabled = mask | bit if value['enabled'] else mask & ~bit
+                if not enabled:
+                    raise ValueError('Keep at least one screen active')
+                if enabled != mask:
+                    board.configure(enabled_pages=enabled)
             elif command == 'rotation':
                 board.configure(cycle=value)
             elif command == 'speed':
@@ -342,6 +365,8 @@ class BoardControl:
             elif command == 'touch':
                 confirmed = (after.get('mode_hold_seconds') == value['mode']
                              and after.get('connect_hold_seconds') == value['connect'])
+            elif command == 'enable':
+                confirmed = after.get('enabled_pages') == enabled
             else:
                 key = {'page': 'page', 'rotation': 'rotation_minutes', 'speed': 'animation_speed'}[command]
                 expected = value + 1 if command == 'page' else rate if command == 'speed' else value

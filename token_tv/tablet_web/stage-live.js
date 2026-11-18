@@ -117,13 +117,17 @@
     const kind = raw.kind, seconds = r4(num(raw.seconds, CRAFT.seconds));
     const [cLo, cHi] = CRAFT.count[kind];
     const count = finite(raw.count) ? clamp(Math.round(raw.count), cLo, cHi) : Math.min(3, cHi);
-    return {
+    const result = {
       kind, from, to, seconds, count,
       size: finite(raw.size) ? r4(clamp(raw.size, CRAFT.sizeRange[0], CRAFT.sizeRange[1])) : CRAFT.size[kind],
       every: finite(raw.every) ? r4(clamp(raw.every, seconds, 900)) : r4(seconds * 1.7),
       delay: r4(num(raw.delay, CRAFT.delay)), bob: r4(num(raw.bob, CRAFT.bob)), flap: r4(num(raw.flap, CRAFT.flap)),
       colour: normalizeTint(raw.colour, CRAFT.colour[kind]),
     };
+    const via = point(raw.via);
+    if (via) result.via = via;
+    if (finite(raw.end_size)) result.end_size = r4(clamp(raw.end_size, ...CRAFT.sizeRange));
+    return result;
   }
 
   function normalizeLampRow(raw) {
@@ -163,6 +167,7 @@
       const lamps = normalizeLamps(raw.lamps);
       if (lamps) { out.lamps = lamps; any = true; }
     }
+    if (raw.wildlife === '/assets/scene-wildlife.png') { out.wildlife = raw.wildlife; any = true; }
     return any ? out : null;
   }
 
@@ -172,6 +177,7 @@
     const names = EFFECTS.filter((n) => cfg[n]);
     if (cfg.craft && cfg.craft.length) names.push('craft');
     if (cfg.lamps) names.push('lamps');
+    if (cfg.wildlife) names.push('wildlife');
     return names;
   }
 
@@ -312,17 +318,146 @@
       if (cycle < 0) continue;
       const u = (cycle % c.every) / c.seconds;
       if (u > 1) continue;
-      const dx = (c.to[0] - c.from[0]) * aspect, dy = c.to[1] - c.from[1];
-      const bob = c.bob * Math.sin(TAU * (seconds * 0.071 + hash1(i + 1)));
+      const via = c.via || [(c.from[0] + c.to[0]) / 2, (c.from[1] + c.to[1]) / 2];
+      const v = 1 - u, lerp = (a, b) => a * v + b * u;
+      const x = lerp(lerp(c.from[0], via[0]), lerp(via[0], c.to[0]));
+      const y = lerp(lerp(c.from[1], via[1]), lerp(via[1], c.to[1]));
+      const dx = aspect * lerp(via[0] - c.from[0], c.to[0] - via[0]);
+      const dy = lerp(via[1] - c.from[1], c.to[1] - via[1]);
+      const bob = c.bob * Math.sin(TAU * (cycle % c.every * 0.071 + hash1(i + 1)));
       out.push({
         kind: c.kind, index: i, u,
-        x: c.from[0] + (c.to[0] - c.from[0]) * u, y: c.from[1] + (c.to[1] - c.from[1]) * u + bob,
-        heading: Math.atan2(dy, dx), size: c.size, count: c.count, flap: c.flap,
+        x, y: y + bob,
+        heading: Math.atan2(dy, dx), size: lerp(c.size, c.end_size ?? c.size), count: c.count, flap: c.flap,
         alpha: smooth(clamp(u / 0.04, 0, 1)) * smooth(clamp((1 - u) / 0.04, 0, 1)),
         phase: hash1(i * 7.7 + 2) * TAU, colour: c.colour,
       });
     }
     return out;
+  }
+
+  const phase64 = (seconds) => ((seconds % 64) + 64) % 64;
+  const photoPart = (info) => info.media?.url?.match(/-(dawn|day|dusk|night)\.(?:webm|jpg|webp)(?:$|\?)/)?.[1] || 'day';
+
+  function gullBeat(seconds, bird) {
+    const interval = 3.86 + .15 * bird, burst = 1.78 + .07 * bird;
+    const t = ((seconds + .43 * bird) % interval + interval) % interval;
+    if (t >= burst) return {frame: 0, lift: 0};
+    const stroke = t / burst * 4;
+    return {frame: fract1(stroke) * 8, lift: (1 - Math.cos(TAU * stroke)) * .0009};
+  }
+
+  function photographMotion(name, kind, seconds, part) {
+    const phase = phase64(seconds);
+    if (name === 'paradise') {
+      if (kind === 'water') return [1, phase / 64];
+      return [2, .0029 * Math.sin(phase / 64 * TAU * 7) + .0009 * Math.sin(phase / 64 * TAU * 13)];
+    }
+    if (name === 'midnight-video-club' && kind === 'clouds' && part !== 'night') {
+      const age = phase - 18.8;
+      if (age >= 0 && age < 5.7) {
+        const resting = smooth(clamp(age * 5, 0, 1)) * (1 - smooth(clamp(age - 4.2, 0, 1)));
+        return [1, resting * (.0014 + .0022 * Math.exp(-age * 1.79) * Math.sin(age * 9.5))];
+      }
+      return [1, 0];
+    }
+    return [0, 0];
+  }
+
+  /** In picture coordinates. Visits start and finish clear of their window or off-screen. */
+  function wildlifeState(scene, seconds, part = 'day') {
+    const sprites = [], night = part === 'night', phase = phase64(seconds);
+    const flap = (t, offset = 0) => [0, 1, 2, 3, 2, 1][Math.floor(t * 8 + offset) % 6];
+    const between = (a, b, u) => a + (b - a) * u;
+    const leaf = (start, index, cross, down, seconds, clip) => {
+      const u = clamp((phase - start) / seconds, 0, 1);
+      if (!(u > 0 && u < 1)) return;
+      sprites.push({tile: 12 + index, x: between(cross[0], cross[1], u) + .019 * Math.sin(u * TAU * 2),
+        y: between(down[0], down[1], u * (.78 + .22 * u)), size: .033 + index * .008,
+        angle: u * TAU * .63 + index, soft: 1.3 + index * .55,
+        alpha: .84 * smooth(Math.min(1, u * 9, (1 - u) * 9)), clip});
+    };
+    const visit = (start, place, approach, depart, size, clip, drink) => {
+      const t = phase - start;
+      if (t < 0 || t >= 10.9) return;
+      if (t < 2.8 || t >= 7.1) {
+        const land = t < 2.8, u = land ? t / 2.8 : (t - 7.1) / 3.8;
+        const a = land ? approach : place, b = land ? place : depart;
+        const progress = land ? 1 - (1 - u) * (1 - u) : u * u;
+        sprites.push({tile: 4 + flap(t), x: between(a[0], b[0], progress),
+          y: between(a[1], b[1], progress) - .060 * 4 * u * (1 - u), size: size * (land ? .68 + .32 * u : 1 - .48 * u),
+          flip: b[0] < a[0], clip, alpha: smooth(Math.min(1, t * 2, (10.9 - t) * 2))});
+      } else {
+        const rest = t - 2.8;
+        const pause = rest >= 2.05 ? rest - 2.05 : rest;
+        const tile = drink ? pause < .33 ? 8 : pause < .52 ? 9 : pause < .82 ? 10 : 11 : rest < .32 ? 11 : 8;
+        const ripple = drink && pause >= .60 && pause < 1.48 ? (pause - .60) / .88 : null;
+        sprites.push({tile, x: place[0], y: place[1] - size * .32, size, clip,
+          flip: approach[0] > place[0], alpha: 1, ripple, rippleY: place[1] + .011});
+      }
+    };
+    const gulls = (start, duration, from, to, count, size, clip, coastFlight = false) => {
+      for (let n = 0; n < count; n++) {
+        const t = phase - start - n * (coastFlight ? .68 : 1.4), u = t / duration;
+        if (!(u > 0 && u < 1)) continue;
+        const glide = (t + n) % 4.6 > 1.4;
+        const wing = coastFlight ? gullBeat(t, n) : null;
+        const bank = coastFlight ? .115 * Math.sin(u * TAU * 1.25 - n * .38) : 0;
+        const along = coastFlight ? u + .026 * Math.sin(u * TAU) : u;
+        sprites.push({tile: glide ? 3 : flap(t, n * 3), x: between(from[0], to[0], along),
+          y: between(from[1], to[1], along) + n * .018 + .017 * Math.sin(u * TAU - n) - (wing?.lift || 0),
+          size: size * (1 - n * .14) * (coastFlight ? .85 + .15 * Math.sin(u * Math.PI) : 1),
+          angle: bank, gullFrame: wing?.frame, flip: to[0] < from[0], clip,
+          alpha: smooth(Math.min(1, u * 8, (1 - u) * 8))});
+      }
+    };
+    const ship = (tile, start, duration, from, via, to, size, distant, colour, foreground) => {
+      const u = (phase - start) / duration;
+      if (!(u > 0 && u < 1)) return;
+      const v = 1 - u;
+      const axis = k => v * v * from[k] + 2 * u * v * via[k] + u * u * to[k];
+      sprites.push({tile, x: axis(0), y: axis(1), size: between(size, distant, smooth(u)),
+        angle: .11 * Math.sin(u * TAU - .8), tail: colour, tailWidth: .62 + .38 * Math.sin(Math.PI * u),
+        foreground, flip: to[0] < from[0],
+        alpha: smooth(Math.min(1, u * 12, (1 - u) * 12))});
+    };
+    if (scene === 'neon-district') {
+      const window = [.03, .39, .72, .81];
+      if (!night) visit(10, [.553, .690], [.79, .52], [-.08, .56], .053, window, true);
+      leaf(25, 0, [1.02, -.12], [.59, .82], 10, [0, 0, 1, .87]);
+      leaf(44, 1, [.08, .65], [.34, .77], 12, window);
+      if (!night) leaf(49, 2, [.49, .25], [.31, .72], 8, window);
+      if (!night && phase > 54 && phase < 61) {
+        const u = (phase - 54) / 7;
+        sprites.push({tile: 15, x: .13 + .53 * u, y: .65 - .054 * u + .023 * Math.sin(u * TAU * 2),
+          size: .018 + .003 * Math.sin(u * TAU * 15), angle: .24 * Math.sin(u * TAU * 3), clip: window,
+          alpha: .85 * smooth(Math.min(1, u * 10, (1 - u) * 10))});
+      }
+    } else if (scene === 'midnight-video-club') {
+      const window = [.235, .197, .827, .61];
+      if (!night) visit(16, [.742, .325], [.29, .38], [.94, .256], .037, window, false);
+      gulls(35, 12, [.18, .413], [.92, .388], night ? 1 : 2, .024, window);
+      if (part === 'day') {
+        const u = (phase - 49) / 11;
+        if (u > 0 && u < 1) {
+          const foot = .624 + .006 * u;
+          sprites.push({tile: 24 + Math.floor(u * 88) % 8, x: .184 + .659 * u, y: foot - .017,
+            size: .052, alpha: smooth(Math.min(1, u * 9, (1 - u) * 9)), foreground: 'house', clip: [.225,.563,.807,.678]});
+        }
+      }
+    } else if (scene === 'paradise') {
+      gulls(3, 10.9, [1.13, .306], [-.14, .434], 3, .068, null, true);
+      gulls(33, 12.6, [-.13, .522], [1.14, .452], 2, .037, null, true);
+    } else if (scene === 'violet-horizon') {
+      ship(16, 1, 34, [-.11, .110], [.50, .405], [1.12, .646], .079, .023, [.30, .66, 1.0], 'violet');
+    } else if (scene === 'city') {
+      ship(17, 0, 25, [-.17, .16], [.48, .11], [1.12, .28], .059, .034, [.24, .50, 1], 'city');
+      ship(18, 7, 31, [1.13, .10], [.65, .28], [-.13, .25], .073, .053, [1, .26, .10], 'city');
+      ship(19, 16, 31, [-.11, .35], [.57, .38], [1.11, .30], .040, .030, [.37, .66, 1], 'city');
+      ship(20, 29, 27, [-.15, .31], [.48, .28], [1.09, .45], .048, .026, [.39, .72, 1], 'city');
+      ship(21, 40, 23, [1.15, .430], [.58, .395], [-.10, .36], .041, .026, [1, .32, .25], 'city');
+    }
+    return sprites;
   }
 
   /* ------------------------------------------------------------------------------------------------ touch */
@@ -612,7 +747,7 @@
   function meshVS(kind, video) {
     const head = ['attribute vec2 aPos; attribute vec2 aWD; uniform vec2 uRes; uniform vec4 uPic; uniform vec2 uSize; uniform float uT; uniform vec4 uP[3];',
       kind === 'water' ? 'uniform vec4 uW; uniform vec2 uW2;' : 'uniform vec4 uC;',
-      'varying vec2 vUv; varying vec2 vP; varying float vL;', RING_GLSL];
+      'uniform vec2 uLocal; varying vec2 vUv; varying vec2 vP; varying float vL;', RING_GLSL];
     const common = ['void main() {',
       '  vec2 p = aPos;',
       '  vec2 puv = (p - uPic.xy) / uPic.zw;',
@@ -630,6 +765,14 @@
       '  float a2 = fract(y0 * 21.0 * k - t * 0.031 + xh * 5.3 / uW.y);',
       '  float a3 = fract(xh * 7.1 / uW.y + y0 * 9.0 * k + t * 0.023);',
       '  vec2 d = vec2(sin(6.2832 * a1) + 0.6 * sin(6.2832 * a2), 0.45 * sin(6.2832 * a3)) * (uW.x * persp * aWD.x);',
+      '  if (uLocal.x > .5) {',
+      '    float p = uLocal.y * 6.2831853;',
+      '    float offshore = .00055 * sin(y0 * 189.0 - p * 7.0 + xh * 3.4);',
+      '    float roll = .0016 * smoothstep(.05,.32,depth) * sin(y0 * 74.0 - p * 9.0 + .29 * sin(xh * 18.0));',
+      '    float shallow = smoothstep(.40,.95,depth);',
+      '    float swash = .0032 * shallow * sin(p * 11.0 - y0 * 23.0 + xh * 3.5);',
+      '    d += vec2(-.72 * swash, offshore + roll + .46 * swash) * aWD.x;',
+      '  }',
       '  vec2 dpx = pushOf(uP[0], p, uSize.y) + pushOf(uP[1], p, uSize.y) + pushOf(uP[2], p, uSize.y);',
       '  d += dpx / uPic.w * aWD.x;',
       '  vL = 1.0;'] : [
@@ -640,7 +783,12 @@
       '  vec2 dir = uC.zw;',
       '  vec2 d = (dir * s1 + vec2(-dir.y, dir.x) * s2 * 0.4) * (uC.x * aWD.x);',
       '  float br = 0.5 + 0.5 * sin(6.2832 * fract(t * 0.01 + xh * 0.4 - yh * 0.2 + n2 * 0.5));',
-      '  vL = 1.0 + uC.y * aWD.x * (br - 0.5) * 0.9;'];
+      '  vL = 1.0 + uC.y * aWD.x * (br - 0.5) * 0.9;',
+      '  if (uLocal.x > .5) {',
+      '    float hull = smoothstep(.43,.582,yh);',
+      '    d = vec2(uLocal.x > 1.5 ? (yh - .56) * uLocal.y * .16 : 0.0, -uLocal.y * (uLocal.x > 1.5 ? hull : 1.0)) * aWD.x;',
+      '    vL = 1.0;',
+      '  }'];
     return [...head, ...common, ...body, ...tail].join('\n');
   }
 
@@ -762,6 +910,97 @@
   /* ---- craft: each one a small quad drawn over the picture, so only the pixels around a craft pay for it, whatever the GPU does with branches */
 
   const CRAFT_VS = 'attribute vec2 aPos;\nuniform vec4 uBox;\nvoid main() { gl_Position = vec4(uBox.xy + aPos * uBox.zw, 0.0, 1.0); }\n';
+  const WILDLIFE_FS = [
+    'uniform sampler2D uAtlas; uniform vec2 uRes; uniform vec4 uPic;',
+    'uniform vec4 uRect; uniform vec4 uPose; uniform vec4 uClip; uniform vec4 uShade; uniform vec3 uTail; uniform vec3 uFx; uniform float uGull;',
+    'vec4 gullPose(vec2 q,float frame,vec2 grid) {',
+    '  vec2 cell = vec2(2.0 + floor(frame/4.0),5.0);',
+    '  vec2 slot = vec2(mod(frame,2.0),floor(mod(frame,4.0)/2.0));',
+    '  return texture2D(uAtlas,(cell+(slot+clamp(q,.022,.976))*.5)/grid);',
+    '}',
+    'float facade(vec2 p, float x1, float x2, float roof) { return step(x1, p.x) * step(p.x, x2) * step(roof, p.y); }',
+    'float covered(vec2 p, float scene) {',
+    '  if (scene > .5 && scene < 1.5) return max(facade(p, .589, .644, .415 + .78 * max(0.0, .638 - p.x)), facade(p, .673, .726, .452 + 2.1 * max(0.0, p.x - .704)));',
+    '  if (scene >= 1.5 && scene < 2.5) {',
+    '    float side = max(facade(p, 0.0, .213, .121 + .48 * p.x), facade(p, .894, 1.0, .232 - .65 * (p.x - .894)));',
+    '    return max(side, max(facade(p, .318, .385, .327 + 1.3 * abs(p.x - .354)), facade(p, .819, .861, .294 + 2.0 * abs(p.x - .835))));',
+    '  }',
+    '  if (scene >= 2.5) return max(facade(p, .225, .323, .591), facade(p, .616, .806, .627 - .22 * (p.x - .616)));',
+    '  return 0.0;',
+    '}',
+    'void main() {',
+    '  vec2 pixel = vec2(gl_FragCoord.x, uRes.y - gl_FragCoord.y);',
+    '  vec2 scene = (pixel - uPic.xy) / uPic.zw;',
+    '  if (any(lessThan(scene, uClip.xy)) || any(greaterThan(scene, uClip.zw)) || covered(scene, uFx.y) > .5) discard;',
+    '  vec2 p = (pixel - uRect.xy) / uRect.z;',
+    '  float co = cos(uPose.z), si = sin(uPose.z);',
+    '  vec2 local = vec2((co * p.x + si * p.y) * uPose.w, -si * p.x + co * p.y);',
+    '  vec2 q = local + 0.5;',
+    '  float outside = float(any(lessThan(q, vec2(0.0))) || any(greaterThan(q, vec2(1.0))));',
+    '  vec2 atlasGrid = vec2(4.0, uFx.x);',
+    '  vec2 uv = (uPose.xy + clamp(q, 0.0, 1.0)) / atlasGrid;',
+    '  vec4 rgba = texture2D(uAtlas, uv);',
+    '  if (uGull >= 0.0) {',
+    '    float frame = floor(uGull), weight = fract(uGull);',
+    '    vec4 a = gullPose(q,frame,atlasGrid), b = gullPose(q,mod(frame+1.0,8.0),atlasGrid);',
+    '    float alpha = mix(a.a,b.a,weight);',
+    '    rgba = vec4(mix(a.rgb*a.a,b.rgb*b.a,weight)/max(.002,alpha),alpha);',
+    '  } else if (uRect.w > .01) {',
+    '    vec2 d = vec2(uRect.w / 512.0, uRect.w / (128.0 * uFx.x));',
+    '    rgba = .40 * rgba + .15 * (texture2D(uAtlas, uv + d) + texture2D(uAtlas, uv - d) + texture2D(uAtlas, uv + vec2(d.x,-d.y)) + texture2D(uAtlas, uv + vec2(-d.x,d.y)));',
+    '  }',
+    '  rgba *= 1.0 - outside;',
+    '  float alpha = rgba.a * uShade.a;',
+    '  float width = (abs(local.y) - 0.073) * 26.0;',
+    '  float beam = (exp(-width * width) + .24 * exp(-width*width*.22)) * smoothstep(-2.8 * uFx.z, -0.58, local.x) * (1.0 - smoothstep(-0.56, -0.12, local.x));',
+    '  gl_FragColor = vec4(rgba.rgb * uShade.rgb * alpha + uTail * beam * uShade.a * 0.53, alpha);',
+    '}',
+  ].join('\n');
+
+  // Small, bounded overlays registered to the photograph rather than to the screen.
+  const PHOTO_DETAILS_FS = [
+    'uniform vec2 uRes; uniform vec4 uPic; uniform vec4 uDetail;',
+    'void main() {',
+    '  vec2 p = (vec2(gl_FragCoord.x, uRes.y - gl_FragCoord.y) - uPic.xy) / uPic.zw;',
+    '  float seconds = uDetail.y, clock = seconds * .09817477;',
+    '  vec3 colour = vec3(0.0); float alpha = 0.0;',
+    '  if (uDetail.x < 1.5) {',
+    '    float slot = (p.x - .603) / .010, index = floor(slot);',
+    '    vec2 d = vec2((fract(slot) - .50) * 4.8, (p.y - .449 + .18 * (p.x - .602)) * 310.0);',
+    '    float pulse = seconds - 17.0 - .86 * index;',
+    '    float intensity = smoothstep(0.0,.65,pulse) * (1.0 - smoothstep(6.6,8.0,pulse));',
+    '    colour = vec3(.63,.76,1.0) * exp(-dot(d,d)*2.25) * intensity * .48;',
+    '  } else if (uDetail.x < 2.5) {',
+    '    float depth = p.y - (.771 + .035 * (p.x - .45));',
+    '    float edge = (1.0 - smoothstep(.008,.033,abs(depth))) * smoothstep(.30,.42,p.x) * (1.0-smoothstep(.65,.735,p.x));',
+    '    float a = sin(p.x*157.0 + p.y*85.0 + clock*19.0 + .7*sin(p.y*77.0-clock*11.0));',
+    '    float b = sin(p.x*77.0 - p.y*134.0 + clock*13.0);',
+    '    float crest = smoothstep(1.0,1.78,a+b);',
+    '    colour = vec3(.27,.53,.48) * edge * crest * uDetail.z * .27;',
+    '  } else if (uDetail.x < 3.5) {',
+    '    float shore = .123 + .891 * max(0.0,p.y-.649);',
+    '    float swell = (.014*sin(clock*11.0 + p.y*17.0) + .0038*sin(clock*23.0-p.y*29.0))*smoothstep(.64,.77,p.y);',
+    '    float wet = shore + swell - p.x;',
+    '    float falloff = smoothstep(.0,.014,wet) * (1.0 - smoothstep(.021,.061,wet));',
+    '    float feather = smoothstep(.635,.687,p.y) * (1.0 - smoothstep(.982,1.0,p.y));',
+    '    alpha = falloff * feather * (.16 + .035*sin(p.y*271.0+p.x*19.0));',
+    '    colour = vec3(.235,.147,.096) * alpha;',
+    '  } else {',
+    '    float progress = clamp((seconds - 49.0)/11.0,0.0,1.0);',
+    '    float passed = .184 + .659 * progress - p.x;',
+    '    float print = (p.x - .325) / .0135;',
+    '    float position = fract(print) - .5;',
+    '    float track = (mod(floor(print),2.0)-.5) * .0021;',
+    '    vec2 d = vec2(position * 3.6, (p.y - (.625 + .004 * progress + track)) * 850.0);',
+    '    float wave = .6265 + .0034 * sin(clock*17.0 + p.x*9.0) + .0023*sin(clock*12.0);',
+    '    float visible = smoothstep(.012,.028,passed) * (1.0-smoothstep(.11,.27,passed));',
+    '    visible *= smoothstep(.325,.349,p.x) * (1.0-smoothstep(.596,.622,p.x));',
+    '    alpha = exp(-dot(d,d)*2.4) * visible * smoothstep(wave,wave+.0015,p.y) * .14;',
+    '    colour = vec3(.24,.165,.11) * alpha;',
+    '  }',
+    '  gl_FragColor = vec4(colour,alpha);',
+    '}',
+  ].join('\n');
 
   /** The fragment shader of one craft kind. Output is premultiplied: the dark body as colour with its alpha, light as colour with no alpha (added). */
   function craftFragment(kind, lib) {
@@ -785,13 +1024,19 @@
       body = [
         'vec4 shipLayer(vec2 d, float s, vec3 glowCol, float px) {',
         '  float x = d.x / s, y = abs(d.y) / s;',
-        '  float hw = 0.46 * (1.0 - x) / 1.9 - 0.10 * smoothstep(-0.55, -0.95, x);',
-        '  float body = smoothstep(0.0, px / s * 1.4, hw - y) * step(-0.95, x) * step(x, 1.0);',
-        '  float rim = smoothstep(0.0, px / s * 3.0, hw - y) * (1.0 - smoothstep(0.0, px / s * 5.0, hw - y)) * body;',
-        '  vec2 g = vec2(x + 1.05, d.y / s * 1.4);',
-        '  float glow = exp(-dot(g, g) / 0.16);',
-        '  float trail = exp(-y * y / 0.012) * exp((x + 1.0) / 5.5) * step(x, -1.0) * smoothstep(-14.0, -1.0, x);',
-        '  return vec4(glowCol * (glow * 1.4 + trail * 0.55 + rim * 0.9), body);',
+        '  float aa = max(0.018, px / s);',
+        '  float hw = mix(0.25, 0.025, smoothstep(0.18, 1.0, x));',
+        '  float fuselage = smoothstep(-aa, aa, hw - y) * smoothstep(-1.04, -0.93, x) * (1.0-smoothstep(0.93, 1.05, x));',
+        '  float wing = smoothstep(-aa, aa, 0.68 - y) * smoothstep(-0.83, -0.72, x + y * 0.15) * (1.0 - smoothstep(-0.15, -0.05, x + y * 0.81));',
+        '  float pod = 1.0 - smoothstep(0.88, 1.14, length(vec2((x + 0.63) / 0.32, (y - 0.42) / 0.09)));',
+        '  float body = max(fuselage, max(wing, pod));',
+        '  float glass = 1.0 - smoothstep(0.52, 1.02, length(vec2((x - 0.36) / 0.28, y / 0.093)));',
+        '  float panel = (1.0 - smoothstep(0.007, 0.07, abs(y - hw + 0.056))) * fuselage;',
+        '  vec2 jets = vec2((x + 0.96) * 8.0, (y - 0.42) * 13.0);',
+        '  float tail = exp(-dot(jets, jets));',
+        '  float width = (y - 0.42) * 19.0;',
+        '  float trail = exp(-width * width) * exp((x + 1.0) / 2.25) * step(x, -1.0) * smoothstep(-6.2, -1.0, x);',
+        '  return vec4(vec3(0.06, 0.09, 0.17) * (panel + wing * 0.60) + glowCol * (tail * 1.16 + trail * 0.31 + glass * 0.66), body);',
         '}',
         ...prologue,
         '  vec4 sh = shipLayer(rot2(d, -uA.z), s, uC.rgb, 1.2 / unit);',
@@ -892,7 +1137,11 @@
       'uniform vec2 uRes; uniform vec4 uPic; uniform vec2 uSize; uniform float uTime;',
       'uniform vec4 uRow;',            // left, right (fractions of the picture's width), y (of its height), the face's height (picture heights)
       'uniform vec4 uRow2;',           // modules, lit modules from the anchored end (below zero: unknown), anchor (+1 left end, -1 right end), amount
-      'uniform vec3 uCol;',
+      'uniform vec3 uCol; uniform float uRiver;',
+      'float roundedBox(vec2 p, vec2 halfSize, float corner) {',
+      '  vec2 d = abs(p) - halfSize + corner;',
+      '  return length(max(d, vec2(0.0))) + min(max(d.x, d.y), 0.0) - corner;',
+      '}',
       'void main() {',
       '  vec2 p = vec2(gl_FragCoord.x, uRes.y - gl_FragCoord.y);',
       '  vec2 puv = (p - uPic.xy) / uPic.zw;',
@@ -902,35 +1151,48 @@
       '  float s = uRow2.z > 0.0 ? t : uRow2.x - t;',                     // modules from the anchored (outer) end
       '  float k = floor(s);',
       '  float fx = fract(s) - 0.5;',                                     // -0.5 .. 0.5 across one pitch
-      '  float dy = (puv.y - uRow.z) / uRow.w;',                          // -0.5 .. 0.5 over the face
-      '  float aax = aa / pitch;',
-      '  float aay = aa / uRow.w;',
+      '  float slope = uRiver * 0.0024 * (t / uRow2.x - .5);',
+      '  float dy = (puv.y - uRow.z - slope) / uRow.w;',                  // -0.5 .. 0.5 over the face
       '  float inside = step(0.0, s) * step(s, uRow2.x);',                // on the row, not in the margin around it
-      // Individually mounted round bridge lamps, instead of a rectangular LED bar.
-      '  float radius = length(vec2(fx / 0.27, dy / 0.39));',
-      '  float face = (1.0 - smoothstep(0.72, 1.0, radius)) * inside;',
-      '  float house = face * 0.58;',
+      '  vec2 face = vec2(fx + .064 * dy, dy);',
+      '  float edge = max(.014, .43 * max(aa/pitch, aa/uRow.w));',
+      '  float shell = (1.0 - smoothstep(-edge, edge, roundedBox(face, vec2(.355,.475),.105))) * inside;',
+      '  float recess = (1.0 - smoothstep(-edge, edge, roundedBox(face-vec2(0.0,.037), vec2(.276,.342),.078))) * shell;',
+      '  float cap = (1.0 - smoothstep(-edge, edge, roundedBox(face+vec2(0.0,.438), vec2(.385,.094),.047))) * inside;',
+      '  vec2 bracketAt = vec2(abs(face.x)-.233,dy+.532);',
+      '  float bracket = (1.0 - smoothstep(-edge,edge,roundedBox(bracketAt,vec2(.045,.138),.018))) * inside;',
+      '  float house = max(max(shell,.93*cap),.89*bracket);',
       '  float known = step(0.0, uRow2.y);',
-      '  float breath = 0.95 + 0.05 * sin(uTime * 0.2513274 + k * 1.7);',  // a slow breath, 40 whole cycles in the 1000 s the clock wraps at
-      // the light of a lit module: coloured glass with a nearly white core, only on the module's face so the seams between modules stay dark
-      '  float run = (1.0 - smoothstep(uRow2.y - aax, uRow2.y + aax, s)) * known;',
-      '  float core = 1.0 - smoothstep(0.08, 0.65, radius);',
-      '  vec3 lamp = mix(uCol, vec3(1.0), core * 0.55) * face * run;',
-      // unknown: every fourth module shows one small dim neutral light
+      '  float run = clamp(uRow2.y - k,0.0,1.0) * known;',
+      '  float breath = .97 + .03 * sin(uTime * .2513274 + k * 1.7);',
       '  float every = (1.0 - known) * (1.0 - step(0.5, mod(k, 4.0)));',
-      '  float dot4 = smoothstep(-0.24 - aax, -0.24 + aax, fx) * (1.0 - smoothstep(0.21 - aax, 0.21 + aax, fx)) * smoothstep(-0.17 - aay, -0.17 + aay, dy) * (1.0 - smoothstep(0.17 - aay, 0.17 + aay, dy));',
-      '  vec3 neutral = vec3(0.357, 0.404, 0.439) * dot4 * every * inside;',
-      // a tight halo around what is lit: beyond the lit run's end (or the row's anchored end) it is the distance to that end, inside the run only the distance to the module's own
-      // face, so the seams between lit modules keep some dark; measured in units of 0.003 picture heights so no number is tiny
-      '  float lit = max(uRow2.y, 0.0);',
-      '  float beyond = max(max(s - lit, 0.0), max(-s, 0.0));',
-      '  float gap = max(abs(fx) - 0.22, 0.0);',
-      '  vec2 q = vec2(beyond > 0.0 ? beyond * pitch : gap * pitch, max(abs(dy) - 0.22, 0.0) * uRow.w) / 0.003;',
-      '  float d2 = dot(q, q);',
-      '  float halo = (exp(-d2) * 0.22 + exp(-d2 / 16.0) * 0.055) * known * step(0.0001, uRow2.y);',
-      '  vec3 rgb = vec3(0.035, 0.067, 0.094) * house;',
-      '  rgb += vec3(0.18, 0.22, 0.26) * face * (1.0 - smoothstep(-0.25, 0.0, dy)) * 0.3;',
-      '  rgb += (lamp + neutral + uCol * halo) * breath * uRow2.w;',
+      // Warm glass recessed behind an old cast frame. The two rails retain
+      // their metal edge and shadow even when the glass is fully lit.
+      '  float railY = min(abs(dy + .126), abs(dy - .157));',
+      '  float rail = (1.0 - smoothstep(.040-edge*.40,.040+edge*.55,railY)) * recess;',
+      '  float shadows = (1.0-smoothstep(.074,.145,railY)) * (1.0-rail);',
+      '  float core = 1.0-smoothstep(.15,.99,length(vec2(face.x/.27,(dy-.14)/.40)));',
+      '  float glassFins = .82 + .18*cos(face.x*72.0 + k*.24);',
+      '  float rim = (shell - recess) * (.39 + .60 * (1.0-smoothstep(-.38,.36,dy)));',
+      '  vec3 steel = vec3(.29,.34,.39) + .025*uCol;',
+      '  vec3 rgb = vec3(.027,.038,.052)*house + steel * (rim*.55 + cap*.32 + bracket*.10);',
+      '  rgb += (vec3(.032,.051,.063) + uCol*.028) * recess;',
+      '  vec3 litGlass = mix(uCol, vec3(1.0,.96,.89), core*.39) * (.52+.41*core) * glassFins;',
+      '  rgb += litGlass * max(0.0,recess-rail) * run * (.99-.44*shadows) * breath * uRow2.w;',
+      '  rgb += vec3(.27,.32,.36) * every * core * max(0.0,recess-rail) * .45;',
+      '  float steelRim = 1.0-smoothstep(.031,.087,min(abs(dy+.148),abs(dy-.135)));',
+      '  rgb += rail * (steel * (.53 + .44 * steelRim) + uCol*run*.074);',
+      '  vec2 standoff = vec2((abs(face.x)-.311)/.048,(dy+.016)/.066);',
+      '  rgb += steel * shell * (1.0 - smoothstep(.43,1.06,length(standoff))) * .48;',
+      '  vec2 q = vec2(fx * pitch, (dy - .28) * uRow.w) / .0041;',
+      '  rgb += uCol * exp(-dot(q,q)*.52) * run * inside * .083 * uRow2.w;',
+      '  float depth = puv.y - .758;',
+      '  float river = smoothstep(.0,.023,depth) * (1.0-smoothstep(.117,.178,depth));',
+      '  river *= smoothstep(.487,.532,puv.x) * (1.0-smoothstep(.673,.714,puv.x));',
+      '  float riverTime = uTime * .09817477;',
+      '  float ripple = sin(riverTime*7.0 + depth*222.0 + k*.73);',
+      '  float glimmer = (1.0-smoothstep(.047,.20,abs(fx + .26*ripple))) * (.34 + .12*ripple + .10*sin(depth*424.0-riverTime*11.0));',
+      '  rgb += uRiver * river * glimmer * run * inside * uCol * (.15 * uRow2.w);',
       '  gl_FragColor = vec4(rgb, house);',
       '}',
     ].join('\n');
@@ -1054,6 +1316,35 @@
     const uP = new Float32Array(12);
     const craftPrograms = {};
     const craftProgram = (kind) => craftPrograms[kind] || (craftPrograms[kind] = kit.program(gl, craftFragment(kind, kit.glsl.lib), CRAFT_VS));
+    let wildlifeAtlas = null, wildlifeImage = null, wildlifeRows = 0, hasGullRig = false;
+
+    function hasGullFrames(image) {
+      if (image.naturalHeight !== 1024 || !global.document) return false;
+      try {
+        const canvas = global.document.createElement('canvas');
+        canvas.width = canvas.height = 1;
+        const ink = canvas.getContext('2d', {willReadFrequently: true});
+        if (!ink) return false;
+        ink.drawImage(image, 511, 767, 1, 1, 0, 0, 1, 1);
+        const p = ink.getImageData(0, 0, 1, 1).data;
+        return p[3] === 255 && Math.abs(p[0] - 44) <= 1 && Math.abs(p[1] - 183) <= 1 && Math.abs(p[2] - 221) <= 1;
+      } catch (_) {
+        return false;
+      }
+    }
+
+    function loadWildlife(url) {
+      if (wildlifeImage || typeof global.Image !== 'function') return;
+      const image = wildlifeImage = new global.Image();
+      image.onload = () => {
+        if (image !== wildlifeImage || image.naturalWidth !== 512 || ![768, 1024].includes(image.naturalHeight)) return;
+        wildlifeAtlas = kit.texture(gl);
+        wildlifeRows = image.naturalHeight / 128;
+        hasGullRig = hasGullFrames(image);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
+      };
+      image.src = url;
+    }
     let lampsProgram = null;
 
     function disposeDerived() {
@@ -1165,7 +1456,8 @@
       prog.i1('uBase', 0);
       common(prog, f, view);
       if (video) videoUniforms(prog, f, view);
-      prog.f1('uT', clockOf(cfg[kind].speed)).fv4('uP', uP);
+      prog.f1('uT', clockOf(cfg[kind].speed)).fv4('uP', uP)
+        .f2('uLocal', ...photographMotion(f.info.name, kind, f.time, photoPart(f.info)));
       if (kind === 'water') { const w = cfg.water; prog.f4('uW', w.amount * AMP.water, w.scale, w.glints, w.horizon).f2('uW2', 1 / mesh.span, 0); }
       else { const c = cfg.clouds, a = c.direction * Math.PI / 180; prog.f4('uC', c.amount * AMP.clouds, c.breath * 0.16, Math.cos(a), Math.sin(a)); }
       attrib(mesh.vbo, 0, 2, 16, 0); attrib(mesh.vbo, 1, 2, 16, 8);
@@ -1237,19 +1529,83 @@
       return drawn;
     }
 
+    function drawWildlife(f, view, cfg) {
+      if (!cfg.wildlife) return 0;
+      if (!wildlifeAtlas) { loadWildlife(cfg.wildlife); return 0; }
+      const part = photoPart(f.info);
+      const grade = {day: [.96, .98, .95], dawn: [1.02, .88, .76], dusk: [1.04, .77, .65], night: [.42, .51, .66]}[part];
+      const pos = wildlifeState(f.info.name, f.time, part), s = f.scale, pic = view.pic;
+      const px = pic.x * s, py = pic.y * s, pw = pic.w * s, ph = pic.h * s;
+      let draws = 0;
+      for (const bird of pos.slice(0, f.level <= 2 ? 4 : 2)) {
+        if (bird.tile >= wildlifeRows * 4) continue;
+        const x = px + bird.x * pw, y = py + bird.y * ph, size = bird.size * ph;
+        const pad = size * .73, span = bird.tail ? size * 2.85 : pad;
+        if (x + span < 0 || x - span > f.width || y + pad < 0 || y - pad > f.height) continue;
+        if (bird.ripple !== null && bird.ripple !== undefined) {
+          touch.ring(f.width, f.height, x + size * (bird.flip ? -.23 : .23), py + bird.rippleY * ph, (2 + 9 * bird.ripple) * s,
+            1.15 * s, [.72, .94, .86], .13 * (1 - bird.ripple));
+        }
+        const prog = program('wildlife', () => kit.program(gl, WILDLIFE_FS, CRAFT_VS)).use();
+        kit.bindTexture(gl, 0, wildlifeAtlas); prog.i1('uAtlas', 0);
+        const foreground = {violet: 1, city: 2, house: 3}[bird.foreground] || 0;
+        prog.f2('uRes', f.width, f.height).f4('uPic', px, py, pw, ph).f4('uRect', x, y, size, bird.soft || 0)
+          .f4('uPose', bird.tile % 4, Math.floor(bird.tile / 4), bird.angle || 0, bird.flip ? -1 : 1)
+          .f4('uClip', ...(bird.clip || [0, 0, 1, 1])).f4('uShade', ...grade, bird.alpha)
+          .f3('uTail', ...(bird.tail || [0, 0, 0]))
+          .f3('uFx', wildlifeRows, foreground, bird.tailWidth || 1)
+          .f1('uGull', hasGullRig && finite(bird.gullFrame) ? bird.gullFrame : -1)
+          .f4('uBox', x / f.width * 2 - 1, 1 - y / f.height * 2, span / f.width * 2, pad / f.height * 2);
+        attrib(shared.buffer, 0, 2, 0, 0);
+        kit.draw(gl);
+        draws++;
+      }
+      return draws;
+    }
+
+    function drawSceneDetails(f, view, cfg) {
+      if (!cfg.wildlife) return 0;
+      const name = f.info.name, phase = phase64(f.time), part = photoPart(f.info);
+      let box, kind;
+      if (name === 'violet-horizon' && phase >= 17 && phase <= 29) {
+        box = [.602,.429,.645,.461]; kind = 1;
+      } else if (name === 'neon-district') {
+        box = [.295,.730,.741,.818]; kind = 2;
+      } else if (name === 'paradise') {
+        box = [0,.635,.485,1]; kind = 3;
+      } else if (name === 'midnight-video-club' && part === 'day' && phase > 49 && phase < 62) {
+        box = [.324,.617,.624,.638]; kind = 4;
+      } else {
+        return 0;
+      }
+      const s = f.scale, pic = view.pic, px = pic.x*s, py = pic.y*s, pw = pic.w*s, ph = pic.h*s;
+      const left = px + box[0]*pw, right = px + box[2]*pw, top = py + box[1]*ph, bottom = py + box[3]*ph;
+      if (right <= 0 || left >= f.width || bottom <= 0 || top >= f.height) return 0;
+      const intensity = {day: 1, dawn: .60, dusk: .71, night: .19}[part];
+      program('photo-details', () => kit.program(gl, PHOTO_DETAILS_FS, CRAFT_VS)).use()
+        .f2('uRes',f.width,f.height).f4('uPic',px,py,pw,ph).f4('uDetail',kind,phase,intensity,0)
+        .f4('uBox',(left+right)/f.width-1,1-(top+bottom)/f.height,(right-left)/f.width,(bottom-top)/f.height);
+      attrib(shared.buffer,0,2,0,0);
+      kit.draw(gl);
+      return 1;
+    }
+
     /** The lamp rows (the quota as light), each a small premultiplied quad over the finished frame; the readings come from the page through the stage. Returns how many were drawn. */
     function drawLamps(f, view, cfg) {
       const lamps = cfg.lamps;
       if (!lamps) return 0;
       const live = f.live || {}, plan = lampPlan(lamps, live.readings, Date.now(), live.readingsAge);
       const aspect = f.mediaW / f.mediaH, s = f.scale, pic = view.pic, px = pic.x * s, py = pic.y * s, pw = pic.w * s, ph = pic.h * s, pad = 0.03 * ph;
+      const river = f.info.name === 'city';
       let drawn = 0;
       for (const row of plan) {
-        const left = px + row.x[0] * pw - pad, right = px + row.x[1] * pw + pad, top = py + (row.y - row.height / 2) * ph - pad, bottom = py + (row.y + row.height / 2) * ph + pad;
+        const left = px + row.x[0] * pw - pad, right = px + row.x[1] * pw + pad,
+          top = py + (row.y - row.height * .72) * ph - pad, bottom = py + (river ? .937 : row.y + row.height / 2) * ph + pad;
         if (right < 0 || left > f.width || bottom < 0 || top > f.height) continue;
         if (!lampsProgram) lampsProgram = kit.program(gl, lampsFragment(), CRAFT_VS);
-        lampsProgram.use().f2('uRes', f.width, f.height).f4('uPic', px, py, pw, ph).f2('uSize', aspect, s).f1('uTime', f.time % 1000)
+        lampsProgram.use().f2('uRes', f.width, f.height).f4('uPic', px, py, pw, ph).f2('uSize', aspect, s).f1('uTime', f.time % 1600)
           .f4('uRow', row.x[0], row.x[1], row.y, row.height).f4('uRow2', row.count, row.lit === null ? -1 : row.lit, row.anchor === 'start' ? 1 : -1, lamps.amount).f3('uCol', row.colour[0], row.colour[1], row.colour[2])
+          .f1('uRiver', river ? 1 : 0)
           .f4('uBox', (left + right) / 2 / f.width * 2 - 1, 1 - (top + bottom) / 2 / f.height * 2, (right - left) / 2 / f.width * 2, (bottom - top) / 2 / f.height * 2);
         attrib(shared.buffer, 0, 2, 0, 0);
         kit.draw(gl);
@@ -1314,7 +1670,7 @@
         packPokes(f);
         kit.toCanvas(gl, f);
         gl.disable(gl.BLEND); gl.disable(gl.SCISSOR_TEST);
-        const sprites = !!(geo.lights || geo.glints || cfg.craft);
+        const sprites = !!(geo.lights || geo.glints || cfg.craft || cfg.wildlife);
         drawBase(f, view, B, !sprites && !geo.water && !geo.clouds && view.drift);
         if (geo.water) drawMesh('water', geo.water, f, view, cfg, clockOf);
         if (geo.clouds) drawMesh('clouds', geo.clouds, f, view, cfg, clockOf);
@@ -1328,7 +1684,7 @@
         gl.disable(gl.SCISSOR_TEST);
         gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
         const lampRows = drawLamps(f, view, cfg);
-        const craft = drawCraft(f, view, cfg, B);
+        const craft = drawCraft(f, view, cfg, B) + drawSceneDetails(f, view, cfg) + drawWildlife(f, view, cfg);
         gl.blendFunc(gl.ONE, gl.ONE);
         drawPokes(f, view);
         gl.disable(gl.BLEND);
@@ -1349,6 +1705,9 @@
         for (const k of Object.keys(programs)) programs[k].dispose();
         for (const k of Object.keys(craftPrograms)) craftPrograms[k].dispose();
         if (lampsProgram) { lampsProgram.dispose(); lampsProgram = null; }
+        if (wildlifeImage) wildlifeImage.onload = null;
+        if (wildlifeAtlas) gl.deleteTexture(wildlifeAtlas);
+        wildlifeImage = wildlifeAtlas = null;
         if (detect) detect.dispose();
         if (detectTaps) detectTaps.dispose();
       },
@@ -1362,7 +1721,7 @@
 
   const SceneStageLive = {
     version: VERSION, LIMITS, AMP, POKE, BUDGET, MAX_REGIONS, MAX_POINTS, MAX_CRAFT, MAX_SIDE, LAMPS,
-    normalizeLive, normalizeRegion, normalizeLamps, lampReadings, lampLit, lampPlan, lampsFragment, CRAFT_VS, effectNames, rasterRegions, regionWeightAt, weightBilinear, effectiveFeather, boxBlur, craftState, PokeBank, sparkles, sparks,
+    normalizeLive, normalizeRegion, normalizeLamps, lampReadings, lampLit, lampPlan, lampsFragment, CRAFT_VS, effectNames, rasterRegions, regionWeightAt, weightBilinear, effectiveFeather, boxBlur, craftState, wildlifeState, gullBeat, photographMotion, PokeBank, sparkles, sparks,
     budgetFor, intervalFor, effectRect, buildGrid, extractLights, placeGlints, placeRain, placeMist, estimateCost, rng,
     meshVS, meshFS, lightsVS, lightsFS, glintsVS, glintsFS, MIST_VS, MIST_FS, RAIN_VS, RAIN_FS, QUAD_VS, GLOW_FS, RING_VS, RING_FS, POINT_VS, POINT_FS, BASE_VS, BASE_FS, baseVideoVS, baseVideoFS,
     craftFragment, DETECT_FS, createTouchKit, compositeTouch, createLiveRenderer, hash1,

@@ -17,6 +17,7 @@ class BoardFirmwareControlsTests(unittest.TestCase):
         mocks = r'''
 #include "rotation.h"
 #include "animation_clock.h"
+#include "screen_selection.h"
 #include <cassert>
 #include <cstdlib>
 #include <cstdio>
@@ -39,6 +40,8 @@ struct Server {
 struct Preferences {
  std::map<std::string,int> values;
  int writes = 0;
+ bool reject = false;
+ size_t putUInt(const char *key, unsigned value) { if (reject) return 0; putInt(key,value); return sizeof(uint32_t); }
  void putInt(const char *key, int value) { values[key]=value; ++writes; }
  void putBool(const char *key, bool value) { values[key]=value; ++writes; }
  int getInt(const char *key, int fallback) { return values.count(key) ? values[key] : fallback; }
@@ -50,6 +53,9 @@ static bool allowed = false, indicatorMaskValid = true;
 static bool invertColors = true, swapRedBlue = false, swapBytes = false;
 static int rotation = 1, activePages = 8, page = 0, redraws = 0;
 static const int PAGES = 8;
+static unsigned enabledPageMask = pageMask(PAGES);
+static bool enabledPage(int slot) { return enabledPageMask & (1u << slot); }
+static int nextStoredPage(int slot) { return nextEnabledPage(slot,activePages,enabledPageMask,pageMask(activePages)); }
 static int pageSpeeds[PAGES] = {100,100,100,100,100,100,100,100};
 static int modeHoldSeconds=2, connectHoldSeconds=5;
 static int brightLevel = 100, backlightChecks = 0;
@@ -121,6 +127,17 @@ int main() {
  allowed=true;
  server.kv={{"bright","40"},{"cycle","60"}}; handleConfig();          // together with other settings the page is redrawn as before
  assert(server.status==200 && brightLevel==40 && rotationClock.mode==60 && redraws==redraws1+1);
+
+ for (const char *bad : {"0", "256", "-1", "some", "02"}) {
+  server.kv={{"enabled",bad}}; handleConfig();
+  assert(server.status==400 && enabledPageMask==255);
+ }
+ server.kv={{"enabled","12"},{"cycle","0"}}; handleConfig();
+ assert(server.status==400 && rotationClock.mode==60 && enabledPageMask==255);
+ server.kv={{"enabled","12"}}; prefs.reject=true; handleConfig();
+ assert(server.status==500 && enabledPageMask==255);
+ prefs.reject=false; page=0; handleConfig();
+ assert(server.status==200 && enabledPageMask==12 && prefs.values["enabled"]==12 && page==2);
 }
 '''
         with tempfile.TemporaryDirectory() as directory:

@@ -4,6 +4,7 @@ import subprocess
 
 MOCK = r'''
 #include "rotation.h"
+#include "screen_selection.h"
 #include <algorithm>
 #include <cassert>
 #include <iterator>
@@ -23,15 +24,20 @@ static bool wokeByTouch=false,asleepMock=false;static int wakes=0;
 static bool backlightAsleep(uint32_t) { return asleepMock; }
 static void wakeBacklight(uint32_t) { ++wakes; }
 static int page=0,savedPage=-1,draws=0,activePages=8;
+static constexpr int PAGES=8;
+static unsigned enabledPageMask=pageMask(PAGES);
 static const int TAP_DEBOUNCE_MS=300,TFT_BLACK=0,TL_DATUM=0;
 struct Prefs { std::map<std::string,int> values; int writes=0;
  int getInt(const char* key,int fallback) { return values.count(key) ? values[key] : fallback; }
+ unsigned getUInt(const char* key,unsigned fallback) { return (unsigned)getInt(key,fallback); }
  void putInt(const char* key,int value) { values[key]=value; ++writes; }
 } prefs;
 static uint32_t millis() { return now; }
 struct Touch { bool touched() {return false;} } touch;
 static void drawPage() { ++draws; }
-static int nextStoredPage(int from) { return (from+1)%8; }
+static unsigned availablePageMask() { return enabledPageMask; }
+static bool enabledPage(int n) { return availablePageMask() & (1u << n); }
+static int nextStoredPage(int from) { return nextEnabledPage(from,activePages,enabledPageMask,pageMask(activePages)); }
 struct TFT {
  uint16_t pixels[320*240]={};
  int height(){return 240;}
@@ -157,6 +163,11 @@ int main(int argc,char**argv) {
  serviceCard(700001);assert(draws==drawsBefore+1);
  showingCard=true;cardUntil=0xFFFFFFF0u;serviceCard(0xFFFFFFF0u-1);assert(showingCard);   // across the millis wrap
  serviceCard(0x10u);assert(!showingCard);
+ prefs.values["page"]=4; prefs.values["enabled"]=0b10100000; prefs.values["cycle"]=0;
+ restoreSelection(); assert(page==5 && savedPage==5);
+ handleTouch(true,800000);handleTouch(false,800100);assert(page==7 && prefs.values["page"]==7);
+ rotationClock.setMode(30,900000);rotationClock.sync(1800001799ULL,900000);lastBeat=900000;
+ serviceRotation(901000);assert(page==5 && prefs.values["page"]==5);
  (void)writesBefore;
 }
 '''

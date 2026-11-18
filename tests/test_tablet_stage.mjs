@@ -190,6 +190,15 @@ test('scene info from the server is checked again: same origin only, a known loo
   for (const bad of [null, undefined, 3, 'x', {}, {media: null}, {media: 'x'}]) assert.equal(normalizeInfo(bad, ''), null);
 });
 
+test('an installed offline pack versions the photo, poster and wildlife atlas together', () => {
+  const revision = 'a'.repeat(64);
+  const info = normalizeInfo(entry({look: 'photo', resourceRevision: revision, live: {wildlife: '/assets/scene-wildlife.png'}}), '');
+  assert.equal(info.media.url, '/assets/scene-surf.webm?adrev=' + revision);
+  assert.equal(info.still, '/assets/scene-surf.jpg?adrev=' + revision);
+  assert.equal(info.live.wildlife, '/assets/scene-wildlife.png?adrev=' + revision);
+  assert.equal(normalizeInfo(entry({resourceRevision: 'incomplete'}), '').media.url, '/assets/scene-surf.webm');
+});
+
 // ---- the quality governor ----------------------------------------------------------------------------------------------------
 
 function feed(gov, {from = 0, to, every, late, expected = 33, level = 0}) {

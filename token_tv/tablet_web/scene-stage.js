@@ -183,7 +183,16 @@
   }
   function normalizeInfo(raw, origin) {
     if (!raw || typeof raw !== 'object' || !raw.media || typeof raw.media !== 'object') return null;
-    const url = localUrl(raw.media.url, origin);
+    const revision = typeof raw.resourceRevision === 'string' && /^[a-f0-9]{64}$/.test(raw.resourceRevision) ? raw.resourceRevision : '';
+    const resource = value => {
+      const local = localUrl(value, origin);
+      if (!local || !revision) return local;
+      const path = local.split('#', 1)[0], question = path.indexOf('?');
+      const params = new URLSearchParams(question < 0 ? '' : path.slice(question + 1));
+      params.set('adrev', revision);
+      return (question < 0 ? path : path.slice(0, question)) + '?' + params.toString();
+    };
+    const url = resource(raw.media.url);
     if (!url) return null;
     const media = {
       kind: raw.media.kind === 'video' ? 'video' : 'image', url,
@@ -197,15 +206,15 @@
     const info = {
       name: String(raw.name || '').toLowerCase().replace(/[^a-z0-9-]/g, '').slice(0, 40),
       look: ['crt', 'lcd', 'photo', 'plain'].includes(raw.look) ? raw.look : 'plain',
-      media, still: localUrl(raw.still, origin), focus, rate: finite(raw.rate) ? clamp(raw.rate, 0.25, 2) : 1,
+      media, still: resource(raw.still), focus, rate: finite(raw.rate) ? clamp(raw.rate, 0.25, 2) : 1,
     };
     // the optional `live` block (token_tv/tablet_live.py checks it on the server): checked once more by stage-live.js; without that file it is dropped
     const liveApi = global.SceneStageLive;
     // This old id now belongs to the mountain house; never inherit the
     // previous cyberpunk scene's rain or aircraft, even from a stale catalog.
     const mountainHouse = /^neon-district(?:-(?:dawn|day|dusk|night))?$/.test(info.name);
-    if (!mountainHouse && raw.live && liveApi && typeof liveApi.normalizeLive === 'function') {
-      const live = liveApi.normalizeLive(raw.live);
+    if (raw.live && liveApi && typeof liveApi.normalizeLive === 'function') {
+      const live = liveApi.normalizeLive(mountainHouse ? {wildlife: raw.live.wildlife} : raw.live);
       // An already-running older server drops the two new size/count fields. Keep the new Paradise preset working
       // after a page refresh; a restarted server sends the explicit values and takes precedence.
       const water = raw.live.water;
@@ -214,7 +223,10 @@
         if (water.glint_density === undefined && water.glints === 0.8) live.water.glint_density = 0.35;
         if (water.glint_density === undefined && water.glints === 1.3) live.water.glint_density = 0.55;
       }
-      if (live) info.live = live;
+      if (live) {
+        if (live.wildlife) live.wildlife = resource(live.wildlife);
+        info.live = live;
+      }
     }
     return info;
   }

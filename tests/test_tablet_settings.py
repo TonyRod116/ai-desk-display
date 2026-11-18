@@ -37,6 +37,19 @@ class SettingsTests(unittest.TestCase):
             self.assertEqual(apply(defaults(), {'scene': scene}, SCENES)['scene'], scene)
         self.assertEqual(apply(defaults(), {'scene': 'unknown-adventure'}, SCENES)['scene'], 'auto')           # not in this catalogue
 
+    def test_hidden_scenes_keep_at_least_one_and_persist_independently_of_rotation(self):
+        with tempfile.TemporaryDirectory() as temp:
+            path = Path(temp, 'settings.json')
+            settings = Settings(path, SCENES)
+            self.assertEqual(settings.get()['disabled_scenes'], [])
+            settings.update({'disabled_scenes': ['surf', 'missing', 'surf'], 'auto': {'rotate': ['surf', 'city']}})
+            restored = Settings(path, SCENES)
+            self.assertEqual(restored.get()['disabled_scenes'], ['surf'])
+            self.assertEqual(restored.update({'disabled_scenes': list(SCENES)})['disabled_scenes'], ['surf'])
+            state = restored.update({'disabled_scenes': []})
+            self.assertEqual(state['disabled_scenes'], [])
+            self.assertEqual(state['auto']['rotate'], ['surf', 'city'])
+
     def test_settings_are_private_survive_a_restart_and_a_damaged_file_means_the_defaults(self):
         with tempfile.TemporaryDirectory() as temp:
             path = Path(temp, 'tablet-settings.json')

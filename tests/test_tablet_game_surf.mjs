@@ -20,8 +20,8 @@ const back = () => (sharedBack = sharedBack || surf.makeBackdrop(rand(11)));
 const world = (options = {}) => surf.createWorld(Object.assign({random: rand(21), back: back()}, options));
 
 /** A fictional atlas made by code: a gradient plate, a class map, tiny brushes and (optionally) a little palm, in the layout scripts/prepare_game_surf.py writes (ImageData-like). */
-function fictionalAtlas({horizon = 120, brushes = true, palm = false} = {}) {
-  const w = 200, h = 2 * H + 1 + 20 + (palm ? 41 : 0), data = new Uint8ClampedArray(w * h * 4);
+function fictionalAtlas({horizon = 120, brushes = true, palm = false, moving = false} = {}) {
+  const w = 200, h = 2 * H + 1 + 20 + (palm ? 41 : 0) + (moving ? H : 0), data = new Uint8ClampedArray(w * h * 4);
   for (let i = 0; i < w * h; i++) data[i * 4 + 3] = 255;
   for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
     const p = (y * w + x) * 4, m = ((H + y) * w + x) * 4, water = x > 110 && y > 70 + (x - 110) * 0.2, cls = water ? 3 : y < horizon ? 1 : 2;
@@ -29,6 +29,15 @@ function fictionalAtlas({horizon = 120, brushes = true, palm = false} = {}) {
     data[m] = cls; data[m + 1] = 0; data[m + 2] = 0;
   }
   const frames = {plate: [0, 0, W, H], maps: [0, H, W, H]};
+  if (moving) {
+    frames.background = [0, h - H, W, H];
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      const i = ((h - H + y) * w + x) * 4;
+      data[i] = y < horizon ? 200 - y : 40;
+      data[i + 1] = y < horizon ? 90 + y / 2 : 30;
+      data[i + 2] = y < horizon ? 120 : 90;
+    }
+  }
   if (brushes) {
     const names = [['puff', [[9, 7], [14, 10]]], ['streak', [[13, 4], [20, 5]]], ['sheet', [[18, 6], [28, 8]]]];
     let y = 2 * H + 1;
@@ -251,7 +260,7 @@ test('every variant is a chain of moves that starts where the last one ended: no
 
 test('the story: pump and trim, a bottom turn low with the rails in, a straight-up air with a pop, a tuck, a grab, an extension and a landing that absorbs; a tube, a hang ten, a cutback; a fall without a spin, a paddle and a pop-up', () => {
   const names = (v) => SEGMENTS[v].map((m) => m.name), has = (v, name) => SEGMENTS[v].find((m) => m.name === name);
-  assert.deepEqual(names('tube'), ['drop', 'bottom', 'pump', 'tubeIn', 'stall', 'drag', 'pumpLow', 'duck', 'engulf', 'spit']);
+  assert.deepEqual(names('tube'), ['settle', 'paddle', 'popup', 'drop', 'bottom', 'pump', 'tubeIn', 'stall', 'drag', 'pumpLow', 'duck', 'engulf', 'spit', 'sunRun']);
   assert.ok(has('tube', 'tubeIn').events.some((e) => e[1] === 'veil') && has('tube', 'duck').events.some((e) => e[1] === 'crash'), 'the lip throws and the foam boils when he ducks');
   assert.ok(has('tube', 'stall').pose.some((k) => k[1] === 'stall') && has('tube', 'drag').pose.some((k) => k[1] === 'drag') && has('tube', 'duck').pose.some((k) => k[1] === 'duck'), 'a stall, a drag, a duck');
   assert.ok(has('tube', 'bottom').pose[0][1] === 'bottom' && POSES.bottom.rail > 0.7, 'a bottom turn: low, rails in'); assert.ok(POSES.bottom.hy > POSES.trim.hy && POSES.bottom.lean > POSES.trim.lean);
@@ -271,7 +280,8 @@ test('the story: pump and trim, a bottom turn low with the rails in, a straight-
   assert.ok(events.has('splash') && events.has('oops') && events.has('boardsplash'), [...events].join());
   assert.ok(boardModes.has('flying') && boardModes.has('float') && boardModes.has('attached'));
   const tubeRide = surf.createRide(surface, rand(3), 'tube'); const hidden = []; let spat = false;
-  for (let i = 0; i < 440; i++) { const r = tubeRide.step(); if (r.name === 'engulf') hidden.push(r.hidden); if (r.events.includes('spit')) spat = true; }
+  const tubeFrames = SEGMENTS.tube.reduce((total, segment) => total + segment.dur, 0);
+  for (let i = 0; i < tubeFrames; i++) { const r = tubeRide.step(); if (r.name === 'engulf') hidden.push(r.hidden); if (r.events.includes('spit')) spat = true; }
   assert.ok(hidden.length && hidden.every(Boolean), 'the foam hides him while he is swallowed'); assert.ok(spat, 'and spits him out');
 });
 
@@ -319,18 +329,36 @@ test('particles, foam, wake and ripples stay bounded over 12,000 steps and every
   for (const q of w.foamItems) assert.ok(q.age < q.life && Number.isFinite(q.x));
 });
 
-test('the breaking lip sheds a few short droplets without filling the open barrel with rain', () => {
-  const w = world({first: 'tube'}), c = w.columns;
-  let droplets = 0, seen = 0, state = new Set(), foam = 0;
+test('the whitewater runs down from the tip into the trough along an accelerating path', () => {
+  const api = makeApi();
+  surf.scene.init(api);
+  const { world: w, breaker, back } = surf.scene.s;
+  const { falls, pixels, tipX, tipY } = breaker;
+  for (const fall of falls) {
+    const start = surf.fallingWater(fall, 0);
+    const early = surf.fallingWater(fall, fall.duration / 4);
+    const late = surf.fallingWater(fall, fall.duration * .75);
+    const contact = surf.fallingWater(fall, fall.duration);
+    assert.ok(Math.abs(start[0] - tipX) < 12 && Math.abs(start[1] - tipY) < 10, 'all jets start under the lip');
+    assert.ok(contact[0] < late[0] && late[0] < early[0] && early[0] < start[0], 'the crest throws left');
+    assert.ok(contact[1] - late[1] > 2 * (early[1] - start[1]), 'the jet picks up speed as it falls');
+    assert.ok(pixels.includes(Math.round(contact[1]) * W + Math.round(contact[0])), 'the jet lands in the whitewash');
+    assert.ok(fall.duration <= 18, 'the fall finishes in at most six tenths of a second');
+    assert.deepEqual(surf.impactRun(fall, 0, breaker.foot), contact, 'the impact starts under the jet');
+    const sweptBack = surf.impactRun(fall, 10, breaker.foot);
+    assert.ok(sweptBack[0] - contact[0] > 32 && sweptBack[1] < contact[1], 'wash is driven quickly up the sloping trough, behind the wave');
+  }
+  assert.ok(pixels.length > 750, 'the foam spreads into a full patch across the foot');
+  assert.ok(pixels.every(i => back.cls[i] === CLS.WATER || back.cls[i] === CLS.SEA), 'the wash stays on water');
+
+  const c = w.columns, state = new Set();
+  let foam = 0;
   for (let i = 0; i < 440; i++) {
     w.step(); state.add(w.veil.state);
-    const spray = w.particles.filter((p) => p.kind === 1);
-    seen += spray.length; droplets = Math.max(droplets, spray.length);
-    for (const drop of spray) { assert.ok(drop.len <= 3 && drop.floor - drop.y <= 10, 'a short drop stays close to the lip'); assert.ok(drop.vx < 0, 'water moves along the breaking lip'); }
     foam = Math.max(foam, w.foamItems.filter((q) => q.layer === 'front').length);
   }
   assert.ok(state.has('throw') && state.has('crash'), [...state].join());
-  assert.ok(seen > 0 && droplets <= 3, `${droplets} droplets at once`); assert.ok(foam >= 3, `${foam} puffs`);
+  assert.ok(foam >= 3, `${foam} puffs`);
   let covered = 0; for (let x = c.x0; x <= c.x1; x++) if (c.arch[x] > 0 && c.floor[x] > c.arch[x]) covered++;
   assert.ok(covered > 30, 'the curtain has columns to fall in'); assert.ok(c.x0 < w.geom.hole[0] && c.x1 > w.geom.hole[0]);
   for (let x = c.x0; x <= c.x1; x++) if (c.arch[x] > 0 && c.floor[x] > 0) assert.ok(c.floor[x] > c.arch[x], `column ${x}: the floor is under the lip`);
@@ -371,7 +399,8 @@ test('the set: every 60 seconds a swell builds in the tube\'s window, stands up 
 
 test('a touch: on the surfer he hops and grabs his board (no spin), on the water a splash and a ripple, in the sky a gull takes off (two at most)', () => {
   const w = world();
-  w.seek(40);
+  const takeoff = SEGMENTS.tube.slice(0, 3).reduce((total, segment) => total + segment.dur, 0);
+  w.seek(takeoff + 20);
   const s = w.surfer, hit = w.poke(s.x, s.y - 10);
   assert.equal(hit, 'surfer'); assert.ok(s.hop > 0);
   let low = Infinity, grabbed = false; for (let i = 0; i < 30; i++) { w.step(); if (Math.abs(s.pose.lean - POSES.grab.lean) < 12 && Math.abs(s.pose.fy - POSES.grab.fy) < 4) grabbed = true; low = Math.min(low, s.pitchQ); }
@@ -405,6 +434,51 @@ test('constant random generators (all zeros, all ones) never break the scene', (
     const api = makeApi({random: () => value}), canvas = fakeCanvas();
     assert.doesNotThrow(() => { surf.scene.init(api); run(api, 400, canvas); }, `random ${value}`);
   }
+});
+
+test('the wave changes shape, uncovers the sky and keeps the foreground in place', () => {
+  const {pixels, json} = fictionalAtlas({moving: true});
+  const api = makeApi({atlas: pixels, json, view: {bottom: H}});
+  surf.scene.init(api);
+  const scene = surf.scene.s;
+  const left = [], height = [];
+  let skyRevealed = 0;
+  for (let tick = 0; tick < 190; tick++) {
+    surf.scene.step(api, 1 / 30);
+    surf.scene.draw(api, {putImageData() {}});
+    const visible = scene.back.cls;
+    left.push(visible.findIndex((kind, i) => i >= 106 * W && kind === CLS.WATER) - 106 * W);
+    let y = 0;
+    while (visible[y * W + 180] !== CLS.WATER && y < H) y++;
+    height.push(y);
+    if (visible[86 * W + 112] === CLS.SKY) skyRevealed++;
+  }
+  assert.ok(Math.max(...left) - Math.min(...left) >= 8, 'the leading edge advances and recedes');
+  assert.ok(Math.max(...height) - Math.min(...height) >= 5, 'the shoulder also rises and sinks');
+  assert.ok(skyRevealed > 0, 'the clean sky is visible after the shoulder passes');
+  assert.deepEqual(scene.back.cls.subarray(246 * W), scene.plate.cls.subarray(246 * W));
+});
+
+test('ripples and the wake follow the changing heading of the barrel', () => {
+  const {pixels, json} = fictionalAtlas({moving: true});
+  json.geometry.current = [[162,220],[178,177],[175,125],[156,101],[126,96],[112,112]];
+  surf.scene.init(makeApi({atlas: pixels, json}));
+  const {heading} = surf.scene.s.currents;
+  const face = 165 * W + 177, shoulder = 99 * W + 143;
+  assert.ok(heading.y[face] < -90, 'the dark wall carries water upward');
+  assert.ok(heading.x[shoulder] < -90 && Math.abs(heading.y[shoulder]) < 60, 'the current turns left near the crest');
+});
+
+test('the fast current grows across the meeting point with the sea', () => {
+  const {pixels, json} = fictionalAtlas({moving: true});
+  surf.scene.init(makeApi({atlas: pixels, json, view: {bottom: H}}));
+  const { currents } = surf.scene.s;
+  const row = 227 * W;
+  assert.ok(currents.texels.some(texel => (texel & 65535) === row + 115), 'water to the left of the old cutoff participates in the blend');
+  const strip = [...currents.gain.subarray(row + 110, row + 161)];
+  assert.equal(strip[0], 0, 'the open sea has the gentle surface layer alone');
+  assert.ok(strip[9] > 0 && strip[9] < strip[25] && strip.at(-1) === 255, 'the fast layer gradually takes over');
+  assert.ok(strip.every((value, i) => !i || value - strip[i - 1] <= 12), 'adjacent pixels have nearly the same strength');
 });
 
 test('the dock: only the rows it leaves visible (plus a margin) are redrawn, the whole picture when it goes away, and the scrim darkens the clock\'s corner only while it is up', () => {
@@ -578,7 +652,7 @@ test('the wake is bounded but lasts long enough to travel around the wave', () =
   assert.ok(most > 30 && most <= 72, `${most} wake points`); assert.ok(oldest > 60 && oldest < 72, `the oldest point is ${oldest} steps old`);
 });
 
-test('the head is a small hand-made picture: 11 x 12 characters, two variants, hair on the side away from the face; the board has a graphic', () => {
+test('the hand-made head has a visible face and shaded hair; the board has a graphic', () => {
   const r = surf.makeRaster(128, 112), pal = surf.surferPalette();
   surf.drawStanding(r, 64, 84, {pose: POSES.trim, pitch: 0, yaw: 0, rot: 0, board: true});
   const used = new Set(r.buf); for (const k of ['skin', 'skinLight', 'skinShade', 'hair', 'hairLight', 'eye', 'shirt', 'trunks', 'board', 'cream', 'cap', 'boardDark']) assert.ok(used.has(surf.S[k]), `the figure uses ${k}`);
@@ -640,7 +714,7 @@ test('the dolphin is a clean silhouette: a dark blue body with a pale belly and 
   assert.ok(bodyPx > 60, `${bodyPx} body pixels`); assert.ok(bellyPx >= 4, 'a pale belly'); assert.ok(rim > 4, 'a warm rim'); assert.equal(overWave, 0, 'never over the wave');
 });
 
-test('the wave lives: the water\'s colours are ramps (teal rings, sunlit peach) that pulse along the plate\'s own tones, so the rings breathe and the glow slides along the lip; a different swell every cycle; foam rises up the face counter-clockwise; mist blows off the crest', () => {
+test('the wave has colour ramps and mist, and the distant swell varies each cycle', () => {
   const b = back(), ramp = surf.buildRamps(b);
   assert.ok(ramp, 'ramps are found in the built-in backdrop'); assert.ok(ramp.len[1] >= 5 && ramp.len[2] >= 2, `ramps of ${ramp.len[1]} teals and ${ramp.len[2]} sunlit tones`);
   for (let f = 1; f <= 2; f++) { let prev = -1; for (const c of ramp.tables[f]) { const lum = 0.3 * (c & 255) + 0.59 * ((c >> 8) & 255) + 0.11 * ((c >> 16) & 255); assert.ok(lum >= prev, `family ${f} is sorted by luminance`); prev = lum; } }
@@ -653,10 +727,13 @@ test('the wave lives: the water\'s colours are ramps (teal rings, sunlit peach) 
   const k0 = surf.setState(100), k1 = surf.setState(surf.SET_LEN + 100), a0 = surf.setState(surf.SET_BURST - 5), a1 = surf.setState(surf.SET_LEN + surf.SET_BURST - 5), a2 = surf.setState(2 * surf.SET_LEN + surf.SET_BURST - 5);
   assert.equal(k0.k, 0); assert.equal(k1.k, 1); assert.ok(a1.hMax >= 10 && a1.hMax <= 18 && a2.hMax >= 10 && a2.hMax <= 18, 'swell heights from 10 to 18'); assert.ok(a0.hMax !== a1.hMax || a1.hMax !== a2.hMax || a1.wide !== a2.wide, 'a different swell each cycle');
   assert.deepEqual(surf.setState(surf.SET_LEN * 3 + 500), surf.setState(surf.SET_LEN * 3 + 500), 'the same cycle is always the same swell');
-  const w = world(); let rising = 0, total = 0, mistTop = 0;
-  const cx = w.geom.centre[0], cy = w.geom.centre[1];
-  for (let i = 0; i < 600; i++) { w.step(); for (const q of w.foamItems) if (q.clip && q.age <= 1) { total++; const dx = q.x - cx, dy = q.y - cy, cross = dx * q.vy - dy * q.vx, radial = dx * q.vx + dy * q.vy; if (cross < 0 && Math.abs(radial) < Math.abs(cross) * 0.2) rising++; } for (const m of w.mist) if (m.y < 30) mistTop++; }
-  assert.ok(total > 30 && rising / total > 0.95, `${rising} of ${total} streaks flow counter-clockwise around the tube`); assert.ok(mistTop > 40, 'mist off the crest');
+  const w = world();
+  let mistTop = 0;
+  for (let i = 0; i < 600; i++) {
+    w.step();
+    mistTop += w.mist.filter(m => m.y < 30).length;
+  }
+  assert.ok(mistTop > 40, 'mist off the crest');
 });
 
 /* ---- round four: the barrel, the body, the dressing of a pose, the line's speed, the flow --------------------------------------------------------------------------------------- */
@@ -1072,6 +1149,21 @@ test('paddling keeps both arms within reach at every board angle', () => {
   }
 });
 
+test('the takeoff pushes against fixed palms and transfers weight onto planted feet', () => {
+  const raster = surf.makeRaster(128, 112);
+  const pose = (t, pitch) => surf.drawPopUp(raster, 64, 84, POSES.crouch, pitch, t, 1.2);
+  for (const pitch of [-20, 0, 20]) {
+    const prone = pose(0, pitch), press = pose(.40, pitch), landing = pose(.76, pitch), settled = pose(1, pitch);
+    assert.deepEqual(press.handF, prone.handF, 'the near palm stays on the deck through the push');
+    assert.deepEqual(press.handB, prone.handB, 'the far palm stays on the deck through the push');
+    assert.ok(press.shoulder[1] < prone.shoulder[1] - 5, 'the chest rises as the elbows extend');
+    assert.ok(press.hip[1] < prone.hip[1] - 6, 'the hips make space for the forward knee');
+    assert.deepEqual(landing.footF, settled.footF, 'the front foot stays put after landing');
+    assert.deepEqual(landing.footB, settled.footB, 'the trailing foot stays put after landing');
+    assert.ok(landing.shoulder[1] < press.shoulder[1], 'the chest continues rising as the hands release');
+  }
+});
+
 test('the board and articulated pop-up face left and join the standing stance smoothly', () => {
   const r = surf.makeRaster(128, 112);
   surf.drawBoard(r, 64, 84, 0, 1, 0);
@@ -1080,9 +1172,10 @@ test('the board and articulated pop-up face left and join the standing stance sm
   assert.ok(capPixels.length && Math.max(...capPixels) < 64, 'the nose points in the same direction as the surfer');
   for (const pitch of [-30, -15, 0, 15, 30]) {
     let previous;
-    for (let i = 0; i <= 22; i++) {
+    const frames = surf.MOVES.popup().dur;
+    for (let i = 0; i <= frames; i++) {
       r.clear();
-      const t = i / 22, joints = surf.drawPopUp(r, 64, 84, POSES.crouch, pitch, t, 1.2);
+      const t = i / frames, joints = surf.drawPopUp(r, 64, 84, POSES.crouch, pitch, t, 1.2);
       assert.ok(joints.head[0] < joints.hip[0], 'the head faces forward');
       if (previous) for (const part of ['head', 'hip', 'shoulder', 'handF', 'handB', 'elbowF', 'elbowB', 'kneeF', 'kneeB', 'footF', 'footB']) {
         assert.ok(Math.hypot(joints[part][0] - previous[part][0], joints[part][1] - previous[part][1]) < 3, `${part} moves continuously at ${pitch} degrees`);

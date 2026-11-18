@@ -68,6 +68,7 @@ def defaults():
     return {
         'version': 1,
         'scene': 'auto',
+        'disabled_scenes': [],
         'motion': 'auto',
         'auto': {'mode': 'daypart', 'minutes': 20, 'rotate': [], 'parts': {part: [] for part in PARTS}},     # empty list = the suggested scenes
         'night': {'enabled': True, 'start': '23:00', 'end': '07:30', 'level': 25, 'clock_only': False},
@@ -87,6 +88,9 @@ def apply(current, patch, scenes):
     scene = patch.get('scene')
     if isinstance(scene, str) and (scene in ('auto', 'photos') or scene in scenes):
         out['scene'] = scene
+    disabled = _names(patch.get('disabled_scenes'), scenes)
+    if disabled is not None and (not disabled or set(scenes).difference(disabled)):
+        out['disabled_scenes'] = disabled
     if patch.get('motion') in ('auto', 'on', 'off'):
         out['motion'] = patch['motion']
     auto = patch.get('auto')                           # which scenes the automatic modes may show: the rotation and each part of the day

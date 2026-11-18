@@ -17,7 +17,7 @@ You can also see **what’s left this week and when it resets**, plus Claude’s
 
 ## One project, two desk toys
 
-**Tablet.** Open it in a browser, set it upright and tap the clock to switch to picture mode. Swipe to change scenes or let them rotate on their own. **Peaceful House** can go from sunrise to moonlight as the day goes by, once you’ve prepared its time-of-day backgrounds. The waves get to take it easy even when you don’t.
+**Tablet.** Open it in a browser, set it upright and tap the clock to switch to picture mode. Swipe to change scenes or let them rotate on their own. **Peaceful House** can go from sunrise to moonlight once you’ve prepared its time-of-day backgrounds. Over in **Tidal Rush**, the waves are having a considerably busier day.
 
 <p align="center">
   <img src="docs/images/tablet-isometric-weather.gif" width="46%" alt="Isometric City changing from daylight to rain and night">
@@ -31,13 +31,19 @@ You can also see **what’s left this week and when it resets**, plus Claude’s
 <p align="center"><b>Token Run · Blue Lightning</b></p>
 
 <p align="center">
-  <a href="docs/images/tablet-background-picker.png"><img src="docs/images/tablet-background-picker.png" width="560" alt="The tablet scene picker with twelve scene previews and two automatic modes"></a>
+  <a href="docs/images/tablet-picture-tidal-rush.gif"><img src="docs/images/tablet-picture-tidal-rush.gif" width="46%" alt="Tidal Rush in picture mode. The pixel-art wave swells, breaks and sends foam back into the barrel."></a>
+  <a href="docs/images/tablet-tidal-rush.png"><img src="docs/images/tablet-tidal-rush.png" width="46%" alt="Tidal Rush on the tablet dashboard with sample Claude and Codex quotas beneath the wave."></a>
 </p>
-<p align="center"><sub>See all twelve scenes at a glance. Open the image to see them full size.</sub></p>
+<p align="center"><b>Tidal Rush · Picture mode and dashboard</b></p>
+
+<p align="center">
+  <a href="docs/images/tablet-background-picker.png"><img src="docs/images/tablet-background-picker.png" width="560" alt="The active scenes picker showing demo tiles and which scenes are enabled."></a>
+</p>
+<p align="center"><sub>Choose which scenes to keep in the tablet’s library.</sub></p>
 
 ### Eight screens, zero boredom
 
-**NerdMiner V2 or compatible ESP32 touchscreen.** Pick eight scenes, tap to switch, or set them to rotate on the half hour or the hour. In Versus, the fighter who runs out of quota gets knocked out. I find this a surprisingly effective reminder to go make coffee.
+**NerdMiner V2 or compatible ESP32 touchscreen.** Load up to eight scenes and pick which ones to include. Tap to switch, or set them to rotate on the half hour or the hour. In Versus, the fighter who runs out of quota gets knocked out. I find this a surprisingly effective reminder to go make coffee.
 
 <p align="center">
   <a href="docs/images/game-boy.gif"><img src="docs/images/game-boy.gif" width="36%" alt="Game Boy. Green LCD-style quota bars and reset hearts"></a>
@@ -66,7 +72,7 @@ Use either display on its own, or run both. The [screen library](docs/board-cont
 
 ## Try it without a display or an account
 
-Play with two animated scenes and made-up usage on your computer. You’ll need Git and Python 3.10+. On Windows, run these commands inside Ubuntu/WSL.
+Play with three animated scenes and made-up usage on your computer. You’ll need Git and Python 3.10+. On Windows, run these commands inside Ubuntu/WSL.
 
 ```bash
 git clone https://github.com/TonyRod116/ai-desk-display.git
@@ -77,10 +83,13 @@ pip install -e .
 
 python scripts/prepare_game_city_iso.py --out preview/scenes --manifest
 python scripts/prepare_game_blue_lightning_demo.py --out preview/scenes
+python scripts/prepare_tidal_rush_dusk.py --out preview/scenes
 python scripts/sample_tablet.py --scenes preview/scenes
 ```
 
-Open [the local demo](http://127.0.0.1:18861/) and choose **Isometric City** or **Blue Lightning** in the scene picker. The demo runs without logging in or connecting any hardware. For a gallery of the tiny-screen scenes, run `python scripts/render_gallery.py --out preview` and open `preview/gallery.png`.
+Choose **Isometric City**, **Blue Lightning** or **Tidal Rush** in the scene picker. [Open the local demo](http://127.0.0.1:18861/)
+
+For a gallery of the tiny-screen scenes, run `python scripts/render_gallery.py --out preview` and open `preview/gallery.png`.
 
 ## Bring it to your desk
 

@@ -9,8 +9,8 @@
  *
  * How it is drawn: a BACKDROP picture (the sky, the sun, the sea, the wave: 200 x 320 pixels in a small palette, plus a class for every pixel: still, sky, sea, water) comes
  * from the private atlas (scripts/prepare_game_surf.py makes it from Tony's own Gemini plates, never in Git) or, without it, from a calmer built-in one drawn by `makeBackdrop`.
- * Every frame the backdrop is copied into one typed array; the sea and the wave are WARPED a pixel or two and their colours pulse along the plate's own ramps (the rings breathe, the
- * glow slides along the lip), then the living things are drawn over it by tiny software rasterisers (stars, gulls, craft, the surfer with a dark outline, spray, foam, the lip's
+ * The backdrop is copied into one typed array. The distant sea ripples and the water accelerates up the wave face and around the barrel.
+ * The crest then falls into a spreading whitewash. The living things are drawn by tiny software rasterisers (stars, gulls, craft, the surfer with a dark outline, spray, foam, the lip's
  * curtain, mist) and one `putImageData` puts the picture on the canvas. Everything is whole pixels.
  *
  * The file is also a Node module: the geometry, the warp, the surfer's kinematics, the ride, the world and the drawing path are pure and have tests
@@ -274,7 +274,7 @@
     if (Array.isArray(given.hole) && given.hole.length === 4 && given.hole.every(finite) && given.hole[2] > 4 && given.hole[3] > 4) g.hole = given.hole.slice();
     if (okPoint(given.tip)) g.tip = [given.tip[0], given.tip[1]];
     if (Array.isArray(given.path) && given.path.length === 2 && given.path.every(finite)) g.path = given.path.slice();
-    for (const key of ['lip', 'line', 'foot']) if (okPoints(given[key], key === 'line' ? 4 : 2)) g[key] = given[key].map((p) => [p[0], p[1]]);
+    for (const key of ['lip', 'line', 'foot', 'current']) if (okPoints(given[key], key === 'line' || key === 'current' ? 4 : 2)) g[key] = given[key].map((p) => [p[0], p[1]]);
     if (given.palm && finite(given.palm.x) && finite(given.palm.y) && Math.abs(given.palm.x) < 100 && Math.abs(given.palm.y) < 200) g.palm = { x: Math.round(given.palm.x), y: Math.round(given.palm.y) };
     return g;
   }
@@ -286,12 +286,101 @@
       if (!okFrame(fp) || !okFrame(fm) || fp[2] !== W || fp[3] !== H || fm[2] !== W || fm[3] !== H) return null;
       if (fp[0] + W > pixels.width || fm[0] + W > pixels.width || (fp[1] + H) * pixels.width * 4 > pixels.data.length || (fm[1] + H) * pixels.width * 4 > pixels.data.length) return null;
       const d = pixels.data, stride = pixels.width * 4, rgbBuf = new Uint32Array(W * H), cls = new Uint8Array(W * H);
+      const behind = json.frames.background;
+      const hasBackground = okFrame(behind) && behind[2] === W && behind[3] === H &&
+        behind[0] + W <= pixels.width && (behind[1] + H) * stride <= d.length;
+      const background = hasBackground ? new Uint32Array(W * H) : null;
       for (let y = 0; y < H; y++) {
         let p = (fp[1] + y) * stride + fp[0] * 4, m = (fm[1] + y) * stride + fm[0] * 4;
         for (let x = 0; x < W; x++, p += 4, m += 4) { rgbBuf[y * W + x] = (0xff000000 | (d[p + 2] << 16) | (d[p + 1] << 8) | d[p]) >>> 0; cls[y * W + x] = Math.min(3, d[m]); }
+        if (background) {
+          let at = (behind[1] + y) * stride + behind[0] * 4;
+          for (let x = 0; x < W; x++, at += 4) background[y * W + x] = (0xff000000 | (d[at + 2] << 16) | (d[at + 1] << 8) | d[at]) >>> 0;
+        }
       }
-      return { rgb: rgbBuf, cls, geom: mergeGeometry(json.geometry), builtin: false };
+      return { rgb: rgbBuf, cls, geom: mergeGeometry(json.geometry), builtin: false, background };
     } catch (e) { return null; }
+  }
+
+  // The foreground and the surfer's line have a fixed right-hand anchor.
+  // A moving shoulder rises above that line while a separate pulse pushes
+  // the lip forward. The backing picture is revealed by the changing mask.
+  const WAVE_ANCHOR = 171;
+  function makeWaveMotion(plate) {
+    if (!plate.background) return null;
+    const { geom, cls } = plate;
+    const bottom = clamp(Math.round(geom.tip[1] + 58), 1, H);
+    const leftEdge = new Uint16Array(bottom);
+    for (let y = 0; y < bottom; y++) {
+      let left = W;
+      for (let row = Math.max(0, y - 20); row <= Math.min(H - 1, y + 20); row++) {
+        const start = row * W;
+        for (let x = 0; x < left; x++) if (cls[start + x] === CLS.WATER) { left = x; break; }
+      }
+      leftEdge[y] = Math.max(0, left - 28);
+    }
+    const shoulderEnd = Math.min(130, geom.tip[1] - 18);
+    const shoulder = Float32Array.from({length: H}, (_, y) => smooth((shoulderEnd - y) / 56));
+    return {
+      bottom, leftEdge, shoulder, rgb: new Uint32Array(W * H),
+      stretch: new Float32Array(H).fill(1), inverse: new Float32Array(H).fill(1), rise: new Float32Array(W),
+      visibleGain: new Uint8Array(W * H),
+      wash: 0,
+    };
+  }
+  function breakPulse(step, period) {
+    const age = ((step % period) + period) % period;
+    return smooth(age / 28) * smooth((82 - age) / 47);
+  }
+  function poseWave(wave, geom, world) {
+    const step = world.steps, advance = .57 * Math.sin(step * .047) + .43 * Math.sin(step * .026 + 1.2);
+    for (let y = 0; y < wave.bottom; y++) {
+      const arrive = step - y * .29;
+      const peel = .73 * breakPulse(arrive, 157) + .37 * breakPulse(arrive + 48, 211);
+      const envelope = smooth(y / 47) * smooth((wave.bottom - y) / 62);
+      wave.stretch[y] = 1 + envelope * (.061 * advance + .163 * peel + .035 * Math.sin(step * .054 - y * .064));
+      wave.inverse[y] = 1 / wave.stretch[y];
+    }
+    for (let x = 0; x < W; x++) {
+      const gather = .68 * breakPulse(step - (W - x) * .29, 157) + .29 * breakPulse(step + x * .32 + 41, 211);
+      wave.rise[x] = smooth((x - geom.tip[0]) / 64) *
+        (-6.4 * advance - 8.7 * gather + 2.1 * Math.sin(step * .072 + x * .047));
+    }
+    wave.wash = clamp(.65 * breakPulse(step - 62, 157) + .45 * breakPulse(step - 13, 211), 0, 1);
+  }
+  function wavePoint(wave, x, y) {
+    const row = clamp(Math.round(y), 0, H - 1);
+    const at = x < WAVE_ANCHOR ? WAVE_ANCHOR + (x - WAVE_ANCHOR) * wave.stretch[row] : x;
+    const lift = wave.rise[clamp(Math.round(at), 0, W - 1)] * wave.shoulder[row];
+    return [at, y + lift];
+  }
+  function drawMovingWave(s, plate) {
+    const { fb, back, wave, world, currents } = s;
+    const rest = plate.cls, live = back.cls, h = Math.min(LIM, wave.bottom);
+    poseWave(wave, plate.geom, world);
+    live.set(rest);
+    const gain = wave.visibleGain;
+    gain.set(currents.gain);
+    wave.rgb.set(fb.subarray(0, Math.min(H, h + 20) * W));
+    for (let y = 0; y < h; y++) {
+      const row = y * W, shoulder = wave.shoulder[y];
+      for (let x = wave.leftEdge[y]; x < W; x++) {
+        const at = row + x;
+        const sy = shoulder > 0 ? Math.max(0, (y - wave.rise[x] * shoulder + .5) | 0) : y;
+        const sx = x < WAVE_ANCHOR
+          ? (WAVE_ANCHOR + (x - WAVE_ANCHOR) * wave.inverse[sy] + .5) | 0 : x;
+        const sample = sy * W + sx;
+        if (sx >= 0 && rest[sample] === CLS.WATER) {
+          fb[at] = wave.rgb[sample];
+          live[at] = CLS.WATER;
+          gain[at] = currents.gain[sample];
+        } else if (rest[at] === CLS.WATER) {
+          fb[at] = plate.background[at];
+          live[at] = y < plate.geom.horizon ? CLS.SKY : CLS.SEA;
+          gain[at] = 0;
+        }
+      }
+    }
   }
 
   /* ---- the warp: the sea's rows slither, the wave's rings pulse and flow, the glow pulses through the lip. For each animated pixel a table keeps where it is, how far it may move in x
@@ -410,11 +499,11 @@
     extend: P(0, -15.5, 2, 4, -12, -4, 12, -4, 0),                                  // let go of the rail, arms wide
     land: P(-2, -9.5, 36, -26, -9, 6, 9, 6, 0.2, -7.8, 7.8),                                    // absorbing the landing with the knees
     floater: P(0, -12.5, 6, 2, -11, 3, 9, 3, 0.3),                                  // gliding on the white water at the top
-    barrel: P(1, -10.7, 38, -36, -10, 1.5, 13, 7, 0.5, -8, 8),                // compact front-side stance: looking to the exit, elbows soft
-    barrelSet: P(0.8, -11.1, 35, -33, -10.5, 0, 13.5, 7, 0.55, -8, 8),        // settle into the pocket with the rear hand trailing
-    barrelDeep: P(0.8, -10.2, 47, -45, -11, 3, 14, 9, 0.58, -8, 8),         // compress at the knees, keeping space between the arms
+    barrel: P(0.5, -10.7, 27, -23, -12, 1, 12, 8, 0.5, -8, 8),               // soft knees, leading arm toward the exit and trailing hand near the face
+    barrelSet: P(1.1, -10.8, 34, -30, -12.5, 0.5, 13.2, 9.5, 0.55, -8, 8),
+    barrelDeep: P(1.3, -9.5, 40, -32, -13, 5, 14, 11, 0.58, -8, 8),
     stall: P(3.5, -10.7, 35, -37, -12, -1, 14, 8, 0.7, -8, 8),             // weight over the tail, rear hand toward the wall
-    drag: P(0, -10.3, 44, -42, -12.5, 2, 14, 11, 0.6, -8, 8),                  // lower one hand and counterbalance with the other
+    drag: P(0.6, -9.8, 31, -25, -13.7, -1, 12.8, 13, 0.6, -8, 8),             // lower one hand and counterbalance with the other
     duck: P(1, -9.8, 52, -49, -10, 4, 14, 9, 0.4, -8, 8),                   // compress under the breaking lip
     barrelUp: P(0, -12.2, 27, -25, -10, 0, 12, 7, 0.2, -8, 8),                // recover more slowly into an open crouch
     exitTall: P(0, -15.2, -2, 6, -13, -3, 13, -3, 0, -8.2, 8.2),                // standing up tall with the arms spread as the foam spits him out
@@ -461,10 +550,10 @@
   const TONES = { skin: [S.skin, S.skinLight, S.skinShade], shirt: [S.shirt, S.shirtLight, S.shirtShade], trunks: [S.trunks, S.trunksLight, S.trunksDark], board: [S.board, S.boardLight, S.boardDark] };
   function surferPalette() {
     const c = hexPack, p = new Uint32Array(23);
-    p[S.skin] = c('#e9a56f'); p[S.skinLight] = c('#f8c690'); p[S.skinShade] = c('#b4704a'); p[S.hair] = c('#2e1a12'); p[S.hairLight] = c('#7a4a2c');
-    p[S.shirt] = c('#ff5a4a'); p[S.shirtLight] = c('#ff9a7c'); p[S.shirtShade] = c('#b4303c'); p[S.trunks] = c('#1f3a96'); p[S.trunksLight] = c('#4a70d0'); p[S.trunksDark] = c('#122060');
-    p[S.stripe] = c('#fff0c4'); p[S.eye] = c('#1a1018'); p[S.mouth] = c('#a04030'); p[S.board] = c('#ff9a2a'); p[S.boardLight] = c('#ffd070'); p[S.boardDark] = c('#b8501a');
-    p[S.cream] = c('#fff2cc'); p[S.fin] = c('#5a2a14'); p[S.cap] = c('#20c0b4'); p[S.white] = c('#ffffff'); p[S.belly] = c('#7a3a1c');
+    p[S.skin] = c('#d09479'); p[S.skinLight] = c('#ecc09b'); p[S.skinShade] = c('#956761'); p[S.hair] = c('#26233a'); p[S.hairLight] = c('#7c4f48');
+    p[S.shirt] = c('#253e4f'); p[S.shirtLight] = c('#526b71'); p[S.shirtShade] = c('#20283e'); p[S.trunks] = c('#302c49'); p[S.trunksLight] = c('#53546d'); p[S.trunksDark] = c('#1c2035');
+    p[S.stripe] = c('#de9b76'); p[S.eye] = c('#252739'); p[S.mouth] = c('#a0655c'); p[S.board] = c('#c99b74'); p[S.boardLight] = c('#e0cda3'); p[S.boardDark] = c('#354d57');
+    p[S.cream] = c('#fff0c9'); p[S.fin] = c('#253941'); p[S.cap] = c('#355e65'); p[S.white] = c('#e8f0e7'); p[S.belly] = c('#835c5b');
     return p;
   }
   /** The warm rim of the sunset on the sunny edge of every part: the palette index -> a brighter, warmer packed colour. */
@@ -486,17 +575,16 @@
       r.line(a[0] - sx * (wa / 2 - 0.7), a[1] - sy * (wa / 2 - 0.7), b[0] - sx * (wb / 2 - 0.7), b[1] - sy * (wb / 2 - 0.7), tone[2], 1);
     }
   }
-  /** Eleven by twelve pixels: an adult face seen from the front and side,
-   * with hair behind it and two small eyes, rather than the back of a head. */
-  const HEAD_UP = ['...hhhhh...', '..hllhhhh..', '.hhaaaahhh.', '.haaaaaaah.', '.haaaaaaah.', '.haeaaeaah.', '.haasssaah.', '..assmsaah.', '..dsssssd..', '...ddddd...', '...........', '...........'];
-  const HEAD_DOWN = ['...hhhhh...', '..hllhhhh..', '.hhhhhhhhh.', '.haaaaaaah.', '.haaaaaaah.', '.haeaaeaah.', '.haasssaah.', '..assmsaah.', '..dsssssd..', '...ddddd...', '...........', '...........'];
+  /** Compact three-quarter portrait with the eyes just under the brow. */
+  const HEAD_UP = ['..hhh....', '.hllhhh..', 'hhdshhhd.', 'hdsaaaas.', 'hdsaaeaas', '.dsaaassd', '.ddsaasda', '..ddsmd..', '...ddd...', '.........'];
+  const HEAD_DOWN = ['..hhh....', '.hllhhh..', 'hhhhhhhs.', 'hdhsaaas.', '.dsaaeaas', '.ddsaasdd', '..ddssda.', '...dmd...', '...dd....', '.........'];
   const HEAD_KEY = { h: S.hair, l: S.hairLight, s: S.skin, a: S.skinLight, d: S.skinShade, e: S.eye, b: S.hair, m: S.mouth, o: S.skinShade };
   function drawHead(r, cx, cy, face, down) {
     const rows = down ? HEAD_DOWN : HEAD_UP;
-    for (let y = 0; y < 12; y++) for (let x = 0; x < 11; x++) {
+    for (let y = 0; y < 10; y++) for (let x = 0; x < 9; x++) {
       const ch = rows[y][x];
       if (ch === '.') continue;
-      r.put(face > 0 ? cx - 5 + x : cx + 5 - x, cy - 6 + y, HEAD_KEY[ch]);
+      r.put(face > 0 ? cx - 4 + x : cx + 4 - x, cy - 5 + y, HEAD_KEY[ch]);
     }
   }
   // Perspective: the nose comes toward the lower left of the viewer, while
@@ -540,6 +628,9 @@
     r.poly(edge(.65, -.4), S.boardLight);
     const a = at(-half + 3), b = at(half - 3);
     r.line(a[0], a[1], b[0], b[1], S.cream, 1);
+    const glint = at(-half*.69, -boardHalfWidth(-half*.69)*.82);
+    const glintEnd = at(half*.38, -boardHalfWidth(half*.38)*.82);
+    r.line(glint[0], glint[1], glintEnd[0], glintEnd[1], S.cream, 1);
     const tip = at(-half + 1), end = at(-half + 5);
     r.line(tip[0], tip[1], end[0], end[1], S.cap, 2);
   }
@@ -582,18 +673,22 @@
   }
   function drawBody(r, J, pitch, down, wide = 1.12, legScale = 1, toeDirection = -1) {
     const face = -1, pr = deckPitch(pitch), shade = [S.skinShade, S.skin, S.skinShade];
+    const hipsNear = [J.hip[0] - 1.3, J.hip[1] + 1], hipsFar = [J.hip[0] + 1.7, J.hip[1] - 1];
     // Layer the far arm and both legs behind the clothing. In particular the
     // near thigh must not paint over the shorts when the rider compresses.
-    leg(r, J.hip, J.kneeB, J.footB, shade, 6.4 * legScale, false); foot(r, J.footB, pr, 3.4 * legScale, shade, legScale, toeDirection);
+    leg(r, hipsFar, J.kneeB, J.footB, shade, 6.0 * legScale, false); foot(r, J.footB, pr, 3.4 * legScale, shade, legScale, toeDirection);
     limb(r, J.sB, J.elbowB, 4, 3.4, [S.shirtShade, S.shirt, S.shirtShade]); limb(r, J.elbowB, J.handB, 3.4, 2.8, shade); r.disc(Math.round(J.handB[0]), Math.round(J.handB[1]), 2, S.skinShade);
-    leg(r, J.hip, J.kneeF, J.footF, TONES.skin, 6.4 * legScale, true); foot(r, J.footF, pr, 5 * legScale, TONES.skin, legScale, toeDirection);
-    limb(r, J.hip, J.shoulder, 9.4 * wide, 11.8 * wide, TONES.shirt);
+    leg(r, hipsNear, J.kneeF, J.footF, TONES.skin, 6.4 * legScale, true); foot(r, J.footF, pr, 5 * legScale, TONES.skin, legScale, toeDirection);
+    limb(r, J.hip, J.shoulder, 8.7 * wide, 10.6 * wide, TONES.shirt);
     limb(r, J.hip, [J.hip[0] + (J.kneeB[0] - J.hip[0]) * 0.63, J.hip[1] + (J.kneeB[1] - J.hip[1]) * 0.63], 9.0 * wide, 6.8, TONES.trunks);
     limb(r, J.hip, [J.hip[0] + (J.kneeF[0] - J.hip[0]) * 0.63, J.hip[1] + (J.kneeF[1] - J.hip[1]) * 0.63], 9.0 * wide, 6.8, TONES.trunks);
     r.line(J.hip[0] - 3, J.hip[1] - 1, J.hip[0] + 3, J.hip[1] - 1, S.stripe, 1);
-    // A small neckline and front seam make the torso read as facing us.
-    r.line(J.shoulder[0] - 2, J.shoulder[1] + 2, J.shoulder[0] + 1, J.shoulder[1] + 3, S.skinShade, 1);
+    const neck = blendPoint(J.shoulder, J.head, .62);
+    limb(r, J.shoulder, neck, 4.5, 3.3, TONES.skin);
+    // An exposed collar and angled seam separate the neck and torso.
+    r.line(J.shoulder[0] - 2, J.shoulder[1] + 1, J.shoulder[0] + 1, J.shoulder[1] + 2, S.skinShade, 1);
     r.line(J.shoulder[0] - 2, J.shoulder[1] + 5, J.hip[0] - 2, J.hip[1] - 3, S.shirtLight, 1);
+    r.line(J.shoulder[0] - 4, J.shoulder[1] + 3, J.shoulder[0] + 2, J.shoulder[1] + 6, S.stripe, 1);
     limb(r, J.sF, J.elbowF, 4.2, 3.6, TONES.shirt); limb(r, J.elbowF, J.handF, 3.6, 2.8, TONES.skin); r.disc(Math.round(J.handF[0]), Math.round(J.handF[1]), 2, S.skin);
     drawHead(r, Math.round(J.head[0]), Math.round(J.head[1]), face, down);                                                                         // the head last: no arm covers his face
   }
@@ -604,61 +699,102 @@
     drawBody(r, J, st.pitch, st.pose.lean + st.pose.head > 28);
     return J;
   }
+
+  const distanceBetween = (a, b) => Math.hypot(b[0] - a[0], b[1] - a[1]);
+  const blendPoint = (a, b, t) => [lerp(a[0], b[0], t), lerp(a[1], b[1], t)];
+  const withLift = (p, lift) => [p[0], p[1] - lift];
+  function reachableJoint(root, tip, reach) {
+    const distance = distanceBetween(root, tip);
+    return distance > reach ? blendPoint(root, tip, reach / distance) : tip;
+  }
+
   /** A prone rider with an arched chest and alternating strokes. `plant` brings
    *  both hands to the deck as the wave is caught. */
   function paddlingJoints(ox, oy, pitch, phase, plant) {
     const p = pitch * RAD, cp = Math.cos(p), sp = Math.sin(p), settle = smooth(clamp(plant || 0, 0, 1));
-    const at = (x, y) => { const q = projectDeck(x * cp - y * sp, x * sp + y * cp); return [ox + q[0], oy + q[1]]; };
-    const blend = (a, b, t) => [lerp(a[0], b[0], t), lerp(a[1], b[1], t)];
-    const hip = at(4, -6), shoulder = at(-6, -10), head = at(-11, -23);
+    const at = (x, y, lift = 0) => {
+      const q = projectDeck(x * cp - y * sp, x * sp + y * cp);
+      return [ox + q[0], oy + q[1] - lift];
+    };
+    const hip = at(5, 0, 4), shoulder = at(-10, 0, 12), head = at(-15, 0, 18);
+    head[1] = Math.min(head[1], hip[1] - 5);
     // Each shoulder is on its own side of the chest. Hands reach past the
     // rails into the water before they converge onto the deck to stand up.
     const normal = projectDeck(-sp, cp), length = Math.hypot(...normal) || 1;
     const sF = [shoulder[0] + 2.5 * normal[0] / length, shoulder[1] + 2.5 * normal[1] / length];
     const sB = [shoulder[0] - 1.2 * normal[0] / length, shoulder[1] - 1.2 * normal[1] / length];
     const c = Math.cos(phase), v = Math.sin(phase), reach = (UPPER + FORE) * 1.2 * 0.985;
-    const withinReach = (from, to) => {
-      const dx = to[0] - from[0], dy = to[1] - from[1], distance = Math.hypot(dx, dy);
-      return distance <= reach ? to : [from[0] + dx * reach / distance, from[1] + dy * reach / distance];
-    };
-    const aF = -5 - 3 * c, aB = -5 + 3 * c;
-    const handF = withinReach(sF, blend(at(aF, boardHalfWidth(aF) + 5.5 + 0.4 * v), at(-4, -2.5), settle));
-    const handB = withinReach(sB, blend(at(aB, -boardHalfWidth(aB) - 5.5 - 0.4 * v), at(-1, -3.5), settle));
+    const aF = -7 - 6 * c, aB = -7 + 6 * c;
+    const strokeF = at(aF, boardHalfWidth(aF) + 6.2, 1.5 * Math.max(0, v));
+    const strokeB = at(aB, -boardHalfWidth(aB) - 5.4, 3.5 * Math.max(0, -v));
+    const handF = reachableJoint(sF, blendPoint(strokeF, at(-9, 3.3, 1.5), settle), reach);
+    const handB = reachableJoint(sB, blendPoint(strokeB, at(-6.2, -3.6, 1.5), settle), reach);
     return { hip, shoulder, head, sF, sB,
       elbowF: bend(...sF, ...handF, UPPER * 1.2, FORE * 1.2, -1), elbowB: bend(...sB, ...handB, UPPER * 1.2, FORE * 1.2, -1), handF, handB,
-      kneeF: at(12, -5.5), kneeB: at(11, -8), footF: at(20, -3), footB: at(19, -5) };
+      kneeF: at(14, 2.2, 3.6), kneeB: at(13, -1.8, 4.4), footF: at(22, 1.8, 1.6), footB: at(20.8, -1.8, 2.0) };
   }
-  /** Push up from planted hands, sweep both feet underneath, then open the
-   *  arms into a low stance. The first pose is the last paddling pose. */
-  function drawPopUp(r, ox, oy, pose, pitch, amount, phase = 0) {
-    const t = clamp(amount, 0, 1), start = paddlingJoints(ox, oy, pitch, phase, 1), target = standingJoints(ox, oy, pose, pitch);
-    const push = smooth(t / 0.42), tuck = smooth((t - 0.10) / 0.78), settle = smooth((t - 0.66) / 0.34), release = smooth((t - 0.22) / 0.65);
-    const torso = 0.20 * push + 0.60 * tuck + 0.20 * settle, hips = 0.15 * push + 0.65 * tuck + 0.20 * settle;
-    const head = 0.32 * push + 0.48 * tuck + 0.20 * settle, mixPoint = (a, b, u) => [lerp(a[0], b[0], u), lerp(a[1], b[1], u)];
-    let J;
-    if (t === 0) J = start;
-    else if (t === 1) J = target;
-    else {
-      J = {};
-      for (const key of ['shoulder', 'sF', 'sB']) J[key] = mixPoint(start[key], target[key], torso);
-      J.head = mixPoint(start.head, target.head, head); J.hip = mixPoint(start.hip, target.hip, hips);
-      for (const key of ['footF', 'footB', 'kneeF', 'kneeB']) {
-        J[key] = mixPoint(start[key], target[key], tuck);
-        J[key][1] -= Math.sin(Math.PI * tuck) * (key.startsWith('foot') ? 2 : 3);
-      }
-      J.handF = mixPoint(start.handF, target.handF, release); J.handB = mixPoint(start.handB, target.handB, release);
-      const armScale = lerp(1.2, 1, smooth(t));
-      J.elbowF = bend(...J.sF, ...J.handF, UPPER * armScale, FORE * armScale, -1); J.elbowB = bend(...J.sB, ...J.handB, UPPER * armScale, FORE * armScale, -1);
+  /** The palms take the weight until the feet swing underneath and the
+   *  leading foot lands. Hands, hips and feet each have their own timing. */
+  function takeoffJoints(ox, oy, pose, pitch, t, phase) {
+    const start = paddlingJoints(ox, oy, pitch, phase, 1);
+    if (t === 0) return start;
+    const target = standingJoints(ox, oy, pose, pitch);
+    if (t === 1) return target;
+
+    const push = smooth(t / .45), stand = smooth((t - .42) / .58);
+    const knees = smooth((t - .2) / .57);
+    const release = smooth((t - .52) / .48);
+    const rear = smooth((t - .20) / .43), front = smooth((t - .21) / .53);
+    const J = {
+      hip: blendPoint(withLift(start.hip, 10 * push), target.hip, stand),
+      shoulder: blendPoint(withLift(start.shoulder, 8 * push), target.shoulder, stand),
+      head: blendPoint(withLift(start.head, 7.2 * push), target.head, stand),
+      footF: withLift(blendPoint(start.footF, target.footF, front), lerp(5, 8, smooth((pitch + 30) / 30)) * Math.sin(Math.PI * front)),
+      footB: withLift(blendPoint(start.footB, target.footB, rear), 4 * Math.sin(Math.PI * rear)),
+    };
+    for (const side of ['F', 'B']) {
+      const shoulder = 's' + side, hand = 'hand' + side;
+      J[shoulder] = blendPoint(withLift(start[shoulder], 8 * push), target[shoulder], stand);
+      J[hand] = blendPoint(start[hand], target[hand], release);
+      const knee = 'knee' + side, foot = 'foot' + side;
+      const thigh = lerp(distanceBetween(start.hip, start[knee]), side === 'F' ? THIGH : BACK_THIGH, knees);
+      const shin = lerp(distanceBetween(start[knee], start[foot]), side === 'F' ? SHIN : BACK_SHIN, knees);
+      const flexed = bend(...J.hip, ...J[foot], thigh, shin, 1);
+      // Guide the knee forward and under the ribcage. The bending solve
+      // follows the moving foot without flipping when the leg is foreshortened.
+      const guided = withLift(blendPoint(start[knee], target[knee], knees), 5 * Math.sin(Math.PI * knees));
+      J[knee] = blendPoint(guided, flexed, .24 * Math.sin(Math.PI * knees));
     }
+    const armScale = lerp(1.2, 1, smooth(t)), upper = UPPER * armScale, fore = FORE * armScale;
+    // Respect the arm span by moving the upper body while supported. Free
+    // wrists then follow the reach of the shoulders as the torso opens.
+    const reach = (upper + fore) * .985;
+    for (const side of ['F', 'B']) {
+      const shoulder = J['s' + side], palm = J['hand' + side];
+      const fit = reachableJoint(palm, shoulder, reach);
+      const dx = (fit[0] - shoulder[0]) * (1 - release);
+      const dy = (fit[1] - shoulder[1]) * (1 - release);
+      for (const key of ['shoulder', 'head', 'sF', 'sB']) J[key] = [J[key][0] + dx, J[key][1] + dy];
+    }
+    for (const side of ['F', 'B']) {
+      const shoulder = J['s' + side], hand = 'hand' + side;
+      J[hand] = reachableJoint(shoulder, J[hand], reach);
+      J['elbow' + side] = bend(...shoulder, ...J[hand], upper, fore, -1);
+    }
+    return J;
+  }
+  function drawPopUp(r, ox, oy, pose, pitch, amount, phase = 0) {
+    const t = clamp(amount, 0, 1);
+    const J = takeoffJoints(ox, oy, pose, pitch, t, phase);
     drawBoard(r, ox, oy, pitch * RAD, 1, pose.rail * smooth(t));
-    drawBody(r, J, pitch, false, lerp(0.78, 1.12, smooth(t)), lerp(0.62, 1, smooth(t)), lerp(1, -1, smooth((t - 0.1) / 0.7)));
+    drawBody(r, J, pitch, false, lerp(.88, 1.12, smooth(t)), lerp(.80, 1, smooth(t)), lerp(1, -1, smooth((t - .30) / .38)));
     return J;
   }
   /** Paddling and the pop-up share the same articulated body and board. */
   function drawPaddler(r, ox, oy, phase, plant, pitch = 0) {
     const J = paddlingJoints(ox, oy, pitch, phase, plant);
     drawBoard(r, ox, oy, pitch * RAD, 1, 0);
-    drawBody(r, J, pitch, false, 0.78, 0.62, 1);
+    drawBody(r, J, pitch, false, .88, .80, 1);
     return J;
   }
   /** Only the head and one waving arm above the water (a swimmer after a wipeout). */
@@ -721,15 +857,24 @@
     duck: () => M('duck', 40, [U(0.57, 10), U(0.58, 9), U(0.57, 10)], { pose: [[0, 'barrel'], [0.35, 'barrelDeep'], [0.65, 'duck'], [1, 'duck']], micro: 0.65, events: [[14, 'crash']] }),
     engulf: () => M('engulf', 30, [U(0.55, 14)], { kind: 'engulf', pose: [[0, 'exitTall']], events: [[1, 'engulf']] }),
     spit: () => M('spit', 18, [U(0.55, 14)], { pose: [[0, 'exitTall'], [0.55, 'exitTall'], [1, 'trim']], events: [[1, 'spit']] }),
+    sunRun: () => M('sunRun', 42, [U(0.49, 23), U(0.41, 28), U(0.47, 23), START], {
+      pose: [[0, 'bottom'], [.32, 'pumpUp'], [.52, 'exitTall'], [.78, 'trim'], [1, 'trim']],
+      events: [[6, 'spray'], [18, 'bigspray']], ease: 0.26, micro: .18
+    }),
     wobble: () => M('wobble', 26, [{ dx: -2, dy: -3 }, { dx: -3, dy: -1 }], { pose: [[0, 'top'], [0.2, 'fall1'], [0.4, 'fall2'], [0.6, 'fall1'], [0.8, 'fall2'], [1, 'fall1']], events: [[1, 'oops']], snap: 1.3 }),
     fall: () => M('fall', 36, [{ dx: 4, dy: -5 }, { dx: 8, dy: 4 }, { dx: 10, dy: 20 }], { kind: 'fall', pose: [[0, 'fall1'], [0.3, 'fall2'], [0.6, 'fallDrop'], [1, 'fallDrop']], ease: 0.0, snap: 1.2 }),
     under: () => M('under', 30, [{ dx: 1, dy: 2 }], { kind: 'under', events: [[1, 'splash']] }),
     swim: () => M('swim', 70, [{ dx: -4, dy: 0 }, { dx: -8, dy: 0 }], { kind: 'swim' }),
     paddle: () => M('paddle', 74, [U(0.45, 26), U(0.5, 20), U(0.55, 14)], { kind: 'paddle' }),
-    popup: () => M('popup', 22, [U(0.55, 14)], { kind: 'popup', pose: [[0, 'crouch'], [0.6, 'crouch'], [1, 'trim']] }),
+    popup: () => M('popup', 42, [U(.55, 14), U(.53, 17)], {
+      kind: 'popup', pose: [[0, 'crouch'], [.76, 'crouch'], [1, 'trim']], events: [[32, 'takeoff']]
+    }),
+    settle: () => M('settle', 28, [U(0.50, 20), U(0.45, 26)], {
+      kind: 'popup', pose: [[0, 'trim'], [.50, 'crouch'], [1, 'crouch']], ease: .7
+    }),
   };
   const SEQUENCES = {
-    tube: ['drop', 'bottom', 'pump', 'tubeIn', 'stall', 'drag', 'pumpLow', 'duck', 'engulf', 'spit'],
+    tube: ['settle', 'paddle', 'popup', 'drop', 'bottom', 'pump', 'tubeIn', 'stall', 'drag', 'pumpLow', 'duck', 'engulf', 'spit', 'sunRun'],
     air: ['drop', 'bottom', 'pump', 'airUp', 'bottom', 'hang', 'floater', 'engulf', 'spit'],
     carve: ['drop', 'bottom', 'snap', 'floater', 'bottom', 'carve', 'pump', 'snap', 'engulf', 'spit'],
     wipeout: ['drop', 'bottom', 'pump', 'wobble', 'fall', 'under', 'swim', 'paddle', 'popup'],
@@ -860,14 +1005,19 @@
     return lut;
   }
   /** Draw a brush with its top left corner at (x, y); `a` is how opaque the whole brush is (0-256); `flip` mirrors it left to right. */
-  function drawBrush(fb, b, x, y, a, foamLut, flip, clip, slant) {
-    for (let yy = 0; yy < b.h; yy++) {
+  function drawBrush(fb, b, x, y, a, foamLut, flip, height = b.h) {
+    const plume = height > b.h, middle = (b.w - 1) / 2;
+    for (let yy = 0; yy < height; yy++) {
+      const sourceRow = Math.floor(yy * b.h / height);
+      const depth = yy / height;
+      const reach = plume ? middle * (.32 + .69 * depth + .12 * Math.sin(yy * .74 + x * .37)) : middle;
+      const lift = plume ? Math.round(3 * (1 - depth) + Math.sin(yy * .5)) : 0;
+      const density = plume ? a * smooth(depth / .25) : a;
       for (let xx = 0; xx < b.w; xx++) {
-        const j = yy * b.w + (flip ? b.w - 1 - xx : xx), al = b.alpha[j];
+        const j = sourceRow * b.w + (flip ? b.w - 1 - xx : xx), al = b.alpha[j];
         if (al === 0) continue;
-        const px = x + xx, py = y + yy + (slant ? Math.round(slant * (xx - (b.w >> 1))) : 0);
-        if (py < 0 || py >= LIM || px < 0 || px >= W || (clip && clip[py * W + px] !== CLS.WATER)) continue;
-        putA(fb, px, py, foamLut[b.tone[j] >> 3], (al * a) >> 8);
+        const edge = plume ? clamp((reach - Math.abs(xx - middle) + 1) / 3, 0, 1) : 1;
+        putA(fb, x + xx + lift, y + yy, foamLut[b.tone[j] >> 3], (al * density * edge) >> 8);
       }
     }
   }
@@ -909,7 +1059,6 @@
   }
 
   /* ---- the world: everything that moves, in logic only (no pixels) */
-  const FOAM_COLUMN = { from: 0.22, to: 0.84 };                                        // the veil covers this part of the hole's width
   /** For the columns of the open tube mouth: the lowest row of the lip above it (the veil hangs from there) and the first row of the wave's face below it (the veil lands there). */
   function computeColumns(back) {
     const { cls, geom } = back, [hx, , rx] = geom.hole, x0 = Math.max(0, Math.floor(hx - rx)), x1 = Math.min(W - 1, Math.ceil(hx + rx)), arch = new Int16Array(W).fill(-1), floor = new Int16Array(W).fill(-1);
@@ -930,16 +1079,19 @@
    *  line falls away he is a little lighter. `amp` is the move's share of all this, `flow` how fast he goes (0 to 1), `comp` the line's pressure (-1 to 1). Returns a new pose. */
   function dress(t, tt, amp, flow, comp) {
     const o = Object.assign({}, t), breath = Math.sin(tt * 0.075), sway = Math.sin(tt * 0.047 + 1.3), chop = Math.sin(tt * 0.40) * Math.sin(tt * 0.17 + 0.7), fast = 0.6 + 1.0 * flow;
-    const lean = amp * (1.5 * sway + 0.8 * breath + 1.4 * chop) + 4 * comp;
+    const balance = Math.sin(tt * .22 - 1.7) * Math.sin(tt * .073);
+    const lean = amp * (1.7 * sway + .8 * breath + 1.8 * chop) + 5 * comp;
     o.hy += FS * (amp * (0.3 * breath + 2.5 * fast * (0.5 + 0.5 * chop)) + 0.5 * comp);
-    o.hx += FS * amp * (0.5 * sway + 0.2 * chop);
+    o.hx += FS * amp * (.65 * sway + .38 * balance) - .90 * comp;
     o.lean += lean; o.head -= lean * 0.75;
-    o.fx += FS * amp * 0.8 * sway; o.fy += FS * amp * 0.6 * breath;
-    o.bx -= FS * amp * 0.8 * sway; o.by += FS * amp * 0.6 * chop;
+    o.fx += FS * amp * (.80 * sway + .46 * balance);
+    o.fy += FS * amp * (.68 * breath - .55 * balance);
+    o.bx -= FS * amp * (.85 * sway + .25 * balance);
+    o.by += FS * amp * (.8 * chop + .60 * balance);
     return o;
   }
   function createWorld(options) {
-    const o = Object.assign({ seed: 20261110, random: null, back: null, first: 'tube', goldList: [] }, options);
+    const o = Object.assign({ seed: 20261110, random: null, back: null, current: null, first: 'tube', goldList: [] }, options);
     const rand = typeof o.random === 'function' ? o.random : seeded(o.seed);
     const back = o.back || makeBackdrop(rand), geom = back.geom, surface = makeSurface(geom);
     const world = {
@@ -961,7 +1113,7 @@
     world.craft = makeCraft(geom); world.gold = o.goldList;
 
     const spray = (x, y, n, power, up = 1, dir = 0) => {
-      for (let k = 0; k < n && world.particles.length < 240; k++) world.particles.push({ kind: 0, x, y, vx: (rand() - 0.5) * power + dir * 0.6 * power * rand(), vy: -(0.4 + rand() * 1.5) * up * (0.6 + power * 0.4), g: 0.075, life: 16 + Math.floor(rand() * 16), age: 0, big: rand() < 0.22, warm: rand() < 0.45 });
+      for (let k = 0; k < n && world.particles.length < 240; k++) world.particles.push({ x, y, vx: (rand() - 0.5) * power + dir * 0.6 * power * rand(), vy: -(0.4 + rand() * 1.5) * up * (0.6 + power * 0.4), g: 0.075, life: 16 + Math.floor(rand() * 16), age: 0, big: rand() < 0.22, warm: rand() < 0.45 });
     };
     const puff = (style, x, y, vx, vy, life, layer, gain, cap) => { if (world.foamItems.length < 90) world.foamItems.push({ style, x, y, vx, vy, age: 0, life, layer, flip: rand() < 0.5, gain: gain || 0.94, cap: cap === undefined ? 9 : cap }); };
     world.spray = spray; world.puff = puff;
@@ -979,6 +1131,7 @@
       const s = world.surfer, face = -1;                                                                               // the tail is behind him, on the right
       const [tx, tailY] = boardPoint(s, 15, boardHalfWidth(15) + 0.5), ty = tailY + 2;
       if (name === 'spray') spray(tx, ty, 10, 1.5, 1, -face);
+      else if (name === 'takeoff') spray(tx, ty, 11, 1.65, .55, -face);
       else if (name === 'bigspray') { spray(tx, ty - 2, 34, 2.5, 1.2, -face); puff('puff', tx, ty - 2, -face * 0.2, -0.1, 26, 'front', 0.7, 1); puff('puff', tx - face * 7, ty, -face * 0.25, -0.05, 24, 'front', 0.6, 0); }
       else if (name === 'landing') { world.shake = { t: 0, amp: 1.1 }; spray(s.x, s.y + 6, 18, 1.7); puff('puff', s.x, s.y + 8, 0, -0.08, 26, 'front'); world.ripples.push({ x: Math.round(s.x), y: Math.round(s.y + 10), age: 0 }); }
       else if (name === 'splash') {
@@ -991,9 +1144,14 @@
       else if (name === 'engulf') {                                                                                 // the tube swallows him: a cloud of foam and mist hides him
         for (let k = 0; k < 9; k++) puff(k % 3 === 0 ? 'sheet' : 'puff', s.x + (rand() - 0.5) * 30, s.y - 6 + (rand() - 0.5) * 24, (rand() - 0.5) * 0.3, -0.06 - rand() * 0.1, 56 + Math.floor(rand() * 24), 'front', 0.95, 3);
         spray(s.x, s.y - 4, 26, 2.2); world.shake = { t: 0, amp: 1.2 };
-      } else if (name === 'spit') {                                                                                 // and spits him out at the top of the face
-        for (let k = 0; k < 7; k++) puff(k % 3 === 0 ? 'sheet' : 'puff', s.x + (rand() - 0.5) * 26, s.y - 4 + (rand() - 0.5) * 20, (rand() - 0.5) * 0.3, -0.06 - rand() * 0.1, 40 + Math.floor(rand() * 20), 'front', 0.95, 3);
-        spray(s.x, s.y, 30, 2.4, 1.2, 1);
+      } else if (name === 'spit') {                                                                                 // the broken foam opens onto his exit
+        for (const q of world.foamItems) if (q.layer === 'front' && q.style !== 'streak' && Math.hypot(q.x-s.x,q.y-s.y)<26) {
+          q.layer = 'back';
+          q.life = Math.min(q.life, q.age + 13);
+        }
+        for (let k = 0; k < 6; k++) puff(k % 3 === 0 ? 'sheet' : 'puff', s.x + (rand() - 0.5) * 18,
+          s.y + 6 + (rand() - 0.5) * 8, (rand() - 0.5) * 0.29, -0.06 - rand() * 0.1, 22 + Math.floor(rand() * 16), 'back', 0.62, 2);
+        spray(s.x, s.y, 23, 2.2, 1.05, 1);
       }
     };
     world.step = function () {
@@ -1008,7 +1166,7 @@
       if (!s.hidden && s.mode === 'stand' && r.micro > 0 && s.hop === 0) target = dress(target, st, r.micro, world.flow, clamp(-s.ay * 14, -1, 1));
       followPose(s.pose, target, boost);
       if (s.hidden) Object.assign(s.pose, r.pose);                                                                  // out of sight he is already in the pose he will come out in
-      if (r.mode === 'popup' && r.u < 0.36) Object.assign(s.pose, POSES.crouch);
+      if (r.mode === 'popup' && r.name !== 'settle' && r.u < 0.36) Object.assign(s.pose, POSES.crouch);
       const ovy = s.vy;
       s.vx += ((s.x - px) - s.vx) * 0.25; s.vy += ((s.y - py) - s.vy) * 0.25;
       s.ay += ((s.vy - ovy) - s.ay) * 0.25;
@@ -1030,7 +1188,8 @@
         if (!world.wakeTouch) world.wakeGroup++;
         // A sample each frame keeps the fast-moving water connected on turns.
         const [x, y] = boardPoint(s, 17, boardHalfWidth(17) + 0.5);
-        world.wake.push({ x, y: y + 4, age: 0, group: world.wakeGroup, id: st });
+        const strength = s.mode === 'paddle' ? .15 : s.mode === 'popup' ? .38 : Math.min(1, .50 + .29 * s.pose.rail + .24 * world.flow);
+        world.wake.push({ x, y: y + 4, age: 0, group: world.wakeGroup, id: st, strength });
         if (world.wake.length > WAKE_MAX) world.wake.shift();
       }
       world.wakeTouch = touching;
@@ -1040,45 +1199,38 @@
         w.age++;
         const dx = w.x - wakeCx, dy = w.y - wakeCy, radius = Math.hypot(dx, dy) || 1;
         const launch = 1 - smooth((w.age - 3) / 6);
-        w.x += 0.85 * launch + wakeSpeed * (dy / radius) * (1 - launch);
-        w.y -= 0.35 * launch + wakeSpeed * (dx / radius) * (1 - launch);
+        const x = Math.round(w.x), y = Math.round(w.y), index = y * W + x;
+        const local = o.current && x >= 0 && x < W && y >= 0 && y < H && (o.current.x[index] || o.current.y[index]);
+        const vx = local ? o.current.x[index] / 127 : dy / radius;
+        const vy = local ? o.current.y[index] / 127 : -dx / radius;
+        w.x += .85 * launch + wakeSpeed * vx * (1 - launch);
+        w.y += -.35 * launch + wakeSpeed * vy * (1 - launch);
       }
       world.wake = world.wake.filter((w) => w.age < WAKE_LIFE);
-      // A few short droplets peel off the breaking lip. The old long vertical
-      // streaks crossed the entire opening and looked like a rain shower.
       const v = world.veil, c = world.columns;
       v.t++;
       if (v.state === 'throw') {
-        if (rand() < 0.18 && world.particles.filter((p) => p.kind === 1).length < 3) {
-          const x = Math.round(lerp(c.x0 + (c.x1 - c.x0) * FOAM_COLUMN.from, c.x0 + (c.x1 - c.x0) * FOAM_COLUMN.to, rand())), top = c.arch[x];
-          if (top > 0 && c.floor[x] > top + 4) world.particles.push({ kind: 1, x, y: top + 1, vx: -0.35 - rand() * 0.35, vy: 0.5 + rand() * 0.25, len: 1 + Math.floor(rand() * 3), life: 14, age: 0, floor: Math.min(c.floor[x] - 1, top + 6 + rand() * 4) });
-        }
         if (v.t > 70) { v.state = 'idle'; v.t = 0; }
       } else if (v.state === 'crash') { if (v.t > 50) { v.state = 'idle'; v.t = 0; } if (v.t < 30 && st % 3 === 0) { const x = lerp(c.x0 + 12, c.x1 - 8, rand()); puff('streak', x, (c.floor[Math.round(x)] > 0 ? c.floor[Math.round(x)] : 160) - 3, -(0.2 + rand() * 0.2), 0.12, 50, 'back', 0.8); } }
-      // spindrift off the lip, a little foam at its tip, foam that leaves the wave's foot and drifts down and left
+      // Wind lifts small drops from the top of the lip.
       const lip = geom.lip;
-      if (rand() < 0.28 + 0.5 * world.surge) { const p = lip[Math.floor(rand() * lip.length)]; world.particles.push({ kind: 0, x: p[0] + (rand() - 0.5) * 4, y: p[1] + (rand() - 0.5) * 3, vx: -0.28 - rand() * 0.3, vy: -0.05 + rand() * 0.2, g: 0.01, life: 20 + Math.floor(rand() * 16), age: 0, big: false }); }
-      if (st % 40 === 7) puff('puff', geom.tip[0] + (rand() - 0.5) * 8, geom.tip[1] + 1, -0.1 - rand() * 0.1, -0.02, 36, 'front', 0.7);
-      if (st % 7 === 0 && world.foamItems.length < 54) {                                           // foam streaks ride the flow up the face, counter-clockwise around the tube, over the lip
-        const [cx, cy] = geom.centre;
-        for (let tries = 0; tries < 6; tries++) {
-          const x = 70 + rand() * 130, y = 30 + rand() * 270;
-          if (back.cls[Math.round(y) * W + Math.round(x)] !== CLS.WATER) continue;
-          const dx = x - cx, dy = y - cy, r = Math.hypot(dx, dy) || 1, sp = 0.3 + rand() * 0.3, vx = dy / r * sp, vy = -dx / r * sp;
-          world.foamItems.push({ style: Math.abs(vx) < 0.12 ? 'puff' : rand() < 0.3 ? 'sheet' : 'streak', x, y, vx, vy, age: 0, life: 70 + Math.floor(rand() * 50), layer: 'back', flip: rand() < 0.5, gain: 0.5, cap: Math.abs(vx) < 0.12 ? 1 : 9, clip: true, slant: Math.abs(vx) < 0.12 ? 0 : clamp(vy / vx, -1.6, 1.6) });
-          break;
-        }
-      }
+      if (rand() < 0.28 + 0.5 * world.surge) { const p = lip[Math.floor(rand() * lip.length * .7)]; world.particles.push({ x: p[0] + (rand() - 0.5) * 4, y: p[1] + (rand() - 0.5) * 3, vx: -0.47 - rand() * 0.42, vy: -0.24 + rand() * 0.18, g: 0.01, life: 20 + Math.floor(rand() * 16), age: 0, big: false }); }
       if (st % 3 === 0 && world.gold.length && world.twinkles.length < 10) { const i = o.goldList[Math.floor(rand() * o.goldList.length)]; if (i !== undefined) world.twinkles.push({ x: i % W, y: (i / W) | 0, age: 0, life: 14 }); }
       for (const q of world.twinkles) q.age++;
       world.twinkles = world.twinkles.filter((q) => q.age < q.life);
       for (const q of world.particles) {
         q.age++;
-        if (q.kind === 0) { q.x += q.vx; q.y += q.vy; q.vy += q.g; }
-        else { q.x += q.vx; q.y += q.vy; q.vy += 0.035; if (q.y >= q.floor) q.age = q.life; }
+        q.x += q.vx;
+        q.y += q.vy;
+        q.vy += q.g;
       }
       world.particles = world.particles.filter((q) => q.age < q.life && q.y < H);
-      for (const q of world.foamItems) { q.age++; q.x += q.vx * (1 + 0.7 * world.flow); q.y += q.vy * (1 + 0.7 * world.flow); }
+      const drift = 1 + .7 * world.flow;
+      for (const q of world.foamItems) {
+        q.age++;
+        q.x += q.vx * drift;
+        q.y += q.vy * drift;
+      }
       world.foamItems = world.foamItems.filter((q) => q.age < q.life);
       for (const rp of world.ripples) rp.age++;
       world.ripples = world.ripples.filter((rp) => rp.age < 28);
@@ -1211,27 +1363,168 @@
   /** Swells: rows of dashes on the sea that slide toward the shore, short and slow at the horizon, long and quicker near us; lighter (or gold in the sun's path) on a crest, darker in a trough. */
   function makeSwells(rand, geom) {
     const rows = [], hz = geom.horizon;
-    for (let k = 0; k < 17; k++) {
-      const u = k / 16, y = hz + 3 + Math.round(60 * Math.pow(u, 1.5));
+    for (let k = 0; k <= 30; k++) {
+      const u = k / 30, y = hz + 3 + Math.round((H - hz - 5) * u ** 1.54);
       if (rows.length && rows[rows.length - 1].y === y) continue;
-      rows.push({ y, period: 26 + Math.floor(u * 44 + rand() * 14), len: 3 + Math.round(u * 11 + rand() * 3), speed: 0.03 + u * 0.16, phase: Math.floor(rand() * 200), crest: rand() < 0.6 });
+      rows.push({
+        y, period: 29 + Math.round(u * 51 + rand() * 19), len: 8 + Math.round(u * 22 + rand() * 6),
+        speed: .19 + u * .51, phase: Math.round(rand() * 217), crest: rand() < .66,
+        bend: .49 + u * .96,
+      });
     }
     return rows;
   }
   function drawSwells(s, world) {
-    const { fb, back, swells } = s, sun = back.geom.sun, t = world.steps, hz = back.geom.horizon, lightC = hexPack('#9a60c0'), gold = hexPack('#ffb858'), dark = hexPack('#180a3a');
+    const { fb, back, swells, currents } = s, sun = back.geom.sun, hz = back.geom.horizon;
+    const gain = s.wave?.visibleGain || currents.gain;
+    const light = hexPack('#97b2ba'), gold = hexPack('#f0bc86'), dark = hexPack('#1d3047');
+    const drift = Math.floor(world.steps * 1.25);
+    const perspective = 63 / Math.log1p((H - hz) / 9);
+    // Broad reflections travel over the whole visible surface. The same
+    // ripple continues into the wave until its faster current takes over.
+    for (let y = hz + 1; y < LIM; y++) {
+      const depth = y - hz, row = y * W;
+      const tile = (Math.floor(perspective * Math.log1p(depth / 9)) << 8);
+      const ahead = Math.floor(depth * .34) + drift;
+      const envelope = .56 * smooth(depth / 21);
+      const sunWidth = 7 + depth * .34;
+      for (let x = 0; x < W; x++) {
+        const i = row + x, kind = back.cls[i];
+        if (kind !== CLS.SEA && kind !== CLS.WATER) continue;
+        const ripple = currents.flow[tile | ((2 * x + ahead) & 255)];
+        if (ripple > -13 && ripple < 13) continue;
+        const strength = (1 - .88 * gain[i] / 255) * envelope;
+        const alpha = Math.round((Math.abs(ripple) - 10) * strength);
+        const shade = ripple < 0 ? dark : Math.abs(x - sun.x) < sunWidth ? gold : light;
+        if (alpha > 0) fb[i] = mixPx(fb[i], shade, alpha);
+      }
+    }
+
     for (const row of swells) {
-      if (row.y >= LIM) break;
-      const off = Math.floor(row.phase - t * row.speed), per = row.period;
+      if (row.y - 2 >= LIM) break;
+      const off = row.phase - world.steps * row.speed, per = row.period;
       for (let x0 = ((off % per) + per) % per - per; x0 < W; x0 += per) {
-        for (let dx = 0; dx < row.len; dx++) {
-          const x = x0 + dx;
-          if (x < 0 || x >= W) continue;
-          const i = row.y * W + x;
-          if (back.cls[i] !== CLS.SEA) continue;
-          const inPath = Math.abs(x - sun.x) < 6 + (row.y - hz) * 0.5;
-          fb[i] = row.crest ? (inPath ? mixPx(fb[i], gold, 120) : mixPx(fb[i], lightC, 96)) : mixPx(fb[i], dark, 96);
+        const end = Math.min(W - 1, Math.floor(x0 + row.len));
+        for (let x = Math.max(0, Math.ceil(x0)); x <= end; x++) {
+          const y = row.y + Math.round(row.bend * SIN[(x * 6 + row.phase - drift) & 255] / 127);
+          if (y >= LIM) continue;
+          const i = y * W + x, kind = back.cls[i];
+          if (kind !== CLS.SEA && kind !== CLS.WATER) continue;
+          const span = 2 * (x - x0) / row.len - 1;
+          const taper = (1 - span * span) * (1 - .83 * gain[i] / 255);
+          const inSun = Math.abs(x - sun.x) < 7 + (row.y - hz) * .34;
+          const color = row.crest ? (inSun ? gold : light) : dark;
+          const alpha = Math.round(taper * (row.crest ? (inSun ? 102 : 90) : 77));
+          if (alpha > 0) fb[i] = mixPx(fb[i], color, alpha);
         }
+      }
+    }
+  }
+  const CURRENT_LIGHT = hexPack('#a4e9bf'), CURRENT_DEPTH = hexPack('#0e3b52');
+  function currentSegments(points) {
+    if (!points) return [];
+    const samples = spline(points, 3), segments = [];
+    let distance = 0;
+    for (let i = 1; i < samples.length; i++) {
+      const [x, y] = samples[i - 1], [endX, endY] = samples[i];
+      const dx = endX - x, dy = endY - y, length = Math.hypot(dx, dy);
+      if (!length) continue;
+      segments.push({x, y, length, ux: dx / length, uy: dy / length, distance});
+      distance += length;
+    }
+    return segments;
+  }
+  function onCurrent(path, x, y) {
+    let closest = Infinity, best = null, along = 0, across = 0;
+    for (const segment of path) {
+      const dx = x - segment.x, dy = y - segment.y;
+      const u = clamp(dx * segment.ux + dy * segment.uy, 0, segment.length);
+      const a = dx - u * segment.ux, b = dy - u * segment.uy;
+      const d = a * a + b * b;
+      if (d >= closest) continue;
+      closest = d;
+      best = segment;
+      along = segment.distance + u;
+      across = b * segment.ux - a * segment.uy;
+    }
+    return best ? {along, across, ux: best.ux, uy: best.uy} : null;
+  }
+  /** Distance from open water gives the quicker current a feathered edge.
+   *  The foreground ripples run across both surfaces at that shared edge. */
+  function currentGain(cls) {
+    const reach = 34, distance = new Uint8Array(W * H).fill(reach);
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      const i = y * W + x;
+      distance[i] = cls[i] === CLS.SEA ? 0 : Math.min(reach,
+        x > 0 ? distance[i - 1] + 1 : reach,
+        y > 0 ? distance[i - W] + 1 : reach);
+    }
+    const gain = new Uint8Array(W * H);
+    for (let y = H - 1; y >= 0; y--) for (let x = W - 1; x >= 0; x--) {
+      const i = y * W + x;
+      distance[i] = Math.min(distance[i],
+        x < W - 1 ? distance[i + 1] + 1 : reach,
+        y < H - 1 ? distance[i + W] + 1 : reach);
+      if (cls[i] === CLS.WATER) gain[i] = Math.round(255 * smooth(distance[i] / reach));
+    }
+    return gain;
+  }
+  /** Lay bands of reflective water along the open curve of the barrel.
+   *  Texture coordinates and the wake's heading come from the same path. */
+  function buildCurrents(back) {
+    const [cx, cy] = back.geom.centre, flow = new Int8Array(64 * 256);
+    const gain = currentGain(back.cls);
+    const path = currentSegments(back.geom.current);
+    const heading = path.length ? {x: new Int8Array(W * H), y: new Int8Array(W * H)} : null;
+    const noise = makeNoise(seeded(0x453CE8));
+    for (let r = 0; r < 64; r++) for (let u = 0; u < 256; u++) {
+      // Blend the broad folds across the seam. The finer scales already
+      // tile at 256 by using the noise generator's 64 cell period.
+      const folds = lerp(noise(u / 8, r * .25), noise((u - 256) / 8, r * .25), smooth(u / 256));
+      const grain = noise(u / 4 + 19, r * .76);
+      const lift = 154 * (folds - .51) + 74 * (grain - .52);
+      flow[r * 256 + u] = Math.round(clamp(lift, -91, 105));
+    }
+    const texels = [];
+    for (let i = 0; i < back.cls.length; i++) {
+      if (back.cls[i] !== CLS.WATER) continue;
+      const x = i % W, y = Math.floor(i / W);
+      const local = heading ? onCurrent(path, x, y) : null;
+      let lane, along;
+      if (local) {
+        lane = clamp(Math.round(31 + .52 * local.across + 1.6 * Math.sin(local.along * .046)), 0, 63);
+        along = -Math.round(local.along * 1.27) & 255;
+        heading.x[i] = Math.round(local.ux * 127);
+        heading.y[i] = Math.round(local.uy * 127);
+        gain[i] = Math.round(gain[i] * (1 - .74 * smooth((Math.abs(local.across) - 36) / 76)));
+      } else {
+        const shoulder = Math.max(0, cy - y);
+        const across = x - .26 * (y - cy) + .0015 * shoulder * shoulder;
+        lane = clamp(Math.round(.25 * across + 4), 0, 63);
+        along = Math.round(y * 1.16 + x * .21) & 255;
+      }
+      // The 200 × 320 picture fits in the low 16 bits. The upper bits address the tile.
+      texels.push((lane << 24) | (along << 16) | i);
+    }
+    return { flow, texels: Uint32Array.from(texels), gain, heading };
+  }
+  function drawCurrents(s, world) {
+    const { fb, currents } = s;
+    const phase = Math.floor(world.phase * 3.0);
+    const end = LIM * W;
+    const { flow, texels, gain } = currents;
+    for (let k = 0; k < texels.length; k++) {
+      const texel = texels[k];
+      const i = texel & 65535;
+      if (i >= end) break;
+      const address = texel >>> 16;
+      const crest = flow[(address & 0xff00) | ((address + phase) & 255)];
+      if (crest > 15) {
+        const color = fb[i];
+        // The thin pale rim belongs to the breaker, even as water moves below it.
+        if (((color >>> 8) & 255) < 192) fb[i] = mixPx(color, CURRENT_LIGHT, ((crest - 8) * gain[i] + 127) >> 8);
+      } else if (crest < -14) {
+        if (((fb[i] >>> 8) & 255) < 192) fb[i] = mixPx(fb[i], CURRENT_DEPTH, ((-crest - 6) * gain[i] + 127) >> 8);
       }
     }
   }
@@ -1255,40 +1548,196 @@
     r.clear();
     if (sf.mode === 'swim') drawSwimmer(r, OX, OY, world.time * 4);
     else if (sf.mode === 'paddle') s.joints = drawPaddler(r, OX, OY, world.paddle, clamp((sf.u - 0.7) / 0.3, 0, 1), sf.pitchQ);
-    else if (sf.mode === 'popup') s.joints = drawPopUp(r, OX, OY, sf.pose, sf.pitchQ, sf.u, world.paddle);
+    else if (sf.mode === 'popup') s.joints = drawPopUp(r, OX, OY, sf.pose, sf.pitchQ, sf.name === 'settle' ? 1 - sf.u : sf.u, world.paddle);
     else if (sf.mode === 'fall') drawStanding(r, OX, OY, { pose: sf.pose, pitch: sf.pitchQ, board: false });
     else s.joints = drawStanding(r, OX, OY, { pose: sf.pose, pitch: sf.pitchQ, board: true });
     emit(Math.round(sf.x) - OX, Math.round(sf.y) + hop - OY);
     return boxes;
   }
-  /** The lip grows while it throws and thins while the foam boils up. */
-  function veilStrength(v) { return v.state === 'throw' ? Math.min(1, v.t / 14) : v.state === 'crash' ? Math.max(0, 1 - v.t / 40) : 0; }
-  function drawVeil(s, world) {
-    const v = veilStrength(world.veil);
-    if (v <= 0.02) return;
-    const { fb } = s, c = world.columns, sheet = hexPack('#bff6ee'), tm = world.steps;
-    for (let x = c.x0 + 4; x <= c.x1 - 2; x++) {
-      const top = c.arch[x], bottom = c.floor[x];
-      if (top < 0 || bottom <= top + 2) continue;
-      const k = (x - c.x0) / (c.x1 - c.x0), edge = smooth((k - FOAM_COLUMN.from + 0.05) / 0.12) * smooth((FOAM_COLUMN.to + 0.06 - k) / 0.12);
-      // Short irregular scallops hug the curved crest; there is no sheet
-      // spanning the open barrel. Two slow phases keep neighbouring patches
-      // from appearing or disappearing together.
-      const ripple = Math.sin(x * 0.36 + tm * 0.07) + 0.55 * Math.sin(x * 0.17 - tm * 0.043);
-      const depth = Math.max(0, Math.min(bottom - top - 1, Math.round((2.6 + ripple * 1.8) * edge * v)));
-      for (let dy = 0; dy < depth; dy++) {
-        const a = Math.round(v * edge * (1 - dy / Math.max(1, depth)) * (45 + 16 * Math.max(0, ripple)));
-        if (a > 6) putA(fb, x - Math.round(dy * 0.3), top + dy, sheet, a);
+
+  function drawBoardShade(s, world) {
+    const rider = world.surfer;
+    if (rider.hidden || boardAirborne(rider) || !['stand','paddle','popup'].includes(rider.mode)) return;
+    for (let step = -15; step <= 17; step++) {
+      const [tx,ty] = boardPoint(rider,step,2.1);
+      const x = Math.round(tx), y = Math.round(ty+4);
+      if (x < 0 || x >= W || y < 0 || y+2 >= LIM) continue;
+      for (let dy = 0; dy < 3; dy++) {
+        const index = (y+dy)*W+x;
+        if (s.back.cls[index] === CLS.WATER) s.fb[index] = shadePx(s.fb[index], 1 - (.22-.046*dy)*(1-Math.abs(step)/22));
       }
     }
   }
-  function drawParticles(s, world, only) {
+
+  /** The lip grows while it throws and thins while the foam boils up. */
+  function veilStrength(v) { return v.state === 'throw' ? Math.min(1, v.t / 14) : v.state === 'crash' ? Math.max(0, 1 - v.t / 40) : 0; }
+  const FOAM_CREST = hexPack('#fff9ed'), FOAM_COOL = hexPack('#d1efee'), FOAM_CLEAR = hexPack('#8edbd0');
+
+  function heightAtFoot(points, x) {
+    for (let i = 1; i < points.length; i++) {
+      const [x0, y0] = points[i - 1], [x1, y1] = points[i];
+      if (x0 !== x1 && x >= Math.min(x0, x1) && x <= Math.max(x0, x1)) return lerp(y0, y1, (x - x0) / (x1 - x0));
+    }
+    return points[0][1];
+  }
+  function makeBreaker(back) {
+    const { geom, cls } = back;
+    const path = makePath(spline(geom.lip, 7)), crest = [];
+    for (let d = 0; d < path.length; d += 2) crest.push(path.at(d));
+
+    const [tipX, tipY] = geom.tip, hitX = tipX - 12;
+    const hitY = Math.max(tipY + 27, heightAtFoot(geom.foot, hitX) - 8);
+    const falls = [15, 17, 14, 16, 15, 18, 16].map((duration, i) => ({
+      x: tipX + i * 1.9 - 2, y: tipY - 1 - i * 1.25,
+      hitX: hitX + i * 1.5 - 3, hitY: hitY - i * .40,
+      duration, offset: i * 9, period: duration + 13 + (i % 3) * 3,
+      splashHeight: [26, 0, 22, 0, 28, 0, 23][i]
+    }));
+
+    // On impact the foam spreads sideways over the water. The flattened
+    // wedge follows the foot and fades into the wash at its irregular edge.
+    const noise = makeNoise(seeded(0x54bb0a)), texture = new Uint8Array(32 * 128);
+    for (let v = 0; v < 32; v++) for (let u = 0; u < 128; u++) {
+      const span = u / 4, radius = v * .39 + .38 * Math.sin(u * PI / 64);
+      const lumps = lerp(noise(span, radius), noise(span - 32, radius), smooth(u / 128));
+      const bubbles = noise(u / 2 + 19, v * .86 + 14);
+      texture[v * 128 + u] = Math.round(255 * (.71 * lumps + .29 * bubbles));
+    }
+    const pixels = [], addresses = [], coverage = [];
+    for (let y = Math.max(0, Math.floor(hitY - 28)); y < Math.min(H, hitY + 28); y++) {
+      for (let x = Math.max(0, Math.floor(hitX - 60)); x < Math.min(W, hitX + 69); x++) {
+        const i = y * W + x;
+        if (cls[i] !== CLS.SEA && cls[i] !== CLS.WATER) continue;
+        const dx = x - hitX, dy = y - hitY + dx * .14;
+        const reach = dx > 0 ? 67 : 57;
+        const lift = 8 * smooth(1 - Math.abs(dx) / 29);
+        const depth = dy > 0 ? 20 : 10 + lift;
+        const edge = noise(x * .12, y * .25) - .5;
+        const spread = clamp(1 - Math.hypot(dx / reach, dy / depth) + .17 * edge, 0, 1);
+        if (spread < .045) continue;
+        const row = Math.round(15 + dy * .83) & 31, u = Math.round(x * 1.3 + dy * .67) & 127;
+        pixels.push(i);
+        addresses.push(row * 128 + u);
+        coverage.push(Math.round(255 * spread ** .66));
+      }
+    }
+    return { crest, falls, tipX, tipY, foot: geom.foot, texture, pixels: Uint16Array.from(pixels),
+      addresses: Uint16Array.from(addresses), coverage: Uint8Array.from(coverage) };
+  }
+
+  /** Airborne drops accelerate along the curve toward the trough. */
+  function fallingWater(fall, age, dx = 0, dy = 0) {
+    const t = clamp(age / fall.duration, 0, 1), distance = t * (.12 + .88 * t);
+    return [lerp(fall.x + dx, fall.hitX, distance), lerp(fall.y + dy, fall.hitY, distance)];
+  }
+  function impactRun(fall, age, foot) {
+    const x = fall.hitX + age * (4.42 - .083 * age);
+    const slope = heightAtFoot(foot, x) - heightAtFoot(foot, fall.hitX);
+    return [x, fall.hitY + .86 * slope];
+  }
+
+  function drawWhitewater(s, world) {
+    const { fb, breaker, wave } = s, st = world.steps;
+    const wash = wave?.wash ?? .5;
+    const power = .79 + .15 * veilStrength(world.veil) + .13 * wash + .07 * world.surge;
+    const [tipX, tipY] = wave ? wavePoint(wave, breaker.tipX, breaker.tipY) : [breaker.tipX, breaker.tipY];
+    const dx = tipX - breaker.tipX, dy = tipY - breaker.tipY;
+    // Moving patches of aeration along the crest, from the high-right
+    // shoulder toward the falling tip.
+    const beat = Math.floor(world.phase * 6.0);
+    for (let k = 0; k < breaker.crest.length; k++) {
+      const froth = SIN[(k * 8 - beat) & 255] + .47 * SIN[(k * 21 - (beat >> 1)) & 255];
+      if (froth < 11) continue;
+      const point = wave ? wavePoint(wave, ...breaker.crest[k]) : breaker.crest[k];
+      const x = Math.round(point[0]), y = Math.round(point[1]);
+      const a = Math.min(220, Math.round((50 + .91 * froth) * power));
+      putA(fb, x + 1, y + 1, FOAM_COOL, a >> 1);
+      putA(fb, x, y, FOAM_CREST, a);
+      if (froth > 78) putA(fb, x - 1, y - 1, FOAM_CREST, a >> 1);
+    }
+
+    // The impact drives whitewater along the trough behind the curl.
+    const { pixels, addresses, texture, coverage } = breaker;
+    const offset = Math.floor(world.phase * 3.65), end = LIM * W;
+    const edge = 12 + 62 * (1 - wash);
+    for (let n = 0; n < pixels.length; n++) {
+      const i = pixels[n], address = addresses[n];
+      if (i >= end) break;
+      const bubbles = texture[(address & 0xf80) | ((address - offset) & 127)];
+      const gain = clamp((bubbles - 4) * .0086, .20, 1.35) * power;
+      const a = Math.min(249, Math.round(Math.max(0, coverage[n] - edge) * gain * 1.24));
+      if (a > 18) fb[i] = mixPx(fb[i], bubbles > 121 ? FOAM_CREST : FOAM_COOL, a);
+    }
+
+    // One continuous tongue connects the heavy lip to its whitewash.
+    // Light and air pockets accelerate down it, just like the loose jets.
+    const middle = breaker.falls[3], depth = Math.round(middle.hitY - tipY);
+    const rush = Math.floor(world.phase * 12.4);
+    for (let row = 0; row < depth; row++) {
+      const t = row / depth, fallPhase = Math.round(295 * Math.sqrt(t) - rush);
+      const boil = SIN[(fallPhase + row * 3) & 255] / 127;
+      const reach = Math.round(8.0 + 3.1 * boil + 3.0 * Math.sin(t * PI) + (2 + 6 * wash) * (1 - t));
+      const x = Math.round(lerp(tipX + 4, middle.hitX, t ** .76) + boil * 1.8);
+      const y = Math.round(tipY - 2 + row);
+      for (let w = -reach; w <= reach; w++) {
+        const ripples = SIN[(fallPhase + w * 23 + row * 7) & 255] / 127;
+        const edge = smooth(1 - Math.abs(w) / (reach + 1));
+        const thickness = .73 + .27 * (1 - t) + .27 * smooth((t - .62) / .38);
+        const a = Math.round((201 + 60 * ripples + 28 * boil) * thickness * edge * power);
+        const white = w < 2 || ripples > .18;
+        putA(fb, x + w, y, white ? FOAM_CREST : FOAM_CLEAR, a);
+      }
+    }
+    for (const fall of breaker.falls) {
+      const age = (st + fall.offset) % fall.period;
+      if (age < fall.duration) {
+        const [tx, ty] = fallingWater(fall, age - 4, dx, dy), [hx, hy] = fallingWater(fall, age, dx, dy);
+        const span = Math.max(1, Math.round(hy - ty));
+        const fade = power * smooth(age / 4);
+        for (let j = 0; j <= span; j++) {
+          const t = j / span, taper = .28 + .72 * t;
+          const x = Math.round(lerp(tx, hx, t)), y = Math.round(lerp(ty, hy, t));
+          const lace = SIN[(j * 53 + age * 11 + fall.offset * 3) & 255] > -32;
+          putA(fb, x + 2, y, FOAM_CLEAR, Math.round(96 * fade * taper));
+          putA(fb, x + 1, y, FOAM_COOL, Math.round((lace ? 183 : 124) * fade * taper));
+          putA(fb, x, y, lace ? FOAM_CREST : FOAM_COOL, Math.round((lace ? 231 : 149) * fade * taper));
+          if (lace && t > .42) putA(fb, x - 1, y + 1, FOAM_COOL, Math.round(145 * fade));
+        }
+      } else {
+        const after = age - fall.duration, fade = 1 - smooth(after / 16);
+        if (fade === 0) continue;
+        const [floorX, floorY] = impactRun(fall, after, breaker.foot);
+        const x = Math.round(floorX), floor = Math.round(floorY);
+        const a = Math.min(256, Math.round(245 * power * fade));
+        if (fall.splashHeight > 0) {
+          // The landing kicks up a second, lower burst that fans out and
+          // settles into the same patch of whitewater.
+          const firstBurst = smooth(after / 3) * (1 - smooth((after - 3) / 13));
+          const plumeHeight = Math.round(6 + fall.splashHeight * firstBurst);
+          const [splash, base = splash] = s.brushes.sheet;
+          const strength = Math.round(a * smooth((after + 1) / 3));
+          drawBrush(fb, base, x - (base.w >> 1), floor - 5, strength, s.foamLut, false);
+          drawBrush(fb, splash, x + 2 - (splash.w >> 1), floor - plumeHeight + 2, strength, s.foamLut, true, plumeHeight);
+          for (let drop = 0; drop < 4; drop++) {
+            const angle = (fall.offset + 19 * drop) % 11;
+            const scatterX = x + Math.round(after * (.16 * angle - .3));
+            const scatterY = floor - Math.round(plumeHeight * (.67 + .16 * drop) + angle);
+            putA(fb, scatterX, scatterY, FOAM_CREST, strength >> 1);
+          }
+        }
+        putA(fb, x, floor - Math.round(after * .45), FOAM_CREST, a);
+        putA(fb, x + 3, floor + 1, FOAM_COOL, a >> 1);
+        putA(fb, x + 8, floor, FOAM_CREST, a >> 1);
+      }
+    }
+  }
+  function drawParticles(s, world) {
     const { fb } = s, foam = s.foamLut[30], mist = s.foamLut[18], cream = hexPack('#ffe9c4');
     for (const q of world.particles) {
-      if (only !== undefined && q.kind !== only) continue;
       const a = Math.round(256 * (1 - q.age / q.life));
-      if (q.kind === 0) { const x = Math.round(q.x), y = Math.round(q.y); putA(fb, x, y, q.big || q.warm ? cream : foam, a); if (q.big) putA(fb, x + 1, y, mist, a >> 1); }
-      else { const x = Math.round(q.x), y = Math.round(q.y); for (let k = 0; k < q.len; k++) putA(fb, x + Math.round(k * 0.35), y - k, k < 2 ? foam : mist, Math.min(170, 45 + 135 * (1 - k / q.len))); }
+      const x = Math.round(q.x), y = Math.round(q.y);
+      putA(fb, x, y, q.big || q.warm ? cream : foam, a);
+      if (q.big) putA(fb, x + 1, y, mist, a >> 1);
     }
     for (const rp of world.ripples) {
       if (rp.age < 0) continue;
@@ -1354,7 +1803,15 @@
       const y = Math.min(h - 1, Math.floor(dy * h / height)), py = at.y - 4 + dy;
       if (py < 0 || py >= LIM) continue;
       const k = y < h * 0.72 ? smooth((h * 0.72 - y) / (h * 0.72)) : 0, dx = Math.round(k * (1.7 * Math.sin(t * 0.8 + y * 0.05) + 0.9 * Math.sin(t * 0.45 + 1.3)));      // the crown sways, the trunk's foot never
-      for (let xx = 0; xx < width; xx++) { const x = Math.min(w - 1, Math.floor(xx * w / width)); if (!mask[y * w + x]) continue; const px = at.x + xx - 4 + dx + palmOffset(y, h); if (px >= 0 && px < W) fb[py * W + px] = src[y * w + x]; }
+      for (let xx = 0; xx < width; xx++) {
+        const x = Math.min(w - 1, Math.floor(xx * w / width)), index = y * w + x;
+        if (!mask[index]) continue;
+        const px = at.x + xx - 4 + dx + palmOffset(y, h);
+        if (px < 0 || px >= W) continue;
+        const color = src[index], red = color & 255, green = color >>> 8 & 255;
+        const coconut = x >= 41 && x <= 49 && y >= 29 && y <= 42 && red > green + 19;
+        fb[py * W + px] = coconut ? mixPx(color, hexPack('#ffd391'), y < 36 && x > 44 ? 88 : 33) : color;
+      }
     }
   }
   /** Sun rays: wide pale wedges that fan out of the sun over the sky, fading with distance; baked once into the backdrop's sky pixels (the wave and the sea are untouched). */
@@ -1416,11 +1873,11 @@
   function makeCraft(geom) {
     const hz = geom.horizon;
     return [
-      { type: 'ferry', x: 84, y: hz - 1, dir: 1, speed: 0.014, acc: 0, size: 24 },
-      { type: 'sloop', x: 14, y: hz + 4, dir: 1, speed: 0.05, acc: 0, size: 15 },
-      { type: 'llaut', x: 120, y: hz + 7, dir: -1, speed: 0.04, acc: 0, size: 14 },
-      { type: 'cruiser', x: 60, y: hz + 9, dir: 1, speed: 0.1, acc: 0, size: 13 },
-      { type: 'windsurf', x: 40, y: hz + 9, dir: 1, speed: 0.28, acc: 0, size: 13 },
+      { type: 'ferry', x: 105, y: hz - 1, dir: 1, speed: 0.014, acc: 0, size: 20 },
+      { type: 'sloop', x: 23, y: hz + 5, dir: 1, speed: 0.05, acc: 0, size: 15 },
+      { type: 'llaut', x: 139, y: hz + 7, dir: -1, speed: 0.04, acc: 0, size: 14 },
+      { type: 'cruiser', x: -22, y: hz + 8, dir: 1, speed: 0.1, acc: 0, size: 13 },
+      { type: 'windsurf', x: -12, y: hz + 10, dir: 1, speed: 0.28, acc: 0, size: 13 },
     ];
   }
   function stepCraft(world) {
@@ -1575,7 +2032,12 @@
       world.spray(150, 150, 50, 2.6);
     }
     if (set.c === SET_BURST + 20) for (let k = 0; k < 10; k++) world.puff('streak', 96 + rand() * 40, 128 + rand() * 6, -(0.25 + rand() * 0.2), 0.02, 60, 'back', 0.8, 3);
-    if (world.mist.length < 52 && rand() < 0.08 + 0.25 * set.surge) world.mist.push({ x: 120 + rand() * 80, y: 10 + rand() * 18, vx: -(0.15 + rand() * 0.3), vy: -0.03 - rand() * 0.1, r: 2 + rand() * 2.4, age: 0, life: 50 + Math.floor(rand() * 40) });      // spindrift and mist blow off the crest
+    if (world.mist.length < 52 && rand() < .26 + .25 * set.surge) {
+      const lip = world.geom.lip, point = lip[Math.floor(rand() * lip.length * .72)];
+      // Offshore wind pulls the finer spray upward over the shoulder.
+      world.mist.push({ x: point[0] + rand() * 3, y: point[1] - 2, vx: .29 + rand() * .61,
+        vy: -.25 - rand() * .52, r: 2.3 + rand() * 3.8, age: 0, life: 28 + Math.floor(rand() * 29) });
+    }
     for (const m of world.mist) { m.age++; m.x += m.vx; m.y += m.vy; m.vy *= 0.995; }
     world.mist = world.mist.filter((m) => m.age < m.life);
     if (world.shake) { world.shake.t++; if (world.shake.t > 26) world.shake = null; }
@@ -1656,7 +2118,7 @@
       if (q.layer !== layer) continue;
       const list = brushes[q.style], idx = Math.min(list.length - 1, q.cap, Math.floor(q.age / q.life * list.length * 1.4)), b = list[idx];
       const a = Math.round(256 * Math.min(1, q.age / 4) * Math.pow(Math.max(0, 1 - q.age / q.life), 0.8) * q.gain);
-      if (a > 0 && q.y - b.h < LIM) drawBrush(s.fb, b, Math.round(q.x - b.w / 2), Math.round(q.y - b.h / 2), a, flut, q.flip, q.clip ? s.back.cls : null, q.slant || 0);
+      if (a > 0 && q.y - b.h < LIM) drawBrush(s.fb, b, Math.round(q.x - b.w / 2), Math.round(q.y - b.h / 2), a, flut, q.flip);
     }
   }
   /** A broken fan of churned water opens behind the board. Its foamy threads
@@ -1686,8 +2148,11 @@
     for (let i = 1; i < wake.length; i++) {
       const a = wake[i - 1], b = wake[i], next = offset(b);
       if (a.group === b.group) {
-        const fade = b.age < 42 ? 1 - 0.18 * b.age / 42 : 0.82 * smooth((WAKE_LIFE - b.age) / 30);
-        const alpha = Math.round(250 * Math.max(0, fade));
+        const trailFade = b.age < 42 ? 1 - 0.18 * b.age / 42 : 0.82 * smooth((WAKE_LIFE - b.age) / 30);
+        const atCrest = smooth((b.y - centre[1] + 51) / 27);
+        const fade = trailFade * lerp(1, atCrest, smooth((b.age - 7) / 24));
+        const strength = ((a.strength ?? 1) + (b.strength ?? 1)) / 2;
+        const alpha = Math.round(250 * strength * Math.max(0, fade));
         const dx = b.x - a.x, dy = b.y - a.y;
         const n = Math.ceil(Math.max(Math.abs(dx), Math.abs(dy)));
         if (n <= 9 && alpha > 0) {
@@ -1753,6 +2218,14 @@
       if ((v && !boardPixel) || (boardOnly && !boardPixel)) return;
       putA(fb, x, y, foamLut[tone], alpha);
     };
+    if (rider.name === 'drag' && s.joints?.handB) {
+      const x = ox + Math.round(s.joints.handB[0]), y = oy + Math.round(s.joints.handB[1]);
+      const flick = tm % 9;
+      for (let i = 1; i < 8; i++) {
+        const a = Math.round((8 - i) * (15 + 5 * Math.sin(tm * .9 - i)));
+        wet(x + i, y + 1 - Math.round((i + flick) / 4), 20 + (i % 3) * 4, a);
+      }
+    }
     for (let along = start; along <= BOARD_HALF - 1; along += 0.8) {
       const width = boardHalfWidth(along), depth = (along - start) / (BOARD_HALF - start);
       // A translucent wash wraps just over the wet edge; the rest of the board remains visible.
@@ -1787,23 +2260,32 @@
   }
 
   function renderFrame(s) {
-    const world = s.world, fb = s.fb, back = s.back, geom = back.geom, st = world.steps;
+    const { world, fb, back } = s, plate = s.plate || back, geom = back.geom, st = world.steps;
     LIM = s.lim;
     const wp = Math.floor(world.phase), dockKey = Math.round(s.dock * 40);
     if (s.warpStep !== Math.floor(wp / 4) || s.baseLim < LIM || s.baseDock !== dockKey) {
-      const stable = dockKey >= 40 ? s.rgbDock : dockKey <= 0 ? back.rgb : null;                                   // the steady states use a backdrop baked with or without the scrim; only the easing darkens on the fly
-      applyWarp(s.base, back, s.warp, wp, LIM, stable);
+      const stable = s.wave || dockKey <= 0 ? plate.rgb : dockKey >= 40 ? s.rgbDock : null;
+      applyWarp(s.base, plate, s.warp, wp, LIM, stable);
       if (!stable) applyScrim(s.base, s.scrim, s.dock);
-      for (const c of world.clouds) { const b = s.cloudSprites[c.kind % s.cloudSprites.length]; drawCloud(s.base, back, b, c.x - (b.w >> 1), c.y); }                      // clouds are part of the cached layer: they move a pixel every several steps
+      if (!s.wave) for (const c of world.clouds) { const b = s.cloudSprites[c.kind % s.cloudSprites.length]; drawCloud(s.base, back, b, c.x - (b.w >> 1), c.y); }
       s.warpStep = Math.floor(wp / 4); s.baseLim = LIM; s.baseDock = dockKey;
     }          // the warp is slow: refreshed every second step
     fb.set(LIM >= H ? s.base : s.base.subarray(0, LIM * W));
+    drawCurrents(s, world);
+    if (s.wave) {
+      drawMovingWave(s, plate);
+      for (const c of world.clouds) {
+        const b = s.cloudSprites[c.kind % s.cloudSprites.length];
+        drawCloud(fb, back, b, c.x - (b.w >> 1), c.y);
+      }
+      applyScrim(fb, s.scrim, s.dock);
+    }
     drawSunGlow(s, world);
     // the sky: stars (dim, a few twinkle), clouds that drift over it, the far islet with its palms, the boat, tiny birds
     const star = hexPack('#d6c6f2'), bright = hexPack('#ffffff');
     for (const q of world.stars) {
       const ph = (st + q.phase) % q.period, i = q.y * W + q.x;
-      if (i >= LIM * W) continue;
+      if (i >= LIM * W || back.cls[i] !== CLS.SKY) continue;
       if (q.tw && ph < 8) { fb[i] = bright; if (q.big && ph > 1 && ph < 6) { put(fb, q.x - 1, q.y, star); put(fb, q.x + 1, q.y, star); put(fb, q.x, q.y - 1, star); put(fb, q.x, q.y + 1, star); } }
       else if (ph < q.period * 0.8 || !q.tw) fb[i] = q.big ? star : mixPx(fb[i], star, 150);
     }
@@ -1817,12 +2299,12 @@
     // the water's life: foam that drifts, the wake, then the surfer, the curtain, the foam in front, spray
     drawFoamItems(s, world, 'back');
     drawWake(s, world.wake);
-    drawVeil(s, world);                                                                                          // the curtain falls behind him: his face is never behind a streak
-    drawParticles(s, world, 1);                                                                                  // the curtain's streaks fall behind him
+    drawWhitewater(s, world);                                                                                    // the lip and wash are behind the surfer
+    drawBoardShade(s, world);
     drawSurferFrame(s, world);
     drawBoardContact(s, world);
     drawFoamItems(s, world, 'front');
-    drawParticles(s, world, 0);
+    drawParticles(s, world);
     drawMist(s, world);
     drawSparkles(s, world);
     for (const q of world.twinkles) { const k = q.age < 7 ? q.age / 6 : (14 - q.age) / 7; if (k > 0.2 && q.y < LIM) { put(fb, q.x, q.y, hexPack('#ffffff')); if (k > 0.55) { put(fb, q.x - 1, q.y, hexPack('#fff2c0')); put(fb, q.x + 1, q.y, hexPack('#fff2c0')); put(fb, q.x, q.y - 1, hexPack('#fff2c0')); put(fb, q.x, q.y + 1, hexPack('#fff2c0')); } } }
@@ -1857,15 +2339,28 @@
     init(api) {
       const rand = typeof api.random === 'function' ? api.random : seeded(1);
       LIM = H;
-      const pixels = atlasPixels(api), back = readPlate(api.json, pixels) || makeBackdrop(rand), noise = makeNoise(rand);
-      const world = createWorld({ random: rand, back, goldList: findGold(back) });
-      const s = { back, world, warp: buildWarp(back.cls, back.geom, back.rgb), brushes: readAtlasBrushes(api.json, pixels) || makeBrushes(noise), foamLut: buildFoamLut(), spal: surferPalette(), rim: null, raster: makeRaster(128, 112),
+      const pixels = atlasPixels(api), plate = readPlate(api.json, pixels) || makeBackdrop(rand), noise = makeNoise(rand);
+      const wave = makeWaveMotion(plate);
+      const back = wave ? {...plate, rgb: plate.background, cls: plate.cls.slice()} : plate;
+      const currents = buildCurrents(plate);
+      const world = createWorld({ random: rand, back: plate, current: currents.heading, goldList: findGold(plate) });
+      const s = { back, plate, wave, world, warp: buildWarp(plate.cls, plate.geom, plate.rgb), currents, breaker: makeBreaker(plate),
+        brushes: readAtlasBrushes(api.json, pixels) || makeBrushes(noise), foamLut: buildFoamLut(), spal: surferPalette(), rim: null, raster: makeRaster(128, 112),
         cloudSprites: [makeCloud(noise, 62, 12, 1), makeCloud(noise, 44, 9, 2), makeCloud(noise, 76, 13, 3), makeCloud(noise, 100, 15, 4), makeCloud(noise, 72, 11, 5)], tmp: new Uint32Array(W * H), scrim: makeScrim(), swells: makeSwells(rand, back.geom), dock: dockFor(viewBottom(api)), lim: H, stepAt: 0, joints: null, base: new Uint32Array(W * H), warpStep: -1, baseLim: 0 };
       s.img = typeof ImageData === 'function' ? new ImageData(W, H) : null;
       s.fb = s.img ? new Uint32Array(s.img.data.buffer) : new Uint32Array(W * H);
       s.rim = rimPalette(s.spal);
-      bakeRays(back);
-      s.rgbDock = back.rgb.slice(); applyScrim(s.rgbDock, s.scrim, 1);
+      bakeRays(plate);
+      if (wave) {
+        // Give newly revealed sky the same sun rays as the rest picture.
+        for (let i = 0; i < back.cls.length; i++) {
+          if (back.cls[i] === CLS.WATER) back.cls[i] = i < plate.geom.horizon * W ? CLS.SKY : CLS.SEA;
+        }
+        bakeRays(back);
+      } else {
+        s.rgbDock = back.rgb.slice();
+        applyScrim(s.rgbDock, s.scrim, 1);
+      }
       s.beach = makeBeach(rand);
       s.palm = readPalm(api.json, pixels);
       world.seek(2);
@@ -1895,7 +2390,7 @@
   const logic = {
     W, H, STEP, CLS, CLEAR, DEFAULT_GEOM, POSES, POSE_KEYS, SEGMENTS, VARIANTS, HOP, GULL_LANES, GULL_MAX_Y, THIGH, SHIN, BACK_THIGH, BACK_SHIN, UPPER, FORE, TORSO, BOARD_HALF, S,
     seeded, rgb, pack, unpack, mixRgb, mixPx, spline, makePath, makeNoise, makeBackdrop, readPlate, mergeGeometry, buildRamps, buildWarp, applyWarp, computeColumns, makeSurface, createRide,
-    createWorld, renderFrame, drawWake, drawBoardContact, boardPoint, drawSwell, drawSurferFrame, blendPose, bend, figure, followPose, FOLLOW, MOVES, SEQUENCES, START, projectDeck, deckPitch, drawStanding, standingJoints, drawPopUp, drawPaddler, drawSwimmer, drawBoard, surferPalette, rimPalette, makeRaster, blitRaster, pitchFor, quantise,
+    createWorld, renderFrame, drawWake, drawBoardContact, boardPoint, drawSwell, drawSurferFrame, blendPose, bend, figure, followPose, FOLLOW, MOVES, SEQUENCES, START, projectDeck, deckPitch, drawStanding, standingJoints, drawPopUp, drawPaddler, drawSwimmer, drawBoard, surferPalette, rimPalette, makeRaster, blitRaster, pitchFor, quantise, fallingWater, impactRun,
     makeBrush, makeBrushes, readAtlasBrushes, buildFoamLut, makeGull, gullShape, wingAngles, stepGull, makeCloud, makeScrim, makeCraft, GULL_TURN, applyScrim, readPalm, palmOffset, dress, drawHead, makeBeach, beachEdge, setState, SET_LEN, SET_BURST, shiftFrame, makeDolphin, dolphinAt, rowsFor, dockFor, atlasPixels,
   };
   if (global.TabletGames && typeof global.TabletGames.define === 'function') global.TabletGames.define('surf', scene);

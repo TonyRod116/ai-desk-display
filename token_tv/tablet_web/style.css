@@ -398,3 +398,11 @@ body.night-clock .weather { display: none; }        /* the clock-only night view
 .pool-foot { display: flex; justify-content: center; margin-top: calc(var(--u) * 16); }
 .pool-open { white-space: nowrap; }
 .scene-dialog.pool .scene-close { width: auto; min-width: calc(var(--u) * 56); padding: 0 calc(var(--u) * 24); border-radius: 999px; font-size: max(14px, calc(var(--u) * 22)); font-weight: 700; }
+
+.scene-manage-row { display:flex; justify-content:flex-end; margin:0 0 10px }
+.scene-manage-row:has(button[hidden]) { display:none }
+.remote-slot { min-width:0 }
+.remote-slot .slot-button { width:100% }
+.remote-slot[data-inactive="true"] .slot-button { opacity:.55 }
+.remote-active { display:flex; align-items:center; justify-content:center; gap:6px; min-height:34px; font-size:12px }
+.remote-active input { accent-color:#a9e0d3 }

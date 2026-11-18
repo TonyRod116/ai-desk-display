@@ -119,21 +119,59 @@
   const T = { AIR: 0, GROUND_TOP: 1, GROUND: 2, BRICK: 3, Q: 4, USED: 5, HARD: 6, PIPE: 7 };
   const SOLID = [0, 1, 1, 1, 1, 1, 1, 1];
   const FEATURES = [['pipe', 3], ['wall', 1], ['stairs', 1], ['pit', 2], ['blocks', 3], ['coinrow', 1], ['coinarc', 1], ['blobs', 3], ['tall', 2]];
+  const BIOMES = [
+    { name: 'sand', bias: {} },
+    { name: 'coast', bias: { pipe: 1, pit: 3, coinarc: 4, coinrow: 3 } },
+    { name: 'grotto', bias: { pipe: 1, wall: 3, stairs: 4, blocks: 4, coinarc: 2 } },
+    { name: 'forest', bias: { pipe: 2, tall: 4, blobs: 4, stairs: 2, coinrow: 3 } },
+  ];
+
+  function buildWorldRoute(level, put, coin, start) {
+    const platform = (offset, width, row, kind = T.HARD) => {
+      for (let i = 0; i < width; i++) put(start + offset + i, row, kind);
+    };
+    const collect = (offset, row) => coin(start + offset, row);
+    if (level.biome === 'sand') {
+      for (const [offset, height] of [[0, 1], [1, 2], [2, 3], [3, 2], [4, 1]]) {
+        for (let r = GROUND - height; r < GROUND; r++) put(start + offset, r, T.HARD);
+        collect(offset, GROUND - height - 2);
+      }
+    } else if (level.biome === 'coast') {
+      for (const [offset, width] of [[1, 2], [6, 3], [12, 2]]) {
+        platform(offset, width, GROUND, T.AIR);
+        platform(offset, width, GROUND + 1, T.AIR);
+        level.pits.push({col: start + offset, width});
+        for (let i = 0; i < width; i++) collect(offset + i, 12 - i % 2);
+      }
+    } else if (level.biome === 'grotto') {
+      platform(0, 2, 14); platform(3, 4, 12); platform(8, 2, 10); platform(11, 3, 12);
+      for (const [offset, row] of [[1, 12], [4, 10], [5, 10], [8, 8], [9, 8], [12, 14]]) collect(offset, row);
+    } else {
+      platform(1, 3, 13); platform(5, 3, 12); platform(10, 3, 10);
+      for (const [offset, row] of [[2, 11], [5, 10], [6, 10], [10, 8], [11, 8]]) collect(offset, row);
+    }
+    level.route = {col: start, length: 15};
+  }
 
   /** A level is a map of 8 x 8 cells (18 rows: the HUD, the sky, two rows of ground), the coins, the walkers, the scenery behind it and a goal. Everything comes from `rand`. */
   function buildLevel(rand, options) {
     const o = Object.assign({ cols: 288, number: 0 }, options);
     const cols = o.cols, tiles = new Uint8Array(cols * ROWS), coins = new Uint8Array(cols * ROWS);
-    const level = { cols, width: cols * TILE, tiles, coins, enemies: [], features: [], pits: [], decor: { clouds: [], pyramids: [], palms: [] }, goal: null, number: o.number, start: { x: 36, y: GROUND_Y } };
+    const biome = BIOMES[o.number % BIOMES.length], features = FEATURES.map(([kind, weight]) => [kind, biome.bias[kind] ?? weight]);
+    const level = { cols, width: cols * TILE, tiles, coins, enemies: [], features: [], pits: [], biome: biome.name, decor: { clouds: [], pyramids: [], palms: [] }, goal: null, number: o.number, start: { x: 36, y: GROUND_Y } };
     const put = (c, r, t) => { if (c >= 0 && c < cols && r >= 0 && r < ROWS) tiles[r * cols + c] = t; };
     const coin = (c, r) => { if (c >= 0 && c < cols && r >= 0 && r < ROWS && !tiles[r * cols + c]) coins[r * cols + c] = 1; };
     const between = (a, b) => a + Math.floor(rand() * (b - a + 1));
     for (let c = 0; c < cols; c++) { put(c, GROUND, T.GROUND_TOP); put(c, GROUND + 1, T.GROUND); }
-    const total = FEATURES.reduce((s, f) => s + f[1], 0);
-    const pick = () => { let r = rand() * total; for (const [name, w] of FEATURES) { r -= w; if (r < 0) return name; } return 'pipe'; };
+    const total = features.reduce((s, f) => s + f[1], 0);
+    const pick = () => { let r = rand() * total; for (const [name, w] of features) { r -= w; if (r < 0) return name; } return 'pipe'; };
     const goalCol = cols - 28, last = goalCol - 12;
     const walker = (kind) => kind === 'blobs' || kind === 'tall';
     let c = 22, previous = '', kind = pick();
+    if (last >= c + 25) {
+      buildWorldRoute(level, put, coin, c);
+      c += 25;
+    }
     while (c < last) {
       if (kind === previous && (kind === 'pit' || kind === 'pipe')) kind = 'blocks';
       previous = kind;
@@ -649,21 +687,49 @@
   function paintLevel(back, front, sheet, art, level) {
     back.clearRect(0, 0, level.width, LCD.h); front.clearRect(0, 0, level.width, LCD.h);
     back.fillStyle = SHADE_CSS[0]; back.fillRect(0, 0, level.width, LCD.h);
-    for (const p of level.decor.pyramids) {
+    paintTerritory(back, level);
+    for (const p of level.biome === 'sand' ? level.decor.pyramids : []) {
       const top = GROUND - p.h;
       blit(back, sheet, art, 'pyr-peak', p.col * TILE, top * TILE);
       for (let k = 1; k < p.h; k++) { blit(back, sheet, art, 'pyr-left', (p.col - k) * TILE, (top + k) * TILE); blit(back, sheet, art, 'pyr-right', (p.col + 1 + k) * TILE, (top + k) * TILE); }
     }
-    for (const p of level.decor.palms) {
+    for (const p of level.biome === 'sand' || level.biome === 'coast' ? level.decor.palms : []) {
       const top = GROUND - 1 - p.h;
       blit(back, sheet, art, 'palm-crown', p.col * TILE, top * TILE);
       for (let r = top + 1; r < GROUND; r++) blit(back, sheet, art, 'palm-trunk', p.col * TILE, r * TILE);
     }
-    for (const c of level.decor.clouds) blit(back, sheet, art, c.kind, c.x, c.y);
+    if (level.biome !== 'grotto') for (const c of level.decor.clouds) blit(back, sheet, art, c.kind, c.x, c.y);
     for (let r = 0; r < ROWS; r++) for (let c = 0; c < level.cols; c++) if (level.tiles[r * level.cols + c] !== T.PIPE) drawCell(front, sheet, art, level, c, r);
     for (const f of level.features) if (f.kind === 'pipe') {
       blit(front, sheet, art, 'pipe-top', f.col * TILE, (GROUND - f.h) * TILE);
       for (let r = GROUND - f.h + 2; r < GROUND; r++) blit(front, sheet, art, 'pipe-body', f.col * TILE, r * TILE);
+    }
+  }
+  function paintTerritory(g, level) {
+    const pick = seeded(913 + level.number * 23), w = level.width;
+    if (level.biome === 'coast') {
+      g.fillStyle = SHADE_CSS[1]; g.fillRect(0, 91, w, LCD.h - 91);
+      for (let x = 0; x < w; x += 6 + Math.floor(pick() * 28)) {
+        const y = 94 + Math.floor(pick() * 31);
+        g.fillStyle = SHADE_CSS[0]; g.fillRect(x, y, 2 + Math.floor(pick() * 9), 1);
+        if (x % 5 === 0) { g.fillStyle = SHADE_CSS[2]; g.fillRect(x + 3, y + 2, 9, 1); }
+      }
+    } else if (level.biome === 'grotto') {
+      g.fillStyle = SHADE_CSS[1]; g.fillRect(0, 32, w, 36);
+      for (let x = 0; x < w; x += 12 + Math.floor(pick() * 20)) {
+        const tall = 4 + Math.floor(pick() * 22);
+        g.fillStyle = SHADE_CSS[2]; g.fillRect(x, 33, 4, tall); g.fillRect(x + 1, 33 + tall, 2, 3);
+        const y = 112 - Math.floor(pick() * 13);
+        g.fillStyle = SHADE_CSS[1]; g.fillRect(x + 4, y, 7, 128 - y); g.fillRect(x + 6, y - 4, 3, 4);
+        g.fillStyle = SHADE_CSS[0]; g.fillRect(x + 7, y, 1, 6);
+      }
+    } else if (level.biome === 'forest') {
+      for (let x = -5; x < w; x += 18 + Math.floor(pick() * 21)) {
+        const y = 60 + Math.floor(pick() * 22);
+        g.fillStyle = SHADE_CSS[1]; g.fillRect(x + 6, y, 4, 128 - y);
+        g.fillRect(x, y + 2, 17, 6); g.fillRect(x - 4, y + 8, 25, 5); g.fillRect(x - 1, y + 13, 20, 6);
+        g.fillStyle = SHADE_CSS[2]; g.fillRect(x + 5, y + 19, 2, 128 - y - 19);
+      }
     }
   }
   /** One cell of the plain stand-in for the foreground: flat shapes in the four greens. */
@@ -679,8 +745,9 @@
   function paintLevelPlain(back, front, level) {
     back.clearRect(0, 0, level.width, LCD.h); front.clearRect(0, 0, level.width, LCD.h);
     back.fillStyle = SHADE_CSS[0]; back.fillRect(0, 0, level.width, LCD.h);
-    for (const c of level.decor.clouds) { back.fillStyle = SHADE_CSS[1]; back.fillRect(c.x, c.y + 4, c.kind === 'cloud-l' ? 40 : 24, 6); back.fillRect(c.x + 6, c.y, 12, 6); }
-    for (const p of level.decor.pyramids) { back.fillStyle = SHADE_CSS[2]; for (let k = 0; k < p.h; k++) back.fillRect((p.col - k) * TILE + 4, (GROUND - p.h + k) * TILE, 2 * k * TILE + 8, 1); }
+    paintTerritory(back, level);
+    if (level.biome !== 'grotto') for (const c of level.decor.clouds) { back.fillStyle = SHADE_CSS[1]; back.fillRect(c.x, c.y + 4, c.kind === 'cloud-l' ? 40 : 24, 6); back.fillRect(c.x + 6, c.y, 12, 6); }
+    if (level.biome === 'sand') for (const p of level.decor.pyramids) { back.fillStyle = SHADE_CSS[2]; for (let k = 0; k < p.h; k++) back.fillRect((p.col - k) * TILE + 4, (GROUND - p.h + k) * TILE, 2 * k * TILE + 8, 1); }
     for (let r = 0; r < ROWS; r++) for (let c = 0; c < level.cols; c++) if (level.tiles[r * level.cols + c] || level.coins[r * level.cols + c]) drawCellPlain(front, level, c, r);
   }
   /** A gauge of `n` segments `w` wide with a one-pixel gap: filled segments dark, the rest an empty track; unknown draws only a dotted track. */
@@ -802,7 +869,7 @@
       const rand = typeof api.random === 'function' ? api.random : seeded(7);
       const day = Math.floor(now(this) / 86400000);
       const base = Math.floor(rand() * 4294967296);
-      s.game = createGame({ rand: seeded((base ^ Math.imul(day, 2654435761)) >>> 0), number: Number.isFinite(this.dbg.number) ? this.dbg.number : 0, intro: false });
+      s.game = createGame({ cols: 216, rand: seeded((base ^ Math.imul(day, 2654435761)) >>> 0), number: Number.isFinite(this.dbg.number) ? this.dbg.number : 0, intro: false });
       const art = api.json && api.atlas ? readArt(api.json) : null;
       s.art = art; s.sheet = art ? recolorAtlas(api.atlas, art) : null;
       if (!s.sheet) s.art = null;

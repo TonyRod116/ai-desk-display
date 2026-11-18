@@ -149,6 +149,10 @@ def _craft(raw):
     for key, (low, high, default) in CRAFT_SPECS.items():
         value = raw.get(key)
         out[key] = _number(value, low, high, key) if value is not None else (CRAFT_SIZE[kind] if key == 'size' else default)
+    if raw.get('via') is not None:
+        out['via'] = _point(raw['via'], -0.3, 1.3, 'via')
+    if raw.get('end_size') is not None:
+        out['end_size'] = _number(raw['end_size'], 0.008, 0.12, 'end_size')
     seconds = out['seconds']
     every = raw.get('every')
     out['every'] = _number(every, seconds, 900, 'every') if every is not None else round(seconds * 1.7, 4)

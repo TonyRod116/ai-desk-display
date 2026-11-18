@@ -24,7 +24,7 @@ Open **http://127.0.0.1:18861/** on the computer. This is a local demo: its quot
    It needs Python, Pillow and `openssl`; the reference host is Linux or WSL. The service chooses a private network address. If you have multiple interfaces, `python -m token_tv.tablet_server --help` shows how to select one.
 3. On the **computer**, open **http://127.0.0.1:8666/** and choose a unique password of at least ten characters. The setup page shows the tablet's HTTPS address and certificate fingerprint.
 4. On the tablet, connected to the same trusted network, enter that complete address **including `https://`**. The certificate is generated on your computer, so the browser will not recognise its issuer. Compare its fingerprint with the setup page before trusting it; a warning alone does not establish that you reached the right computer. Sign in with the password you chose.
-5. Open the scene selector and try picture mode by tapping the clock. Swipe left or right to change scenes, or double-tap the picture to open the selector. The settings button controls language, rotation, night mode, motion and more.
+5. Open the scene selector and tap **Choose active scenes** to pick your library. Tap the clock to enter picture mode. Swipe left or right to change scenes, or double-tap the picture to open the selector. The settings button controls language, rotation, night mode, motion and more.
 
 The computer and monitor must be running for fresh quota readings; the tablet cannot query the providers by itself. An unavailable or expired reading is displayed as unknown. Codex's extra credits replace the percentage only when its verified week is exactly exhausted and its confirmed balance is positive. Missing, zero or negative balances keep the quota display; any positive quota remainder stays quota. The bar always represents the weekly allowance. Claude's spending cap is not a prepaid credit balance.
 
@@ -32,12 +32,13 @@ Computer metrics depend on the operating system and sensors: Windows/WSL and an 
 
 ## Add some scenes
 
-The repository includes code to draw several original tablet scenes. Generate the isometric city, coastal drive and fighting scene into the tablet's local scene folder:
+The repository includes code to draw several original tablet scenes. Generate them into the tablet's local scene folder.
 
 ```bash
 SCENES="$HOME/.local/share/ai-desk-display/tablet"
 python scripts/prepare_game_city_iso.py --out "$SCENES" --manifest
 python scripts/prepare_game_token_run.py --out "$SCENES" --manifest
+python scripts/prepare_tidal_rush_dusk.py --out "$SCENES"
 python scripts/prepare_game_fighting.py --out "$SCENES" --manifest
 python scripts/prepare_game_handheld.py --out "$SCENES"
 ```

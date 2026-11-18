@@ -11,11 +11,11 @@
 
 - Hyrule Quest includes an original, procedurally drawn traveller and a bundled scene. Optional local artwork, including a traveller strip or a complete custom scene, stays on the owner's computer; the project ships no ROM or extracted game sprites. The README preview uses only the bundled scene. See `docs/board-quest.md`.
 
-- Tablet README previews use fictional usage and computer readings. The Tidal Rush and Infinite Express previews show selected custom artwork that the maintainer asked to share; their source media are not included. The Versus preview uses an original bundled stage, not the optional private stage. The previews do not grant rights to underlying artwork.
+- Tablet README previews use fictional usage and computer readings. The Infinite Express preview shows selected custom artwork that the maintainer asked to share. The Versus preview uses an original bundled stage. The previews do not grant rights to underlying artwork.
 
-- The tablet scene picker image shows the real chooser using a sample catalogue. Its tiles reuse this repository’s public previews and bundled artwork. The maintainer’s Cozy Mountain Home appears as a small crop of the custom daytime scene. The Game Boy tile shows the bundled scene engine with a close-up of original demo sprites and fictional readings.
+- The tablet scene picker shows the real active-scene controls with the public demo and previously published thumbnails. The Tidal Rush GIF and dashboard screenshot use the original sunset landscape from `scripts/prepare_tidal_rush_dusk.py`, the current wave engine and the sample tablet interface.
 
-- The tablet handheld engine also has original geometric stand-ins drawn in code. `scripts/prepare_game_handheld.py` prepares that demo without a ROM or external graphics and will not overwrite an existing scene. The refreshed Tidal Rush README capture uses the same previously approved custom background with fictional quotas and credits.
+- The tablet handheld engine also has original geometric stand-ins drawn in code. `scripts/prepare_game_handheld.py` prepares that demo without a ROM or external graphics and will not overwrite an existing scene.
 
 - The local-storage and small-screen-remote README captures use only the procedural art from `scripts/sample_tablet.py`, fictional readings and a synthetic Android bridge for the storage controls. They are UI demonstrations, not captures of a user's accounts or hardware measurements. New Peaceful House source photographs, movies, sprites and prepared private films are not included; the repository ships only its preparer code.
 

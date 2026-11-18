@@ -19,6 +19,49 @@ const sample = () => ({
   craft: [{kind: 'gull', from: [-.1, .2], to: [1.1, .12], seconds: 40}],
 });
 
+test('photo wildlife and the extracted craft repeat on a closed 64 second timeline', () => {
+  const asset = '/assets/scene-wildlife.png';
+  assert.equal(normalizeLive({wildlife: asset}).wildlife, asset);
+  assert.equal(normalizeLive({wildlife: 'https://example.com/scene-wildlife.png'}), null);
+  for (const name of ['paradise', 'neon-district', 'midnight-video-club', 'city', 'violet-horizon']) {
+    assert.deepEqual(live.wildlifeState(name, 0), live.wildlifeState(name, 64));
+    for (let frame = 0; frame < 64 * 24; frame++) {
+      const t = frame / 24;
+      const items = live.wildlifeState(name, t);
+      assert.ok(items.every(i => i.alpha >= 0 && i.alpha <= 1 && i.size > 0
+        && (i.tile >= 0 && i.tile < 22 || i.tile >= 24 && i.tile < 32)));
+      assert.equal(items.length, live.wildlifeState(name, t + 64).length);
+    }
+  }
+  const front = live.wildlifeState('violet-horizon', 6)[0], distant = live.wildlifeState('violet-horizon', 31)[0];
+  assert.ok(distant.x > front.x && distant.y > front.y && distant.size < front.size);
+  assert.equal(distant.foreground, 'violet');
+  assert.ok(live.wildlifeState('midnight-video-club', 54, 'day').some(i => i.tile >= 24));
+  assert.ok(!live.wildlifeState('midnight-video-club', 54, 'night').some(i => i.tile >= 24));
+});
+
+test('local shoreline and branch motion loop and settle to rest around the bird visit', () => {
+  for (const time of [0, 1, 18, 19, 21, 27, 63.5]) {
+    for (const kind of ['water', 'clouds']) {
+      assert.deepEqual(live.photographMotion('paradise', kind, time, 'day'), live.photographMotion('paradise', kind, time + 64, 'day'));
+    }
+  }
+  assert.deepEqual(live.photographMotion('midnight-video-club', 'clouds', 12, 'day'), [1, 0]);
+  assert.ok(live.photographMotion('midnight-video-club', 'clouds', 19, 'day')[1] > 0);
+  assert.deepEqual(live.photographMotion('midnight-video-club', 'clouds', 19, 'night'), [0, 0]);
+});
+
+test('Paradise gulls cross briskly and have distinct downstrokes and glides', () => {
+  const frames = Array.from({length: 42}, (_, i) => live.gullBeat(i / 25, 0).frame);
+  assert.ok(frames.some(frame => frame > 1.5 && frame < 2.5), 'the wing reaches the lowered pose');
+  assert.ok(frames.some(frame => frame > 5.5 && frame < 6.5), 'the wing reaches the raised pose');
+  assert.equal(live.gullBeat(2.4, 0).frame, 0, 'a steady glide follows the stroke burst');
+  assert.notEqual(live.gullBeat(.42, 0).frame, live.gullBeat(.42, 1).frame);
+  const entering = live.wildlifeState('paradise', 5)[0], leaving = live.wildlifeState('paradise', 11)[0];
+  assert.ok(entering.x > .8 && leaving.x < .27);
+  assert.ok(live.wildlifeState('paradise', 19).length === 0, 'birds have exited the photograph by then');
+});
+
 test('a block is checked again by the page: defaults filled, numbers clamped, nothing usable gives null', () => {
   const cfg = normalizeLive(sample());
   assert.equal(cfg.version, 1);

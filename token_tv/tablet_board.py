@@ -8,9 +8,10 @@ control room (the same routes its own page, `/board`, uses, on 127.0.0.1) for fo
     rotation  0 | 30 | 60                    change pages by themselves, in minutes (0 = stay on one page)
     speed     75 | 100 | 125                 animation speed in percent: the page on display (firmware 27+), else every page
     night     {enabled, start, end, level}   the board's night schedule, kept and applied by the monitor
+    enable    {page, enabled}               include or skip one board slot
 
 Every value is checked here exactly as `board_control.BoardControl.execute` checks it (tests/test_tablet_board.py runs both side by
-side), and a refused value never causes a request. The only reachable routes are `GET /board/status`, `GET /board/preview/0..7.png` and the four `POST /board/<name>`
+side), and a refused value never causes a request. The only reachable routes are `GET /board/status`, `GET /board/preview/0..7.png` and the `POST /board/<name>`
 paths above, written out below; nothing is built from the caller's text. No token, cookie or Origin header is ever sent, redirects and
 proxies are not followed. JSON answers are limited to 64 KiB; the eight existing page previews are validated PNGs limited to 512 KiB.
 Status and command answers use a fixed shape and fixed words: never an error body, exception text, address or token.
@@ -57,12 +58,13 @@ ROTATIONS = (0, 30, 60)
 SPEEDS = (75, 100, 125)
 NIGHT_LEVELS = (5, 100)      # percent; never zero, a dark board looks dead (board_control.NIGHT_LEVEL_RANGE)
 
-COMMANDS = ('page', 'rotation', 'speed', 'night')
+COMMANDS = ('page', 'rotation', 'speed', 'night', 'enable')
 STATES = ('ok', 'offline', 'not_configured', 'unavailable')
 ERRORS = ('invalid', 'busy', 'rejected', 'timeout', 'unavailable')
 
 _STATUS_ROUTE = '/board/status'
-_ROUTES = {'page': '/board/page', 'rotation': '/board/rotation', 'speed': '/board/speed', 'night': '/board/night'}
+_ROUTES = {'page': '/board/page', 'rotation': '/board/rotation', 'speed': '/board/speed', 'night': '/board/night',
+           'enable': '/board/enable'}
 _BASE = re.compile(r'http://127\.0\.0\.1:([0-9]{1,5})/?')
 _CLOCK = re.compile(r'(?:[01][0-9]|2[0-3]):[0-5][0-9]')   # ASCII digits only: the control room's \d would also take other scripts'
 _NIGHT_KEYS = frozenset(('enabled', 'start', 'end', 'level'))
@@ -112,6 +114,12 @@ def clean_value(name, value):
         raise ValueError('Unknown control')
     if name == 'night':
         return _night(value)
+    if name == 'enable':
+        if (not isinstance(value, dict) or set(value) != {'page', 'enabled'}
+                or type(value['page']) is not int or not 0 <= value['page'] < PAGES
+                or type(value['enabled']) is not bool):
+            raise ValueError('Invalid enabled screen')
+        return dict(value)
     allowed = {'page': range(PAGES), 'rotation': ROTATIONS, 'speed': SPEEDS}[name]
     if type(value) is not int or value not in allowed:
         raise ValueError('Unsupported ' + name)
@@ -162,7 +170,7 @@ def clean_status(raw):
     # The control room's own page counts a busy monitor (it is sending a page) as usable once the page is known.
     usable = word == 'connected' or (word == 'busy' and page_known)
     on = usable and page_known and raw.get('showing_connection') is not True
-    return {'state': 'ok' if usable else word if word in ('offline', 'not_configured') else 'unavailable',
+    status = {'state': 'ok' if usable else word if word in ('offline', 'not_configured') else 'unavailable',
             'page': page if on else None,
             'controls': usable and raw.get('controls') is True,
             'rotation': _member(raw.get('rotation_minutes'), ROTATIONS) if usable else None,
@@ -170,6 +178,12 @@ def clean_status(raw):
             'night': _schedule(raw),
             'firmware': _label(raw.get('firmware'), 16) if usable else None,
             'slots': _slots(raw)}
+    count = _member(raw.get('available_slots'), range(1, PAGES + 1))
+    if usable and count is not None:
+        enabled = _member(raw.get('enabled_pages'), range(1, 1 << count))
+        if enabled is not None:
+            status.update(available_slots=count, enabled_pages=enabled)
+    return status
 
 
 def _unknown():
