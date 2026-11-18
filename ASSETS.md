@@ -13,7 +13,7 @@
 
 - Tablet README previews use fictional usage and computer readings. The Tidal Rush and Infinite Express previews show selected custom artwork that the maintainer asked to share; their source media are not included. The Versus preview uses an original bundled stage, not the optional private stage. The previews do not grant rights to underlying artwork.
 
-- The tablet scene picker image shows the real chooser using a sample catalogue. Its tiles reuse this repository’s public previews and bundled artwork, with an original illustration for Cozy Mountain Home.
+- The tablet scene picker image shows the real chooser using a sample catalogue. Its tiles reuse this repository’s public previews and bundled artwork. The maintainer’s Cozy Mountain Home appears as a small crop of the custom daytime scene. The Game Boy tile shows the original platform demo rendered by the bundled scene engine.
 
 - The tablet handheld engine also has original geometric stand-ins drawn in code. `scripts/prepare_game_handheld.py` prepares that demo without a ROM or external graphics and will not overwrite an existing scene. The refreshed Tidal Rush README capture uses the same previously approved custom background with fictional quotas and credits.
 
