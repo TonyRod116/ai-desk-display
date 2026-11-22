@@ -1,78 +1,111 @@
-# AI Desk Display
+<h1 align="center">AI Desk Display</h1>
 
-**A free, open-source display for your Claude and Codex quota.** Give an old tablet or a tiny touchscreen a second life.
+<p align="center">
+  <strong>100% free, open-source desk display for your Claude &amp; Codex quotas — plus live PC vitals.</strong><br>
+  Give an old tablet or a tiny ESP32 touchscreen a far better job than collecting dust.
+</p>
 
-I was waiting for my NerdMiner V2 to find a Bitcoin block. Turns out I hit my AI limits a lot more often. So I gave it a new job, dug out an old tablet, and got a little carried away with the backgrounds.
+<p align="center">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/price-$0_(MIT_License)-2ea44f?style=flat-square" alt="Free, MIT License"></a>
+  <img src="https://img.shields.io/badge/runs-100%25_local-1f6feb?style=flat-square" alt="100% local">
+  <img src="https://img.shields.io/badge/tracks-Claude_%2B_Codex_%2B_PC-f59e0b?style=flat-square" alt="Tracks Claude, Codex and PC">
+  <img src="https://img.shields.io/badge/displays-Tablet_%2B_ESP32-8b5cf6?style=flat-square" alt="Tablet and ESP32 displays">
+</p>
 
-[Install it for free](#bring-it-to-your-desk) · [Try it without an account](#try-it-without-a-display-or-an-account)
+<p align="center">
+  <a href="#try-it-in-60-seconds">Try the 60-second demo</a> ·
+  <a href="#put-it-on-your-desk">Install it for free</a> ·
+  <a href="#one-old-tablet-zero-wasted-space">Tablet scenes</a> ·
+  <a href="#eight-screens-zero-boredom">NerdMiner / ESP32</a>
+</p>
+
+> I bought a NerdMiner V2 hoping it would solo-mine a Bitcoin block. Spoiler: I hit my AI usage limits a *lot* more often than I find blocks. So I fired it from mining, rescued an old tablet from a drawer, and got slightly carried away building retro pixel-art worlds for my desk.
 
 <p align="center">
   <a href="docs/images/tablet-city-quota.gif"><img src="docs/images/tablet-city-quota.gif" width="360" alt="Isometric City dashboard showing Claude and Codex quotas falling as windows turn off in their towers, with CPU, GPU, memory and disk readings below"></a>
 </p>
-<p align="center"><sub>One lit window is 1% of the weekly quota left. Watch both towers go dark with the sample readings.</sub></p>
+<p align="center"><sub><b>Isometric City:</b> 1 lit window = 1% weekly quota left. Watch both towers go dark as your tokens evaporate. (The little helicopter does not judge your prompting habits. Probably.)</sub></p>
 
-In **Isometric City**, the Claude and Codex towers double as quota bars. As you use up your weekly allowance, windows go dark. The city follows the time of day and can react to the weather if you turn it on. The little helicopter has no opinion about your token habits. Probably.
+---
 
-You can also see **what’s left this week and when it resets**, plus Claude’s five-hour window when available. Saved resets show up when the provider reports them, and Codex can show extra credits when the weekly allowance runs out. The tablet dashboard also fits in CPU and GPU load and temperatures, memory, and free disk space when your computer supplies those readings.
+## Why put this on your desk?
 
-## One project, two desk toys
+| What you get | Why it’s actually useful |
+| :--- | :--- |
+| **Live AI quotas at a glance** | Weekly remaining **%** & reset countdowns for **Claude** and **Codex**, Claude’s **5-hour window**, **saved resets** when reported, and Codex **extra credits** when your week hits zero. No more tab-switching mid-flow. |
+| **Live PC vitals on the dock** | CPU & GPU load and temps, RAM usage, free disk space, and top active apps — without sacrificing a monitor. |
+| **One project, two desk toys** | Run it on any **old tablet** (browser or offline-ready Android app), a **NerdMiner V2 / ESP32 touchscreen**, or **both at once**. Also supports **GeekMagic SmallTV Ultra**. |
+| **90s–2000s arcade & cozy worlds** | Tap the clock to enter **Picture Mode**, swipe scenes, sync lighting to sunrise/sunset & real weather, dim automatically at night, and get optional low-quota chimes. |
+| **Built for real Wi-Fi** | Holds steady across brief hiccups instead of flashing blanks, and shows honest dashes if data is actually missing (unknown is *never* faked as `0%`). |
+| **Actually free & 100% local** | **MIT-licensed**, zero subscriptions, zero cloud relay, zero extra API keys. Uses the Claude Code / Codex CLI logins already on your machine. |
 
-**Tablet.** Open it in a browser, set it upright and tap the clock to switch to picture mode. Swipe to change scenes or let them rotate on their own. **Peaceful House** can go from sunrise to moonlight once you’ve prepared its time-of-day backgrounds. Over in **Tidal Rush**, the waves are having a considerably busier day.
+---
+
+## One old tablet, zero wasted space
+
+Stand an old tablet upright on your desk, open the page (or install the optional Android app so scenes stay cached offline), and **tap the clock** whenever you want to hide the dock and enjoy **Picture Mode**.
 
 <p align="center">
-  <img src="docs/images/tablet-isometric-weather.gif" width="46%" alt="Isometric City changing from daylight to rain and night">
-  <img src="docs/images/tablet-picture-peaceful-house.gif" width="46%" alt="Peaceful House, with waves rolling in beyond the window">
+  <a href="docs/images/tablet-picture-tidal-rush.gif"><img src="docs/images/tablet-picture-tidal-rush.gif" width="46%" alt="Tidal Rush in picture mode: a 90s-2000s arcade pixel-art wave swells, breaks and sends backlit turquoise foam across the barrel"></a>
+  <a href="docs/images/tablet-tidal-rush.png"><img src="docs/images/tablet-tidal-rush.png" width="46%" alt="Tidal Rush on the tablet dashboard with sample Claude and Codex quotas and PC vitals beneath the wave"></a>
 </p>
-<p align="center"><b>Isometric City after hours · Peaceful House</b></p>
+<p align="center"><b>Tidal Rush</b> — Picture mode &amp; live dashboard<br><sub>90s–2000s arcade barrel water at sunset. Your tokens may be sinking, but at least this guy is having a great day.</sub></p>
+
 <p align="center">
-  <img src="docs/images/tablet-picture-token-run.gif" width="46%" alt="Token Run, a retro drive along a palm-lined coast">
-  <img src="docs/images/tablet-picture-blue-lightning.gif" width="46%" alt="Blue Lightning, a jet banking above fields under a moving cloud ceiling">
+  <a href="docs/images/tablet-isometric-weather.gif"><img src="docs/images/tablet-isometric-weather.gif" width="46%" alt="Isometric City changing from daylight to rain and night"></a>
+  <a href="docs/images/tablet-picture-peaceful-house.gif"><img src="docs/images/tablet-picture-peaceful-house.gif" width="46%" alt="Peaceful House, with waves rolling in beyond the window"></a>
+</p>
+<p align="center"><b>Isometric City (live time &amp; weather) · Peaceful House</b></p>
+
+<p align="center">
+  <a href="docs/images/tablet-picture-token-run.gif"><img src="docs/images/tablet-picture-token-run.gif" width="46%" alt="Token Run, a retro drive along a palm-lined coast"></a>
+  <a href="docs/images/tablet-picture-blue-lightning.gif"><img src="docs/images/tablet-picture-blue-lightning.gif" width="46%" alt="Blue Lightning, a jet banking above fields under a moving cloud ceiling"></a>
 </p>
 <p align="center"><b>Token Run · Blue Lightning</b></p>
 
 <p align="center">
-  <a href="docs/images/tablet-picture-tidal-rush.gif"><img src="docs/images/tablet-picture-tidal-rush.gif" width="46%" alt="Tidal Rush in picture mode. The pixel-art wave swells, breaks and sends foam back into the barrel."></a>
-  <a href="docs/images/tablet-tidal-rush.png"><img src="docs/images/tablet-tidal-rush.png" width="46%" alt="Tidal Rush on the tablet dashboard with sample Claude and Codex quotas beneath the wave."></a>
+  <a href="docs/images/tablet-background-picker.png"><img src="docs/images/tablet-background-picker.png" width="540" alt="The active scenes picker showing demo tiles and which scenes are enabled"></a>
 </p>
-<p align="center"><b>Tidal Rush · Picture mode and dashboard</b></p>
+<p align="center"><sub>Swipe between scenes, park on your favorite, rotate automatically, or let the time of day pick the vibe.</sub></p>
+
+---
+
+## Eight screens, zero boredom
+
+**Got a NerdMiner V2 or compatible ESP32 touchscreen?** Load up to **eight animated scenes**, tap to switch, or auto-rotate every 30 or 60 minutes.
+
+In **Versus**, whoever runs out of quota literally gets **knocked out**. Turns out watching your AI get K.O.’d is a surprisingly effective reminder to go make coffee.
 
 <p align="center">
-  <a href="docs/images/tablet-background-picker.png"><img src="docs/images/tablet-background-picker.png" width="560" alt="The active scenes picker showing demo tiles and which scenes are enabled."></a>
-</p>
-<p align="center"><sub>Choose which scenes to keep in the tablet’s library.</sub></p>
-
-### Eight screens, zero boredom
-
-**NerdMiner V2 or compatible ESP32 touchscreen.** Load up to eight scenes and pick which ones to include. Tap to switch, or set them to rotate on the half hour or the hour. In Versus, the fighter who runs out of quota gets knocked out. I find this a surprisingly effective reminder to go make coffee.
-
-<p align="center">
-  <a href="docs/images/game-boy.gif"><img src="docs/images/game-boy.gif" width="36%" alt="Game Boy. Green LCD-style quota bars and reset hearts"></a>
-  <a href="docs/images/paradise.gif"><img src="docs/images/paradise.gif" width="36%" alt="Paradise. Waves rolling onto a beach beneath the quota cards"></a>
+  <a href="docs/images/game-boy.gif"><img src="docs/images/game-boy.gif" width="36%" alt="Game Boy: green LCD-style quota bars and reset hearts"></a>
+  <a href="docs/images/paradise.gif"><img src="docs/images/paradise.gif" width="36%" alt="Paradise: waves rolling onto a beach beneath the quota cards"></a>
 </p>
 <p align="center"><b>Game Boy · Paradise</b></p>
 <p align="center">
-  <a href="docs/images/code-forge.gif"><img src="docs/images/code-forge.gif" width="36%" alt="Neon City. A cyberpunk skyline with quota lights under the bridge"></a>
-  <a href="docs/images/surf.gif"><img src="docs/images/surf.gif" width="36%" alt="Tidal Rush. A pixel surfer riding a curling wave at sunset"></a>
+  <a href="docs/images/code-forge.gif"><img src="docs/images/code-forge.gif" width="36%" alt="Neon City: a cyberpunk skyline with quota lights under the bridge"></a>
+  <a href="docs/images/surf.gif"><img src="docs/images/surf.gif" width="36%" alt="Tidal Rush: a pixel surfer riding a curling wave at sunset"></a>
 </p>
 <p align="center"><b>Neon City · Tidal Rush</b></p>
 <p align="center">
-  <a href="docs/images/dials.gif"><img src="docs/images/dials.gif" width="36%" alt="Token Run. A coastal arcade racer with two quota gauges"></a>
-  <a href="docs/images/arcade.gif"><img src="docs/images/arcade.gif" width="36%" alt="Versus. Claude and Codex as arcade fighters with quota bars"></a>
+  <a href="docs/images/dials.gif"><img src="docs/images/dials.gif" width="36%" alt="Token Run: a coastal arcade racer with two quota gauges"></a>
+  <a href="docs/images/arcade.gif"><img src="docs/images/arcade.gif" width="36%" alt="Versus: Claude and Codex as arcade fighters with quota life bars"></a>
 </p>
 <p align="center"><b>Token Run · Versus</b></p>
 <p align="center">
-  <a href="docs/images/cockpit.gif"><img src="docs/images/cockpit.gif" width="36%" alt="Platform. A side-scrolling platform game with a quota HUD"></a>
-  <a href="docs/images/countdown.gif"><img src="docs/images/countdown.gif" width="36%" alt="City. An isometric skyline with quota windows and traffic"></a>
+  <a href="docs/images/cockpit.gif"><img src="docs/images/cockpit.gif" width="36%" alt="Platform: a side-scrolling platform game with a quota HUD"></a>
+  <a href="docs/images/countdown.gif"><img src="docs/images/countdown.gif" width="36%" alt="City: an isometric skyline with quota windows and traffic"></a>
 </p>
 <p align="center"><b>Platform · City</b></p>
 
-Use either display on its own, or run both. The [screen library](docs/board-control.md) lets you pick and reorder scenes for the little one.
+Use just the tablet, just the tiny screen, or run both together — the tablet even includes a remote control page to switch and reorder scenes in the [screen library](docs/board-control.md).
 
-<sub>The previews show sample readings. The weather clip runs through a simulated day. Some scenes use optional artwork you supply locally. See the [artwork notes](ASSETS.md).</sub>
+<sub>Previews use synthetic sample data. The weather clip speeds through a simulated day. A few scenes use optional local artwork you supply — see the [artwork notes](ASSETS.md).</sub>
 
-## Try it without a display or an account
+---
 
-Play with three animated scenes and made-up usage on your computer. You’ll need Git and Python 3.10+. On Windows, run these commands inside Ubuntu/WSL.
+## Try it in 60 seconds
+
+**No hardware, no login, no account needed.** Spin up three live animated scenes (**Isometric City**, **Blue Lightning**, and **Tidal Rush**) with sample data right in your browser. Requires Git and Python 3.10+ (on Windows, run inside Ubuntu/WSL).
 
 ```bash
 git clone https://github.com/TonyRod116/ai-desk-display.git
@@ -87,27 +120,38 @@ python scripts/prepare_tidal_rush_dusk.py --out preview/scenes
 python scripts/sample_tablet.py --scenes preview/scenes
 ```
 
-Choose **Isometric City**, **Blue Lightning** or **Tidal Rush** in the scene picker. [Open the local demo](http://127.0.0.1:18861/)
+Then open **[http://127.0.0.1:18861/](http://127.0.0.1:18861/)**, tap the clock for Picture Mode, and switch scenes in the top bar.
 
-For a gallery of the tiny-screen scenes, run `python scripts/render_gallery.py --out preview` and open `preview/gallery.png`.
+Want a contact sheet of all tiny-screen scenes? Run `python scripts/render_gallery.py --out preview` and open `preview/gallery.png`.
 
-## Bring it to your desk
+---
 
-AI Desk Display is free to install and use. For live readings, it uses your existing Claude or Codex account.
+## Put it on your desk
 
-1. Sign in to Claude Code, the Codex CLI, or both on the computer that will send the readings. Follow the [computer setup guide](docs/setup.md) to start the monitor and the readers you need.
-2. Pick your display. The [tablet guide](docs/tablet.md) gets you going over Wi-Fi, and the optional [Android app](docs/tablet-app.md) can keep scenery on the tablet for offline viewing. For a touchscreen board, check the [hardware guide](docs/hardware.md) for your exact model and follow the [firmware guide](firmware/board/README.md). Flashing replaces whatever is on the board, including the mining app on a NerdMiner.
+AI Desk Display is **completely free** — no paywalls, no accounts to create. Live numbers come directly from the Claude Code or Codex CLI you’re already signed into.
 
-Already have a GeekMagic SmallTV Ultra? It has [its own setup guide](docs/smalltv-ultra.md).
+1. **Connect your PC** — Sign in to Claude Code, the Codex CLI, or both, and follow the [computer setup guide](docs/setup.md) to start the local monitor and readers.
+2. **Pick your display:**
+   - **Tablet:** follow the [tablet guide](docs/tablet.md) to connect over Wi-Fi, plus the optional [Android app](docs/tablet-app.md) if you want full-screen offline scene caching.
+   - **ESP32 / NerdMiner V2:** check your exact board in the [hardware guide](docs/hardware.md) and flash via the [firmware guide](firmware/board/README.md) *(note: flashing replaces whatever was on the board, including the miner)*.
+   - **GeekMagic SmallTV Ultra:** has [its own setup guide](docs/smalltv-ultra.md) — no firmware flashing required.
 
-## The local part
+### Privacy & local network
 
-The display runs on your local network. Keep the computer and readers running for fresh quotas and PC stats. The readers contact the official providers, and optional weather uses Open-Meteo. Use a trusted network for the board and tablet. See the [offline guide](docs/tablet-offline.md) and [network notes](docs/setup.md#troubleshooting).
+Everything runs on **your own machine and local Wi-Fi**. The readers only talk to the official Claude/Codex endpoints, and optional outside weather uses Open-Meteo (with your location rounded and off by default). Use a trusted home network. Details in the [offline guide](docs/tablet-offline.md) and [network troubleshooting](docs/setup.md#troubleshooting).
+
+---
 
 ## Make it yours
 
-Try a new palette, invent a scene, or adapt the display to hardware you already have. You can ask an AI coding assistant to help. “Fit this to my screen and show me a preview with sample data” is a pretty good place to start. See the [tablet guide](docs/tablet.md) and the [flight scene guide](docs/tablet-blue-lightning.md) for examples.
+Want a different color palette, a custom retro scene, or support for some weird screen sitting in your closet? Point your favorite AI coding assistant at this repo and say:
 
-If you get it running on something unexpected, I’d love to see it. [Share it in an issue](https://github.com/TonyRod116/ai-desk-display/issues).
+> *“Fit this to my screen and show me a preview with sample data.”*
 
-Built by Tony with Claude Code and Codex. [MIT-licensed code](LICENSE), inspired by [TokenTV](https://github.com/click6067-ship-it/token-tv). [Artwork and font credits](ASSETS.md).
+Check out the [tablet guide](docs/tablet.md) and [flight scene guide](docs/tablet-blue-lightning.md) for examples. If you get it running on something unexpected (or build a cooler scene), **[show it off in an issue](https://github.com/TonyRod116/ai-desk-display/issues)**!
+
+---
+
+<p align="center">
+  Built by Tony with Claude Code and Codex · <a href="LICENSE">MIT License</a> · Inspired by <a href="https://github.com/click6067-ship-it/token-tv">TokenTV</a> · <a href="ASSETS.md">Artwork &amp; font credits</a>
+</p>
