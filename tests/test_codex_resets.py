@@ -59,3 +59,98 @@ class CodexResetTests(unittest.TestCase):
             reader.close()
         self.assertEqual([call.args[0] for call in rpc.call.call_args_list],
                          ['initialize', 'account/read', 'account/read', 'account/rateLimits/read', 'account/read'])
+
+    def test_transient_error_holds_fresh_codex_reading_and_retries_quickly(self):
+        import importlib.util
+        import io
+        import json
+        import tempfile
+        import time
+        from contextlib import redirect_stdout
+        from pathlib import Path
+        from token_tv.local_usage import atomic_json, origin_id
+        from token_tv.sources import SourceError
+        spec = importlib.util.spec_from_file_location('reset_collector_hold', Path(__file__).parents[1] / 'scripts/codex_reset_collector.py')
+        collector = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(collector)
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / 'codex'
+            cfg = {'automatic_codex_resets': True, 'accounts': [{'key': 'codex_a', 'alias': 'CODEX', 'provider': 'codex', 'source_home': str(root)}]}
+            cache = Path(directory) / 'offline/codex-official.json'
+            now = time.time()
+            fresh = {'fetched_at': now - 30, 'source': 'codex_official_cli', 'origin': origin_id(root),
+                     'windows': [{'label': 'WEEK', 'used_percent': 25, 'resets_at': now + 3600, 'duration_minutes': 10080}],
+                     'stale': False, 'ordinary_usage_allowed': True}
+            atomic_json(cache, fresh)
+            self.assertIsNotNone(collector.held_reading(cache, origin_id(root), now))
+            self.assertIsNone(collector.held_reading(cache, origin_id('/other'), now))
+            self.assertIsNone(collector.held_reading(cache, origin_id(root), now + collector.HOLD_SECONDS + 10))
+            waits, reader = [], MagicMock()
+            recovered = {**fresh, 'fetched_at': now + 10, 'windows': [{'label': 'WEEK', 'used_percent': 26, 'resets_at': now + 3600, 'duration_minutes': 10080}]}
+            reader.read_snapshot.side_effect = [SourceError('timeout'), {'available_resets': 1, 'quota': recovered}]
+            class Event:
+                done = False
+                def is_set(self): return self.done
+                def set(self): self.done = True
+                def wait(self, seconds):
+                    waits.append(seconds)
+                    if len(waits) == 1:
+                        self.assertEqual(json.loads(cache.read_text())['windows'][0]['used_percent'], 25)
+                    self.done = len(waits) == 2
+            Event.assertEqual = self.assertEqual
+            output = io.StringIO()
+            with redirect_stdout(output), \
+                 patch('sys.argv', ['collector', '--config', str(Path(directory) / 'config.json')]), \
+                 patch.object(collector, 'load_config', return_value=cfg), \
+                 patch.object(collector, 'CodexResetReader', return_value=reader), \
+                 patch.object(collector, 'notify_display', return_value=True) as notify, \
+                 patch.object(collector, 'Alerts'), \
+                 patch.object(collector.threading, 'Event', Event), \
+                 patch.object(collector.signal, 'signal'):
+                collector.main()
+            self.assertEqual(waits, [collector.RETRY_FIRST_SECONDS, collector.POLL_SECONDS])
+            self.assertEqual(notify.call_count, 1)
+            self.assertEqual(json.loads(cache.read_text())['windows'][0]['used_percent'], 26)
+            self.assertIn('(timeout)', output.getvalue())
+            self.assertIn('keeping the last reading', output.getvalue())
+            self.assertIn('recovered with a fresh reading', output.getvalue())
+
+    def test_identity_or_login_error_blanks_codex_reading_immediately(self):
+        import importlib.util
+        import json
+        import tempfile
+        import time
+        from pathlib import Path
+        from token_tv.local_usage import atomic_json, origin_id
+        from token_tv.sources import SourceError
+        spec = importlib.util.spec_from_file_location('reset_collector_blank', Path(__file__).parents[1] / 'scripts/codex_reset_collector.py')
+        collector = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(collector)
+        for code in ('identity_mismatch', 'subscription_login_required'):
+            with self.subTest(code=code), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory) / 'codex'
+                cfg = {'automatic_codex_resets': True, 'accounts': [{'key': 'codex_a', 'alias': 'CODEX', 'provider': 'codex', 'source_home': str(root)}]}
+                cache = Path(directory) / 'offline/codex-official.json'
+                now = time.time()
+                fresh = {'fetched_at': now - 10, 'source': 'codex_official_cli', 'origin': origin_id(root),
+                         'windows': [{'label': 'WEEK', 'used_percent': 25, 'resets_at': now + 3600, 'duration_minutes': 10080}],
+                         'stale': False, 'ordinary_usage_allowed': True}
+                atomic_json(cache, fresh)
+                reader = MagicMock()
+                reader.read_snapshot.side_effect = [SourceError(code)]
+                class Event:
+                    done = False
+                    def is_set(self): return self.done
+                    def set(self): self.done = True
+                    def wait(self, seconds): self.done = True
+                with patch('sys.argv', ['collector', '--config', str(Path(directory) / 'config.json')]), \
+                     patch.object(collector, 'load_config', return_value=cfg), \
+                     patch.object(collector, 'CodexResetReader', return_value=reader), \
+                     patch.object(collector, 'notify_display', return_value=True), \
+                     patch.object(collector, 'Alerts'), \
+                     patch.object(collector.threading, 'Event', Event), \
+                     patch.object(collector.signal, 'signal'):
+                    collector.main()
+                saved = json.loads(cache.read_text())
+                self.assertTrue(saved['stale'])
+                self.assertEqual(saved['windows'], [])

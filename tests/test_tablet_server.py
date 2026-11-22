@@ -553,6 +553,45 @@ class TabletServerTests(unittest.TestCase):
                 self.server.handle_error(None, ('192.168.1.9', 5))
         self.assertIn('Traceback', loud.getvalue())
 
+    def test_keep_alive_reuses_a_connection_and_closes_when_busy_or_malformed(self):
+        cookie = self.login()
+        conn = http.client.HTTPConnection('127.0.0.1', self.port, timeout=3)
+        try:
+            conn.request('GET', '/api/status', headers={'Cookie': cookie})
+            first = conn.getresponse()
+            first.read()
+            self.assertEqual(first.status, 200)
+            self.assertEqual(first.getheader('Connection'), 'keep-alive')
+            sock = conn.sock
+            conn.request('GET', '/api/status', headers={'Cookie': cookie})
+            second = conn.getresponse()
+            second.read()
+            self.assertEqual(second.status, 200)
+            self.assertIs(conn.sock, sock, 'the second poll reuses the same connection')
+            with self.server._active_lock:
+                self.server._active += self.server._keep_alive_limit
+            try:
+                conn.request('GET', '/api/status', headers={'Cookie': cookie})
+                busy = conn.getresponse()
+                busy.read()
+                self.assertEqual(busy.status, 200)
+                self.assertEqual(busy.getheader('Connection'), 'close')
+            finally:
+                with self.server._active_lock:
+                    self.server._active -= self.server._keep_alive_limit
+        finally:
+            conn.close()
+        conn = http.client.HTTPConnection('127.0.0.1', self.port, timeout=3)
+        try:
+            conn.request('POST', '/api/report', body='{"why":"tick"}',
+                         headers={'Cookie': cookie, 'Content-Type': 'application/json'})
+            bad = conn.getresponse()
+            bad.read()
+            self.assertEqual(bad.status, 403)
+            self.assertEqual(bad.getheader('Connection'), 'close')
+        finally:
+            conn.close()
+
 
 if __name__ == '__main__':
     unittest.main()

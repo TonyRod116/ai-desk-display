@@ -146,3 +146,15 @@ test('memory action reports observed free memory with enough precision to see sm
   assert.equal(format(22.4 * 1024 ** 3), '22.4 GB');
   assert.equal(format(400 * 1024 ** 2), '400 MB');
 });
+
+test('the page holds the last good status through a failed poll and reports how its polls went', () => {
+  const source = read('app.js');
+  assert.match(source, /const HOLD_MS = 120000/);
+  assert.match(source, /if \(lastGood && Date\.now\(\) - lastGoodAt < HOLD_MS\) \{ latest = lastGood; holding = true; \}/);
+  assert.match(source, /else \{ latest = null; holding = false; if \(stage && stage\.setReadings\) stage\.setReadings\(null\); \}/);
+  assert.match(source, /Object\.assign\(out, pollReport\(\)\);/);
+  // the retry after a failure is quick and bounded: 2, 4, 8 seconds, never 30
+  assert.match(source, /Math\.min\(8000, 2000 \* 2 \*\* Math\.min\(2, refreshFailures - 1\)\)/);
+  // inside the Android app a brief 401 holds the last good numbers while the paired key renews the session, then fails closed
+  assert.match(source, /if \(bridge && authFailures <= 4 && lastGood && Date\.now\(\) - lastGoodAt < HOLD_MS\) throw new Error\('session_refresh'\);/);
+});

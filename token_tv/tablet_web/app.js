@@ -346,6 +346,7 @@
         machine: box($('#machine')), disks: box($('#disks')) },
       ua: (navigator.userAgent.match(/Android [\d.]+|Chrome\/[\d.]+|Firefox\/[\d.]+|SamsungBrowser\/[\d.]+|Edg\/[\d.]+/g) || []).join(' '),
       cores: navigator.hardwareConcurrency || 0, mem: navigator.deviceMemory || 0, plat: platInfo };
+    Object.assign(out, pollReport());
     if (bridge) { out.app = String(native('version') || ''); out.bat = String(native('battery') || ''); const lux = Number(native('light')); if (Number.isFinite(lux)) out.lux = lux; }
     const local = offlineInfo();
     if (local) Object.assign(out, {offline_state:local.state, offline_ready:local.ready, offline_done:local.done, offline_count:local.count, offline_bytes:local.bytes, offline_total:local.total});
@@ -915,16 +916,35 @@
     if (window.TabletPanels) TabletPanels.renderComputer();
     fit();
   }
-  let pageBuild = null, updateReady = false, refreshAfter = 0, refreshFailures = 0;
+  let pageBuild = null, updateReady = false, refreshAfter = 0, refreshFailures = 0, authFailures = 0;
+  /* Keep the numbers through a brief hiccup, like the small screen does: a poll that fails or is slow no longer blanks the page.
+     The last good status stays on screen for up to HOLD_MS while the chip says the truth (offline); only after that does it go to
+     dashes (and the scenes keep their own, shorter freshness rule for the quota drawn in a picture). Every poll is logged so the page can report how many failed. */
+  const HOLD_MS = 120000, POLL_WINDOW_MS = 600000;
+  let lastGood = null, lastGoodAt = 0, lastPollMs = 0, holding = false; const pollLog = [];
+  function logPoll(ok, ms) { const now = Date.now(); pollLog.push({ t: now, ok, ms }); while (pollLog.length && now - pollLog[0].t > POLL_WINDOW_MS) pollLog.shift(); if (ok) lastPollMs = ms; }
+  function pollReport() {
+    const now = Date.now(), oks = pollLog.filter((p) => p.ok), bad = pollLog.length - oks.length;
+    let gap = 0, previous = oks.length ? oks[0].t : now;
+    for (const p of oks) { gap = Math.max(gap, p.t - previous); previous = p.t; }
+    gap = Math.max(gap, lastGoodAt ? now - lastGoodAt : 0);
+    return { conn: connection, st_ok: oks.length, st_bad: bad, st_gap: Math.round(gap / 1000), st_age: lastGoodAt ? Math.round((now - lastGoodAt) / 1000) : 86400, st_ms: Math.round(lastPollMs), held: holding };
+  }
   async function refresh() {
     if (inflight || Date.now() < refreshAfter) return; inflight = true;
-    const controller = new AbortController(), timeout = setTimeout(() => controller.abort(),4000);
+    const started = Date.now();
+    const controller = new AbortController(), timeout = setTimeout(() => controller.abort(),9000);
     try {
       const response = await fetch('/api/status',{cache:'no-store',signal:controller.signal});
-      if (response.status === 401) { latest = null; if (stage && stage.setReadings) stage.setReadings(null); window.location.replace('/login'); return; }
+      if (response.status === 401) {
+        authFailures++;
+        if (bridge && authFailures <= 4 && lastGood && Date.now() - lastGoodAt < HOLD_MS) throw new Error('session_refresh');
+        latest = null; if (stage && stage.setReadings) stage.setReadings(null); window.location.replace('/login'); return;
+      }
       if (!response.ok) throw new Error('unavailable');
       latest = await response.json(); connection = latest.quota_connected ? 'online' : 'partial';
-      refreshFailures = 0; refreshAfter = 0;
+      lastGood = latest; lastGoodAt = Date.now(); holding = false; logPoll(true, lastGoodAt - started);
+      refreshFailures = 0; authFailures = 0; refreshAfter = 0;
       if (Object.keys(pendingPatch).length) sendSettings();
       if (stage && stage.setReadings) stage.setReadings(latest);
       renderAppUpdate();
@@ -937,9 +957,10 @@
       }
       if (alerts && latest.quota_connected) raise(alerts.feed(latest, settings.alerts, Date.now()));
     } catch (_) {
-      latest = null; connection = 'offline'; refreshFailures++; refreshAfter = Date.now() + Math.min(30000, 5000 * 2 ** Math.min(3, refreshFailures - 1));
-      if (stage && stage.setReadings) stage.setReadings(null);
-    }      // a scene must not keep showing a reading that stopped arriving
+      connection = 'offline'; refreshFailures++; refreshAfter = Date.now() + Math.min(8000, 2000 * 2 ** Math.min(2, refreshFailures - 1)); logPoll(false, Date.now() - started);
+      if (lastGood && Date.now() - lastGoodAt < HOLD_MS) { latest = lastGood; holding = true; }      // a short gap: keep the last good numbers, the chip says offline
+      else { latest = null; holding = false; if (stage && stage.setReadings) stage.setReadings(null); }
+    }
     finally { clearTimeout(timeout); inflight = false; render(); }
   }
 

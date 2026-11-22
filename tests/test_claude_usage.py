@@ -27,7 +27,7 @@ if os.environ.get('FAKE_BLOCK'):
     sys.stdout.flush()
     sys.exit(0)
 screen = ('Claude Code v' + os.environ['FAKE_VERSION'] + '\\n'
-          'warning: Safe mode: all customizations are disabled\\n'
+          'warning: Safe mode: all customizations are ' + os.environ.get('FAKE_SAFE', 'disabled') + '\\n'
           + os.getcwd() + '\\nmanual mode on\\n')
 if os.environ.get('FAKE_SECOND_VERSION'):
     # A second header after a screen clear, without any safe-mode marker.
@@ -97,7 +97,7 @@ class ClaudeUsageTests(unittest.TestCase):
         old, _ = self.read_with_reused_cache(150)
         self.assertTrue(old['stale'])                                             # older than 90 s: not a reading to show
 
-    def read_with_fake_client(self, version, second_version=None, silent_cache=False):
+    def read_with_fake_client(self, version, second_version=None, silent_cache=False, safe_words=None):
         """Run the real reader against a stand-in client; return (result, usage_was_sent)."""
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory) / 'claude-home'
@@ -113,6 +113,8 @@ class ClaudeUsageTests(unittest.TestCase):
                 reader.env['FAKE_SECOND_VERSION'] = second_version
             if silent_cache:
                 reader.env['FAKE_SILENT_CACHE'] = '1'
+            if safe_words:
+                reader.env['FAKE_SAFE'] = safe_words
             with patch.object(reader, 'authenticate'):
                 try:
                     result = reader.read()
@@ -133,6 +135,19 @@ class ClaudeUsageTests(unittest.TestCase):
                 self.assertTrue(sent)
                 self.assertEqual([w['label'] for w in record['windows']], ['5H', 'WEEK'])
                 self.assertFalse(record['stale'])
+
+    def test_both_wordings_of_the_safe_mode_screen_are_recognised_and_any_other_is_not(self):
+        """Claude Code 2.1.328 changed "all customizations are disabled" to "... are off": the reader then never sent /usage (2026-11-19)."""
+        for words in ('disabled', 'off'):
+            with self.subTest(words=words):
+                record, sent = self.read_with_fake_client('2.1.328', safe_words=words)
+                self.assertTrue(sent)
+                self.assertEqual([w['label'] for w in record['windows']], ['5H', 'WEEK'])
+        for words in ('enabled', 'partly off', ''):
+            with self.subTest(words=words):
+                result, sent = self.read_with_fake_client('2.1.328', safe_words=words or 'x')
+                self.assertEqual(result, 'client_not_ready')
+                self.assertFalse(sent)                                           # an unknown screen still gets no command
 
     def test_unreviewed_client_series_receives_no_command_and_says_why(self):
         for version in ('2.2.0', '3.0.1', '1.9.9'):

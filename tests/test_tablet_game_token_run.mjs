@@ -452,12 +452,12 @@ test('the atlas reader: ladders sorted by height, anchors default to the foot, j
 
 /* ---- drawing, with a fake canvas --------------------------------------------------------------------------------------------------------- */
 
-test('arcade headlights follow the car and fade onto the shoulders', () => {
+test('arcade headlights remain short, follow the car and light the shoulder', () => {
   const base = run.pack([35, 48, 65]);
   const carRow = 236;
-  const row = (y, amount, centre = 100, left = 40, right = 160, sandStart = 0) => {
+  const row = (y, amount, centre = 100, left = 40, right = 160, landLeft = 0) => {
     const pixels = new Uint32Array(W * H).fill(base);
-    run.headlightRow(pixels, y, left, right, centre, carRow, amount, sandStart);
+    run.headlightRow(pixels, y, left, right, centre, carRow, amount, landLeft);
     return pixels;
   };
   const sum = (p) => p.reduce((n, colour) => n + (colour & 255) - (base & 255), 0);
@@ -487,16 +487,26 @@ test('arcade headlights follow the car and fade onto the shoulders', () => {
   assert.equal(near.length, 2, 'each headlight has its own beam');
   assert.equal(forward.length, 2, 'the beams stay distinct ahead of the car');
   assert.ok(forward[0] >= near[0] + 8 && forward[1] >= near[1] + 8, 'each beam opens out like a flashlight');
-  const spill = row(y, 1, 100, 90, 110, 74);
-  const leftCore = 77, rightCore = 123;
-  for (const x of [leftCore, rightCore]) {
-    assert.ok((spill[y * W + x] & 255) > (base & 255), 'both shoulders receive light');
-    assert.ok((spill[y * W + x] & 255) < (lit[y * W + x] & 255), 'less light reaches the shoulder than the asphalt');
-  }
-  for (let x = 0; x < 74; x++) assert.equal(spill[y * W + x], base, 'the sea remains unlit');
+  const leftEdge = row(y, 1, 69, 45, 155, 32);
+  const rightEdge = row(y, 1, 131, 45, 155, 32);
+  assert.ok((leftEdge[y * W + 40] & 255) > (base & 255) + 60, 'the left shoulder is lit');
+  assert.ok((rightEdge[y * W + 162] & 255) > (base & 255) + 60, 'the right shoulder is lit');
+  assert.ok(Math.abs((leftEdge[y * W + 44] & 255) - (leftEdge[y * W + 45] & 255)) < 12, 'the beam crosses the kerb continuously');
+  for (let x = 0; x < 32; x++) assert.equal(leftEdge[y * W + x], base, 'the coastal beam fades before it reaches the sea');
 });
 
 globalThis.ImageData = globalThis.ImageData || class ImageData { constructor(w, h) { this.width = w; this.height = h; this.data = new Uint8ClampedArray(w * h * 4); } };
+
+test('streetlights have a compact luminous core and a feathered round halo', () => {
+  const image = run.lampGlowImage();
+  const middle = (image.width - 1) / 2;
+  const alpha = (x, y) => image.data[(y * image.width + x) * 4 + 3];
+  assert.ok(alpha(middle, middle) > 140);
+  assert.ok(alpha(middle + 4, middle) < alpha(middle, middle) && alpha(middle + 4, middle) > 0);
+  assert.equal(alpha(middle + 4, middle), alpha(middle, middle + 4), 'the falloff is radial');
+  assert.equal(alpha(middle + 6, middle + 6), 0, 'the square corners are transparent');
+});
+
 function fakeContext() {
   const calls = {drawImage: [], fillRect: 0, putImageData: 0, save: 0, restore: 0, other: 0};
   return {calls, canvas: {}, imageSmoothingEnabled: false, fillStyle: '', globalCompositeOperation: 'source-over',

@@ -8,7 +8,7 @@ from urllib.request import Request
 
 from token_tv.alerts import Alerts
 from token_tv.codex_resets import CodexResetReader
-from token_tv.local_usage import atomic_json, origin_id
+from token_tv.local_usage import OFFICIAL_MAX_AGE_SECONDS, atomic_json, origin_id, read_record
 from token_tv.http import open_direct
 from token_tv.reader_status import last_state, publish_status, reason_for
 from token_tv.reset_balances import ResetBalances
@@ -16,6 +16,20 @@ from token_tv.sources import SourceError, load_config
 
 _PENDING = object()
 POLL_SECONDS = 60
+RETRY_FIRST_SECONDS = 10
+# A single transient RPC/CLI hiccup must not wipe a good reading that is still inside the display's own 480 s limit:
+# the monitor ages it at 180 s and expires it honestly at 480 s. Account/login/schema failures still blank at once.
+HOLD_SECONDS = OFFICIAL_MAX_AGE_SECONDS - 30
+HOLDABLE = {'timeout', 'rpc_error', 'cli_unavailable', 'TimeoutError', 'OSError', 'BrokenPipeError', 'EOFError', 'ConnectionError'}
+
+
+def held_reading(path, origin, now):
+    """The reading already on disk if it belongs to this account, has windows, is fresh and not stale."""
+    record = read_record(path)
+    if (record and record.get('origin') == origin and record.get('windows') and not record.get('stale')
+            and 0 <= now - record.get('fetched_at', 0) <= HOLD_SECONDS):
+        return record
+    return None
 
 
 def notify_display():
@@ -64,8 +78,11 @@ def main():
     reader = None
     offline = path.parent / 'offline'
     cache_path = offline / 'codex-official.json'
+    origin = origin_id(accounts[0]['source_home'], email)
     alerts = Alerts(path.parent / 'state' / 'alerts-codex.json', 'codex')
     state, since = last_state(offline, 'codex')   # a quick restart keeps when the current state began
+    was_unavailable = False
+    retry_wait = RETRY_FIRST_SECONDS
     try:
         while not stopping.is_set():
             code = None
@@ -83,22 +100,36 @@ def main():
                 # Error text or RPC payloads must not enter the journal; only a fixed code reaches the status file.
                 code = error.code if isinstance(error, SourceError) else type(error).__name__
                 count = None
-                quota = {'fetched_at': 0, 'windows': [], 'origin': origin_id(accounts[0]['source_home'], email),
+                quota = {'fetched_at': 0, 'windows': [], 'origin': origin,
                          'source': 'codex_official_cli', 'stale': True}
                 if reader is not None:
                     reader.close()
                     reader = None
-                print('Codex quota/reset reading unavailable; retrying automatically.', flush=True)
             if stopping.is_set():
                 break
             now = time.time()
+            held = code in HOLDABLE and held_reading(cache_path, origin, now) is not None
+            if code in HOLDABLE:
+                wait = retry_wait
+                retry_wait = min(POLL_SECONDS, retry_wait * 2)
+            else:
+                wait = POLL_SECONDS
+                retry_wait = RETRY_FIRST_SECONDS
+            if code is not None:
+                print(f'Codex quota/reset reading unavailable ({code}); '
+                      + ('keeping the last reading until it is older than the display limit.' if held else 'shown as unknown.')
+                      + f' Retry in {wait} seconds.', flush=True)
+            elif was_unavailable:
+                print('Codex quota/reset reading recovered with a fresh reading.', flush=True)
+            was_unavailable = code is not None
             if ('failing' if code else 'ok') != state:
                 state, since = 'failing' if code else 'ok', int(now)
             why = reason_for(code) if code else None
-            publish_status(offline, 'codex', state, why, since, None, now + POLL_SECONDS, now)   # first: publish_reading notifies the monitor
-            publish_reading(balances, count, quota, cache_path)
+            publish_status(offline, 'codex', state, why, since, None, now + wait, now)   # first: publish_reading notifies the monitor
+            if not held:
+                publish_reading(balances, count, quota, cache_path)
             alerts.observe(code is None, why, now)
-            stopping.wait(POLL_SECONDS)
+            stopping.wait(wait)
     finally:
         if reader is not None:
             reader.close()

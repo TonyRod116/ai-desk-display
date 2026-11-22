@@ -92,7 +92,7 @@
 
   /* ---- the day: where the sun is and how the scene is lit.
    *
-   * The tablet knows no location, so the sun is computed for a reference location from the date and the clock's own time zone: the standard declination and
+   * The tablet knows no location, so the sun is computed for Madrid (Tony's home) from the date and the clock's own time zone: the standard declination and
    * equation-of-time formulas, then the altitude. Everything the scene shows of the time of day is a function of that altitude (and whether it is the morning), so
    * dusk is a real dusk: the sun grows and reddens as it sets over the sea on the left, stars come out when it is well below the horizon. */
   const LAT = 40.4, LON = -3.7;
@@ -584,22 +584,22 @@
   /** The player's sprite and its light use the same screen position. */
   const playerScreenX = (world) => CX + Math.round((world.player.x - world.camX) * FX / ZP);
 
-  /** Two short arcade beams that reach the shoulders and stop at the waterline. */
-  function headlightRow(buf, y, left, right, centre, carRow, amount, sandStart = 0) {
+  /** Project both beams onto the ground, with a softer response beyond the kerbs. */
+  function headlightRow(buf, y, left, right, centre, carRow, amount, landLeft = 0) {
     const distance = carRow - 23 - y;
     if (amount <= 0.2 || distance < 0 || distance >= 34) return;
     const separation = 16 + Math.floor(distance * 0.58), radius = 13 + Math.floor(distance * 0.75);
     const strength = 0.72 * amount * (1 - smooth(distance / 34));
-    const shoulderReach = 34;
-    const from = Math.max(0, sandStart, left - shoulderReach, Math.floor(centre - separation - radius));
-    const to = Math.min(W, right + shoulderReach, Math.ceil(centre + separation + radius));
+    const from = Math.max(0, landLeft, Math.floor(centre - separation - radius));
+    const to = Math.min(W, Math.ceil(centre + separation + radius));
     for (let x = from; x < to; x++) {
       const d = Math.min(Math.abs(x - centre - separation), Math.abs(x - centre + separation));
       if (d >= radius) continue;
-      const band = d < radius * 0.45 ? 1 : d < radius * 0.75 ? 0.65 : 0.35;
-      const shoulderDistance = Math.max(0, left - x, x - right + 1);
-      const a = strength * band * (1 - smooth(shoulderDistance / shoulderReach));
-      const index = y * W + x, pixel = buf[index];
+      const beam = 1 - smooth(clamp((d / radius - .44) / .56, 0, 1));
+      const verge = Math.max(0, left - x, x - right + 1);
+      const surface = 1 - .29 * smooth(clamp(verge / 22, 0, 1));
+      const shore = landLeft > 0 ? smooth(clamp((x - landLeft + .5) / 5, 0, 1)) : 1;
+      const a = strength * beam * surface * shore, index = y * W + x, pixel = buf[index];
       const r = pixel & 255, green = (pixel >>> 8) & 255, b = (pixel >>> 16) & 255;
       buf[index] = (0xff000000 | (Math.round(b + (220 - b) * a) << 16) | (Math.round(green + (240 - green) * a) << 8) | Math.round(r + (255 - r) * a)) >>> 0;
     }
@@ -744,28 +744,29 @@
     push(2, ZP, null, 0);
     list.length = n;
     list.sort((p, q) => q.z - p.z);
-    const lamps = light.lamps > 0.2 ? s.glow : null;
-    if (lamps) lamps.length = 0;
+    const lit = light.lamps > 0.2;
     for (const it of list) {
       if (it.kind === 0) {
         const obj = it.a, k = it.b, zn = proj.zn[k], e = obj.kind === 'bridge' ? pickRung(atlas.ladders.bridge, 2900 * FX / zn, 'nominal') : pickRung(atlas.ladders[obj.kind], KINDS[obj.kind] * FX / zn);
         if (e && obj.kind === 'bridge') drawOverpass(g, s, e, proj.xn[k], proj.y1[k], zn, geo, light.tint);
-        else if (e) blit(g, s, e, proj.xn[k] + obj.off * FX / zn, proj.y1[k], proj.clip[k]);
-        if (lamps && obj.kind === 'lamp' && e) lamps.push([Math.round(proj.xn[k] + obj.off * FX / zn - e.ax + e.w - 1 - Math.max(0, e.h / 14)), Math.round(proj.y1[k] - e.h + 1), Math.max(2, e.h >> 3), 0]);
+        else if (e) {
+          const clip = proj.clip[k], box = blit(g, s, e, proj.xn[k] + obj.off * FX / zn, proj.y1[k], clip);
+          if (box && lit && obj.kind === 'lamp') drawLampGlow(g, s.lampGlow, box, e, clip, light.lamps);
+        }
       } else if (it.kind === 1) {
         const r = it.a, road = sampleRoad(proj, it.z);
         if (!road) continue;
         const e = pickRung(atlas.ladders['rival-' + RIVAL_NAMES[r.colour]], RIVAL_WIDTH * FX / it.z, 'nominal');
         if (!e) continue;
         const box = blit(g, s, e, road.x + r.x * FX / it.z, road.y, proj.clip[road.k]);
-        if (box && lamps) rivalLights(g, box, e, proj.clip[road.k], light.lamps);
+        if (box && lit) rivalLights(g, box, e, proj.clip[road.k], light.lamps);
       } else {
         const p = world.player, hop = p.hop > 0 ? HOP[HOP.length - p.hop] : 0;
         const phase = ((world.steps / CAR_PHASE_STEPS) | 0) & 3, name = 'car-' + (p.lean + 2) + '-' + phase, e = atlas.frame(name);
         const carX = playerScreenX(world);
         if (e) {
           const box = blit(g, s, e, carX, geo.carRow + hop, H);
-          if (box && light.lamps > 0.2) rearLights(g, box, e, phase, light.lamps);
+          if (box && lit) rearLights(g, box, e, phase, light.lamps);
           if (box && p.honk > 0 && ((p.honk >> 2) & 1) === 0) honkMarks(g, box);
         }
       }
@@ -821,12 +822,43 @@
   }
   const RIVAL_NAMES = ['blue', 'yellow', 'white', 'teal', 'orange', 'violet', 'green', 'black'];
 
-  /** After dark the rival tail lights and lamp posts glow. The car's lights are drawn with the road and the car. */
-  function drawLights(g, s, light) {
-    const amount = clamp(light.lamps, 0, 1);
-    if (amount < 0.2) return;
-    g.save(); g.globalCompositeOperation = 'lighter';
-    for (const [x, y, size, red] of s.glow) { g.fillStyle = red ? 'rgba(255,60,40,' + (0.55 * amount) + ')' : 'rgba(255,226,140,' + (0.7 * amount) + ')'; g.fillRect(x - 1, y - 1, size + 2, size + 2); }
+  /** A tiny lamp glow, baked once and scaled with each visible streetlight. */
+  function lampGlowImage() {
+    const middle = 8, size = middle * 2 + 1, glow = new ImageData(size, size);
+    for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) {
+      const distance = Math.hypot(x - middle, y - middle) / middle;
+      if (distance >= 1) continue;
+      const falloff = 1 - smooth(distance), core = falloff ** 6;
+      const i = (y * size + x) * 4;
+      glow.data[i] = 255;
+      glow.data[i + 1] = Math.round(210 + 35 * core);
+      glow.data[i + 2] = Math.round(136 + 90 * core);
+      glow.data[i + 3] = Math.round(255 * (.25 * falloff + .53 * core));
+    }
+    return glow;
+  }
+  function makeLampGlow() {
+    if (typeof document === 'undefined' || typeof ImageData !== 'function') return null;
+    const image = lampGlowImage(), canvas = document.createElement('canvas');
+    canvas.width = image.width;
+    canvas.height = image.height;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return null;
+    ctx.putImageData(image, 0, 0);
+    return canvas;
+  }
+  function drawLampGlow(g, glow, box, sprite, clip, amount) {
+    if (!glow) return;
+    const x = box.x + box.w - 1 - Math.floor(sprite.nominal / 14);
+    const y = box.y + Math.floor(Math.max(1, sprite.nominal / 18) / 2);
+    if (y >= clip) return;
+    const rx = clamp(Math.round(sprite.h * .105), 2, 11), ry = Math.max(1, Math.round(rx * .66));
+    const top = y - ry, width = 2 * rx + 1, height = 2 * ry + 1;
+    const visible = Math.min(height, clip - top);
+    g.save();
+    g.globalCompositeOperation = 'lighter';
+    g.globalAlpha = clamp(amount, 0, 1);
+    g.drawImage(glow, 0, 0, glow.width, glow.height * visible / height, x - rx, top, width, visible);
     g.restore();
   }
 
@@ -848,7 +880,7 @@
       const world = createWorld({ random: typeof api.random === 'function' ? api.random : null, route });
       const lib = api.json && api.atlas ? readAtlas(api.json) : null;
       const anchor = anchorsFor(viewBottom(api));
-      const s = { world, lib, atlas: api.atlas || null, sheet: api.atlas || null, list: [], glow: [], proj: makeProjection(), palKey: '', pal: null, tintKey: '',
+      const s = { world, lib, atlas: api.atlas || null, sheet: api.atlas || null, list: [], lampGlow: lib ? makeLampGlow() : null, proj: makeProjection(), palKey: '', pal: null, tintKey: '',
         anchor, geo: geometry(anchor.horizon, anchor.carRow), stepAt: 0 };
       s.img = typeof ImageData === 'function' ? new ImageData(W, H) : null;
       s.buf = s.img ? new Uint32Array(s.img.data.buffer) : null;
@@ -877,7 +909,7 @@
       paintSky(s.buf, view, s.pal, world, light, geo.horizon);
       paintGround(s.buf, s.proj, s.pal, world, light);
       g.putImageData(s.img, 0, 0);
-      if (s.lib) { drawAir(g, s, world, geo.horizon); drawSprites(g, s, world, s.proj, light); drawLights(g, s, light); } else drawPlainCar(g, world, geo);
+      if (s.lib) { drawAir(g, s, world, geo.horizon); drawSprites(g, s, world, s.proj, light); } else drawPlainCar(g, world, geo);
     },
     poke(api, x, y) { if (this.s) this.s.world.poke(x, y, this.s.geo.horizon); },
   };
@@ -886,7 +918,7 @@
     W, H, HORIZON, CX, SEG, ROAD, LANE, CAM_H, FX, FY, ZP, CAR_ROW, DRAW, TRACK, BAND, HILL_GAIN, STEP, CRUISE, LANE_SPEED, KINDS, HOP, KEYS, LEVELS, ANCHOR, DEFAULT_GEO, SKY_ROWS,
     anchorsFor, geometry, easeAnchors,
     seeded, rgb, pack, mixRgb, sunState, lightAt, phaseName, sunPlace, moonPlace, beachAt, validRoute, buildTrack, buildScenery, makeProjection, projectRoad, sampleRoad, wrapZ, laneX, heightAt,
-    createWorld, buildPalette, makeSkyMap, makeRidge, readAtlas, pickRung, playerScreenX, headlightRow,
+    createWorld, buildPalette, makeSkyMap, makeRidge, readAtlas, pickRung, playerScreenX, headlightRow, lampGlowImage,
   };
   if (global.TabletGames && typeof global.TabletGames.define === 'function') global.TabletGames.define('token-run', scene);
   if (typeof module !== 'undefined' && module.exports) module.exports = Object.assign({ scene }, logic);

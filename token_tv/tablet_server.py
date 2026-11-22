@@ -382,12 +382,12 @@ class Auth:
 # What the tablet's own page may tell this server about itself: sizes, flags and fixed words, never free text from the page's data.
 _REPORT_WORDS = {'why': ('load', 'fullscreen', 'scene', 'resize', 'tick'), 'renderer': ('webgl', 'css', 'plain'),
                  'tier': ('high', 'medium', 'light', 'low', 'css', 'plain'), 'look': ('crt', 'lcd', 'photo', 'plain'),
-                 'wake': ('on', 'blocked', 'unsupported', 'off', 'none'), 'offline_state': ('ready', 'saving', 'waiting', 'storage', 'sign_in')}
+                 'wake': ('on', 'blocked', 'unsupported', 'off', 'none'), 'offline_state': ('ready', 'saving', 'waiting', 'storage', 'sign_in'), 'conn': ('online', 'partial', 'offline', 'connecting')}
 _REPORT_NUMBERS = {'vw': (0, 20000), 'vh': (0, 20000), 'sw': (0, 20000), 'sh': (0, 20000), 'dpr': (.25, 8), 'fit': (.05, 2), 'u': (0, 20),
                    'ovh': (-20000, 20000), 'ovw': (-20000, 20000), 'ovh0': (-20000, 20000), 'fps': (0, 1000), 'dropped': (0, 10 ** 7),
                    'level': (0, 20), 'scale': (0, 8), 'vvs': (0, 20), 'mem': (0, 1024), 'cores': (0, 1024), 'age': (0, 10 ** 7), 'lux': (-1, 200000),
-                   'offline_done': (0, 256), 'offline_count': (0, 256), 'offline_bytes': (0, 2 * 1024 ** 3), 'offline_total': (0, 2 * 1024 ** 3)}
-_REPORT_FLAGS = ('fs', 'rm', 'motion', 'paused', 'video', 'ready', 'blocked', 'secure', 'hidden', 'glass', 'offline_ready')
+                   'st_ok': (0, 5000), 'st_bad': (0, 5000), 'st_gap': (0, 100000), 'st_age': (0, 100000), 'st_ms': (0, 60000), 'offline_done': (0, 256), 'offline_count': (0, 256), 'offline_bytes': (0, 2 * 1024 ** 3), 'offline_total': (0, 2 * 1024 ** 3)}
+_REPORT_FLAGS = ('fs', 'rm', 'motion', 'paused', 'video', 'ready', 'blocked', 'secure', 'hidden', 'glass', 'offline_ready', 'held')
 _REPORT_TEXT = {'gpu': 90, 'ua': 140, 'error': 120, 'plat': 60, 'app': 20, 'bat': 40}
 _REPORT_BOXES = ('topbar', 'slot', 'intro', 'dock', 'quota', 'band', 'machine', 'disks')
 
@@ -477,7 +477,22 @@ def local_snapshot():
         return None
 
 
+QUOTA_FRESH = 20.0           # a quota reading younger than this counts as connected
+QUOTA_HOLD = 120.0           # seconds the last good reading is still served when polls start failing
+HARDWARE_FRESH = 95.0
+HARDWARE_HOLD = 300.0        # PC metrics move slowly: a few missed collections do not blank the card
+
+
+def _usable_hardware(value):
+    """A collection that returned nothing at all is a failed collection, not a PC without a CPU."""
+    return isinstance(value, dict) and bool(value.get('cpu_percent') is not None or value.get('memory') or value.get('disks') or value.get('gpus'))
+
+
 class Feeds:
+    """The quota (from the monitor, every 5 s) and the PC's numbers (every 30 s). A failed poll never erases the last good reading: `status()` keeps serving it
+    for a bounded time (QUOTA_HOLD, HARDWARE_HOLD), flags it as aged once it is no longer fresh and says so through `quota_connected`, so a brief hiccup does not
+    blank the tablet while a long outage still ends in honest dashes."""
+
     def __init__(self, snapshot=local_snapshot, metrics=collect):
         self.snapshot = snapshot
         self.metrics = metrics
@@ -496,11 +511,13 @@ class Feeds:
                 value = method()
             except Exception:
                 value = None
+            good = value is not None and (name != 'hardware' or _usable_hardware(value))
             if name == 'hardware':
-                self.history.add(value)                          # None is recorded as a gap; add() never raises
-            with self.lock:
-                setattr(self, name, value)
-                setattr(self, stamp, time.monotonic())
+                self.history.add(value if good else None)        # None is recorded as a gap; add() never raises
+            if good:                                             # only a good poll replaces the reading and renews its stamp
+                with self.lock:
+                    setattr(self, name, value)
+                    setattr(self, stamp, time.monotonic())
             self.stop.wait(max(1.0, interval - (time.monotonic() - started)))      # keeps the points about 30 s apart
 
     def start(self):
@@ -510,11 +527,15 @@ class Feeds:
     def status(self):
         now = time.monotonic()
         with self.lock:
-            quota = self.quota if now - self.quota_at < 10 else None
-            hardware = self.hardware if now - self.hardware_at < 95 else None
+            quota_age, hardware_age = now - self.quota_at, now - self.hardware_at
+            quota = self.quota if quota_age < QUOTA_HOLD else None
+            hardware = self.hardware if hardware_age < HARDWARE_HOLD else None
+        providers = (quota or {}).get('providers', {})
+        if quota is not None and quota_age >= QUOTA_FRESH:       # held through a gap: still shown, marked as aged
+            providers = {name: ({**value, 'aged': True} if isinstance(value, dict) else value) for name, value in providers.items()}
         metrics = None if hardware is None else {**hardware, 'history': self.history.payload()}
-        return {'providers': (quota or {}).get('providers', {}),
-                'quota_connected': quota is not None, 'metrics': metrics}
+        return {'providers': providers, 'quota_connected': quota is not None and quota_age < QUOTA_FRESH,
+                'quota_age': int(quota_age) if quota is not None else None, 'hardware_age': int(hardware_age) if hardware is not None else None, 'metrics': metrics}
 
 
 def ensure_certificate(directory, address):
@@ -561,14 +582,25 @@ class TabletServer(ThreadingHTTPServer):
         self.lan, self.lan_port, self.fingerprint = lan, lan_port, fingerprint
         self.tls_context = None
         self._slots = threading.BoundedSemaphore(8)
+        self._active_lock = threading.Lock()
+        self._active = 0
+        self._keep_alive_limit = 4
+
+    def keep_alive_allowed(self):
+        with self._active_lock:
+            return self._active <= self._keep_alive_limit
 
     def process_request(self, request, client_address):
         if not self._slots.acquire(blocking=False):
             self.shutdown_request(request)
             return
+        with self._active_lock:
+            self._active += 1
         try:
             super().process_request(request, client_address)
         except BaseException:
+            with self._active_lock:
+                self._active -= 1
             self._slots.release()
             raise
 
@@ -576,6 +608,8 @@ class TabletServer(ThreadingHTTPServer):
         try:
             super().process_request_thread(request, client_address)
         finally:
+            with self._active_lock:
+                self._active -= 1
             self._slots.release()
 
     def handle_error(self, request, client_address):
@@ -600,15 +634,71 @@ class TabletServer(ThreadingHTTPServer):
         return conn, address
 
 
+KEEP_ALIVE_IDLE = 12
+KEEP_ALIVE_MAX = 120
+
+
 class Handler(BaseHTTPRequestHandler):
+    protocol_version = 'HTTP/1.1'
     server_version = 'AI Desk Display'
     sys_version = ''
 
     def setup(self):
         super().setup()
+        self._requests = 0
         self.connection.settimeout(5)
         if isinstance(self.connection, ssl.SSLSocket):
             self.connection.do_handshake()
+
+    def handle_one_request(self):
+        if self._requests > 0:
+            self.connection.settimeout(KEEP_ALIVE_IDLE)
+            try:
+                self.raw_requestline = self.rfile.readline(65537)
+            except (TimeoutError, ConnectionError, ssl.SSLError):
+                self.close_connection = True
+                return
+            if not self.raw_requestline:
+                self.close_connection = True
+                return
+            self.connection.settimeout(5)
+            self._requests += 1
+            if len(self.raw_requestline) > 65536:
+                self.requestline = ''
+                self.request_version = ''
+                self.command = ''
+                self.close_connection = True
+                self.send_error(414)
+                return
+            if not self.parse_request():
+                self.close_connection = True
+                return
+            method = 'do_' + self.command
+            if not hasattr(self, method):
+                self.close_connection = True
+                self.send_error(501)
+                return
+            getattr(self, method)()
+            self.wfile.flush()
+            return
+        self._requests += 1
+        super().handle_one_request()
+
+    def send_error(self, code, message=None, explain=None):
+        self.close_connection = True
+        super().send_error(code, message, explain)
+
+    def end_headers(self):
+        version = getattr(self, 'request_version', 'HTTP/1.0') or 'HTTP/1.0'
+        keep = (not self.close_connection and version >= 'HTTP/1.1'
+                and self._requests < KEEP_ALIVE_MAX and self.server.keep_alive_allowed())
+        if keep:
+            self.send_header('Connection', 'keep-alive')
+            self.send_header('Keep-Alive', f'timeout={KEEP_ALIVE_IDLE}, max={KEEP_ALIVE_MAX}')
+        else:
+            self.close_connection = True
+            self.send_header('Connection', 'close')
+        super().end_headers()
 
     def log_message(self, format, *args):
         pass
@@ -689,6 +779,7 @@ class Handler(BaseHTTPRequestHandler):
                 while remaining > 0:
                     chunk = handle.read(min(65536, remaining))
                     if not chunk:
+                        self.close_connection = True
                         break
                     self.wfile.write(chunk)
                     remaining -= len(chunk)
@@ -700,14 +791,24 @@ class Handler(BaseHTTPRequestHandler):
 
     def _read(self, limit=2048):
         if not self._origin_ok() or self.headers.get('Content-Type', '').split(';')[0] != 'application/json':
+            self.close_connection = True
             return None
         try:
             length = int(self.headers.get('Content-Length', '0'))
             if not 0 < length <= limit:
+                self.close_connection = True
                 return None
-            data = json.loads(self.rfile.read(length))
-            return data if isinstance(data, dict) else None
+            raw = self.rfile.read(length)
+            if len(raw) != length:
+                self.close_connection = True
+                return None
+            data = json.loads(raw)
+            if isinstance(data, dict):
+                return data
+            self.close_connection = True
+            return None
         except (OSError, ValueError):
+            self.close_connection = True
             return None
 
     def _file(self, path, kind):

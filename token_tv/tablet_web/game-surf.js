@@ -550,16 +550,16 @@
   const TONES = { skin: [S.skin, S.skinLight, S.skinShade], shirt: [S.shirt, S.shirtLight, S.shirtShade], trunks: [S.trunks, S.trunksLight, S.trunksDark], board: [S.board, S.boardLight, S.boardDark] };
   function surferPalette() {
     const c = hexPack, p = new Uint32Array(23);
-    p[S.skin] = c('#d09479'); p[S.skinLight] = c('#ecc09b'); p[S.skinShade] = c('#956761'); p[S.hair] = c('#26233a'); p[S.hairLight] = c('#7c4f48');
-    p[S.shirt] = c('#253e4f'); p[S.shirtLight] = c('#526b71'); p[S.shirtShade] = c('#20283e'); p[S.trunks] = c('#302c49'); p[S.trunksLight] = c('#53546d'); p[S.trunksDark] = c('#1c2035');
-    p[S.stripe] = c('#de9b76'); p[S.eye] = c('#252739'); p[S.mouth] = c('#a0655c'); p[S.board] = c('#c99b74'); p[S.boardLight] = c('#e0cda3'); p[S.boardDark] = c('#354d57');
-    p[S.cream] = c('#fff0c9'); p[S.fin] = c('#253941'); p[S.cap] = c('#355e65'); p[S.white] = c('#e8f0e7'); p[S.belly] = c('#835c5b');
+    p[S.skin] = c('#db9b7c'); p[S.skinLight] = c('#f7caa0'); p[S.skinShade] = c('#9e625d'); p[S.hair] = c('#1e1834'); p[S.hairLight] = c('#8c5446');
+    p[S.shirt] = c('#d2dce8'); p[S.shirtLight] = c('#f0eee4'); p[S.shirtShade] = c('#62789a'); p[S.trunks] = c('#d6404e'); p[S.trunksLight] = c('#ff7a68'); p[S.trunksDark] = c('#7a1c34');
+    p[S.stripe] = c('#ef5b48'); p[S.eye] = c('#1e2034'); p[S.mouth] = c('#a4635c'); p[S.board] = c('#f0c276'); p[S.boardLight] = c('#fff2c8'); p[S.boardDark] = c('#274858');
+    p[S.cream] = c('#fff0c4'); p[S.fin] = c('#253941'); p[S.cap] = c('#ff5e4d'); p[S.white] = c('#eef6f0'); p[S.belly] = c('#8b5e5d');
     return p;
   }
   /** The warm rim of the sunset on the sunny edge of every part: the palette index -> a brighter, warmer packed colour. */
   function rimPalette(pal) {
-    const out = new Uint32Array(pal.length), warm = rgb('#ffd890');
-    for (let i = 1; i < pal.length; i++) out[i] = pack(mixRgb(unpack(pal[i]), warm, i === S.eye || i === S.mouth ? 0.15 : 0.52));
+    const out = new Uint32Array(pal.length), warm = rgb('#ffea9e');
+    for (let i = 1; i < pal.length; i++) out[i] = pack(mixRgb(unpack(pal[i]), warm, i === S.eye || i === S.mouth ? 0.15 : 0.56));
     return out;
   }
   const OUTLINE = hexPack('#1c0f3a');
@@ -997,7 +997,7 @@
   }
   /** The foam colours for a brush tone (0-255): 32 steps from translucent aqua to white. */
   function buildFoamLut() {
-    const lut = new Uint32Array(32), stops = [[0, rgb('#5ad0c8')], [0.45, rgb('#a8ece0')], [0.8, rgb('#e4fbf4')], [1, rgb('#ffffff')]];
+    const lut = new Uint32Array(32), stops = [[0, rgb('#187ca8')], [0.45, rgb('#68dcf0')], [0.8, rgb('#dffbff')], [1, rgb('#fffbf0')]];
     for (let i = 0; i < 32; i++) {
       const t = i / 31; let k = 1; while (k < stops.length - 1 && t > stops[k][0]) k++;
       lut[i] = pack(mixRgb(stops[k - 1][1], stops[k][1], clamp((t - stops[k - 1][0]) / (stops[k][0] - stops[k - 1][0]), 0, 1)));
@@ -1294,19 +1294,21 @@
     }
     return { w, h, tone, alpha };
   }
-  /** A cloud takes the colour of the sky behind it: violet and shadowed on top, lit warm underneath (four flat steps). */
-  const CLOUD_SHADOW_PX = hexPack('#402278'), CLOUD_LIT_PX = hexPack('#ffdea8');
+  /** A cloud takes the colour of the sky behind it: deep twilight violet on top, sunset rose-gold underneath. */
+  const CLOUD_SHADOW_PX = hexPack('#2c164c'), CLOUD_LIT_PX = hexPack('#ffbe7c'), CLOUD_HIGH_LIT_PX = hexPack('#b8688c');
   function drawCloud(fb, back, b, x0, y0) {
     for (let yy = 0; yy < b.h; yy++) {
       const py = y0 + yy;
       if (py < 0 || py >= LIM) continue;
+      const litCol = py < 44 ? CLOUD_HIGH_LIT_PX : CLOUD_LIT_PX;
+      const litGain = py < 44 ? 135 : 175;
       for (let xx = 0; xx < b.w; xx++) {
         const px = x0 + xx;
         if (px < 0 || px >= W || !b.alpha[yy * b.w + xx]) continue;
         const i = py * W + px;
         if (back.cls[i] !== CLS.SKY) continue;
         const k = Math.floor(b.tone[yy * b.w + xx] / 64) / 3;
-        fb[i] = mixPx(mixPx(back.rgb[i], CLOUD_SHADOW_PX, Math.round(200 * (1 - k))), CLOUD_LIT_PX, Math.round(205 * k));
+        fb[i] = mixPx(mixPx(back.rgb[i], CLOUD_SHADOW_PX, Math.round(150 * (1 - k))), litCol, Math.round(litGain * k));
       }
     }
   }
@@ -1420,7 +1422,7 @@
       }
     }
   }
-  const CURRENT_LIGHT = hexPack('#a4e9bf'), CURRENT_DEPTH = hexPack('#0e3b52');
+  const CURRENT_LIGHT = hexPack('#2ad0ec'), CURRENT_VEIN = hexPack('#e4fdff'), CURRENT_SUN = hexPack('#ffe49e'), CURRENT_DEPTH = hexPack('#041236');
   function currentSegments(points) {
     if (!points) return [];
     const samples = spline(points, 3), segments = [];
@@ -1478,12 +1480,13 @@
     const heading = path.length ? {x: new Int8Array(W * H), y: new Int8Array(W * H)} : null;
     const noise = makeNoise(seeded(0x453CE8));
     for (let r = 0; r < 64; r++) for (let u = 0; u < 256; u++) {
-      // Blend the broad folds across the seam. The finer scales already
-      // tile at 256 by using the noise generator's 64 cell period.
-      const folds = lerp(noise(u / 8, r * .25), noise((u - 256) / 8, r * .25), smooth(u / 256));
-      const grain = noise(u / 4 + 19, r * .76);
-      const lift = 154 * (folds - .51) + 74 * (grain - .52);
-      flow[r * 256 + u] = Math.round(clamp(lift, -91, 105));
+      // Sleek stretched flow ribbons along the barrel curl (long along u, crisp
+      // across r) with fine aerated foam filaments on the sharpest ridges.
+      const broad = lerp(noise(u / 16, r * .46), noise((u - 256) / 16, r * .46), smooth(u / 256));
+      const ribbon = lerp(noise(u / 8 + 11, r * .92), noise((u - 256) / 8 + 11, r * .92), smooth(u / 256));
+      const thread = noise(u / 4 + 27, r * 1.35);
+      const lift = 128 * (broad - .50) + 92 * (ribbon - .51) + 56 * (thread - .53);
+      flow[r * 256 + u] = Math.round(clamp(lift, -96, 118));
     }
     const texels = [];
     for (let i = 0; i < back.cls.length; i++) {
@@ -1510,7 +1513,7 @@
   }
   function drawCurrents(s, world) {
     const { fb, currents } = s;
-    const phase = Math.floor(world.phase * 3.0);
+    const phase = Math.floor(world.phase * 3.4);
     const end = LIM * W;
     const { flow, texels, gain } = currents;
     for (let k = 0; k < texels.length; k++) {
@@ -1519,12 +1522,20 @@
       if (i >= end) break;
       const address = texel >>> 16;
       const crest = flow[(address & 0xff00) | ((address + phase) & 255)];
-      if (crest > 15) {
+      if (crest > 16) {
         const color = fb[i];
         // The thin pale rim belongs to the breaker, even as water moves below it.
-        if (((color >>> 8) & 255) < 192) fb[i] = mixPx(color, CURRENT_LIGHT, ((crest - 8) * gain[i] + 127) >> 8);
+        if (((color >>> 8) & 255) < 204) {
+          const g = gain[i];
+          if (crest > 74) {
+            const sunCatch = i < 96 * W && (i % W) < 146 && crest > 88;
+            fb[i] = mixPx(color, sunCatch ? CURRENT_SUN : CURRENT_VEIN, ((crest - 36) * g + 127) >> 8);
+          } else {
+            fb[i] = mixPx(color, CURRENT_LIGHT, ((crest - 10) * g + 127) >> 8);
+          }
+        }
       } else if (crest < -14) {
-        if (((fb[i] >>> 8) & 255) < 192) fb[i] = mixPx(fb[i], CURRENT_DEPTH, ((-crest - 6) * gain[i] + 127) >> 8);
+        if (((fb[i] >>> 8) & 255) < 196) fb[i] = mixPx(fb[i], CURRENT_DEPTH, ((-crest - 5) * gain[i] + 127) >> 8);
       }
     }
   }
@@ -1571,7 +1582,7 @@
 
   /** The lip grows while it throws and thins while the foam boils up. */
   function veilStrength(v) { return v.state === 'throw' ? Math.min(1, v.t / 14) : v.state === 'crash' ? Math.max(0, 1 - v.t / 40) : 0; }
-  const FOAM_CREST = hexPack('#fff9ed'), FOAM_COOL = hexPack('#d1efee'), FOAM_CLEAR = hexPack('#8edbd0');
+  const FOAM_CREST = hexPack('#fffaf0'), FOAM_SUN = hexPack('#ffdc96'), FOAM_COOL = hexPack('#7ae4f0'), FOAM_CLEAR = hexPack('#2aa4c8'), FOAM_SHADE = hexPack('#12507c');
 
   function heightAtFoot(points, x) {
     for (let i = 1; i < points.length; i++) {
@@ -1656,36 +1667,48 @@
       if (froth > 78) putA(fb, x - 1, y - 1, FOAM_CREST, a >> 1);
     }
 
-    // The impact drives whitewater along the trough behind the curl.
+    // The impact drives crisp 3-tone arcade foam billows along the trough.
     const { pixels, addresses, texture, coverage } = breaker;
-    const offset = Math.floor(world.phase * 3.65), end = LIM * W;
-    const edge = 12 + 62 * (1 - wash);
+    const offset = Math.floor(world.phase * 4.0), end = LIM * W;
+    const edge = 16 + 56 * (1 - wash);
     for (let n = 0; n < pixels.length; n++) {
       const i = pixels[n], address = addresses[n];
       if (i >= end) break;
       const bubbles = texture[(address & 0xf80) | ((address - offset) & 127)];
-      const gain = clamp((bubbles - 4) * .0086, .20, 1.35) * power;
-      const a = Math.min(249, Math.round(Math.max(0, coverage[n] - edge) * gain * 1.24));
-      if (a > 18) fb[i] = mixPx(fb[i], bubbles > 121 ? FOAM_CREST : FOAM_COOL, a);
+      const gain = clamp((bubbles - 8) * .0092, .20, 1.40) * power;
+      const a = Math.min(254, Math.round(Math.max(0, coverage[n] - edge) * gain * 1.24));
+      if (a > 28) {
+        const tone = bubbles > 152 ? FOAM_CREST : bubbles > 112 ? FOAM_COOL : FOAM_SHADE;
+        fb[i] = mixPx(fb[i], tone, a > 160 ? 238 : a > 90 ? 175 : 115);
+      }
     }
 
-    // One continuous tongue connects the heavy lip to its whitewash.
-    // Light and air pockets accelerate down it, just like the loose jets.
-    const middle = breaker.falls[3], depth = Math.round(middle.hitY - tipY);
-    const rush = Math.floor(world.phase * 12.4);
+    // Crisp 90s-arcade cascading lip curtain: starts seamlessly up inside the
+    // curling lip and pitches outward in turbulent broken foam tongues (no sine
+    // noodles), with sunlit golden left rim and deep cobalt-teal underside.
+    const middle = breaker.falls[3], startY = tipY - 7, depth = Math.round(middle.hitY - startY);
+    const rush = Math.floor(world.phase * 14.0);
     for (let row = 0; row < depth; row++) {
-      const t = row / depth, fallPhase = Math.round(295 * Math.sqrt(t) - rush);
-      const boil = SIN[(fallPhase + row * 3) & 255] / 127;
-      const reach = Math.round(8.0 + 3.1 * boil + 3.0 * Math.sin(t * PI) + (2 + 6 * wash) * (1 - t));
-      const x = Math.round(lerp(tipX + 4, middle.hitX, t ** .76) + boil * 1.8);
-      const y = Math.round(tipY - 2 + row);
-      for (let w = -reach; w <= reach; w++) {
-        const ripples = SIN[(fallPhase + w * 23 + row * 7) & 255] / 127;
-        const edge = smooth(1 - Math.abs(w) / (reach + 1));
-        const thickness = .73 + .27 * (1 - t) + .27 * smooth((t - .62) / .38);
-        const a = Math.round((201 + 60 * ripples + 28 * boil) * thickness * edge * power);
-        const white = w < 2 || ripples > .18;
-        putA(fb, x + w, y, white ? FOAM_CREST : FOAM_CLEAR, a);
+      const t = row / Math.max(1, depth), fallPhase = Math.round(280 * Math.sqrt(t) - rush);
+      const sway = SIN[(fallPhase + row * 4) & 255] / 127;
+      const fan = Math.round(3.8 + 4.8 * t + 2.2 * Math.sin(t * PI) + (1.5 + 3.5 * wash) * t + sway * 1.4);
+      const arc = Math.sin(t * PI) * 4.2;
+      const cx = Math.round(lerp(tipX + 4, middle.hitX + 2, t * (.28 + .72 * t)) - arc + sway * 1.1);
+      const y = Math.round(startY + row);
+      const rowOff = (row * 5 - (rush >> 1)) & 127;
+      for (let w = -fan; w <= fan; w++) {
+        const u = ((w * 7 + rowOff) & 127);
+        const tex = texture[((row + (w & 3) * 3) & 31) * 128 + u] / 255;
+        const core = 1 - Math.abs(w) / (fan + 1);
+        const topJoin = smooth(row / 8);
+        const density = tex * 0.78 + core * 0.68 + 0.20 * (1 - t);
+        // Break edges cleanly into crisp pixel clusters rather than soft blur.
+        if (density < 0.62 || (row < 6 && w > 2)) continue;
+        const a = Math.min(255, Math.round((density > 0.96 ? 252 : density > 0.78 ? 215 : 155) * (0.45 + 0.55 * topJoin) * power));
+        const sunEdge = w <= -fan + 2 && t < 0.84 && density > 0.72;
+        const innerShade = w >= fan - 2 && density < 0.96;
+        const col = sunEdge ? FOAM_SUN : innerShade ? FOAM_SHADE : density > 1.02 ? FOAM_CREST : density > 0.82 ? FOAM_COOL : FOAM_CLEAR;
+        putA(fb, cx + w, y, col, a);
       }
     }
     for (const fall of breaker.falls) {
@@ -1695,49 +1718,56 @@
         const span = Math.max(1, Math.round(hy - ty));
         const fade = power * smooth(age / 4);
         for (let j = 0; j <= span; j++) {
-          const t = j / span, taper = .28 + .72 * t;
+          const t = j / span, taper = .32 + .68 * t;
           const x = Math.round(lerp(tx, hx, t)), y = Math.round(lerp(ty, hy, t));
-          const lace = SIN[(j * 53 + age * 11 + fall.offset * 3) & 255] > -32;
-          putA(fb, x + 2, y, FOAM_CLEAR, Math.round(96 * fade * taper));
-          putA(fb, x + 1, y, FOAM_COOL, Math.round((lace ? 183 : 124) * fade * taper));
-          putA(fb, x, y, lace ? FOAM_CREST : FOAM_COOL, Math.round((lace ? 231 : 149) * fade * taper));
-          if (lace && t > .42) putA(fb, x - 1, y + 1, FOAM_COOL, Math.round(145 * fade));
+          const lace = SIN[(j * 53 + age * 11 + fall.offset * 3) & 255] > -24;
+          putA(fb, x + 2, y, FOAM_SHADE, Math.round(115 * fade * taper));
+          putA(fb, x + 1, y, FOAM_COOL, Math.round((lace ? 205 : 135) * fade * taper));
+          putA(fb, x, y, lace ? FOAM_CREST : FOAM_SUN, Math.round((lace ? 242 : 168) * fade * taper));
+          if (lace && t > .42) putA(fb, x - 1, y + 1, FOAM_SUN, Math.round(150 * fade));
         }
       } else {
         const after = age - fall.duration, fade = 1 - smooth(after / 16);
         if (fade === 0) continue;
         const [floorX, floorY] = impactRun(fall, after, breaker.foot);
         const x = Math.round(floorX), floor = Math.round(floorY);
-        const a = Math.min(256, Math.round(245 * power * fade));
-        if (fall.splashHeight > 0) {
-          // The landing kicks up a second, lower burst that fans out and
-          // settles into the same patch of whitewater.
-          const firstBurst = smooth(after / 3) * (1 - smooth((after - 3) / 13));
-          const plumeHeight = Math.round(6 + fall.splashHeight * firstBurst);
-          const [splash, base = splash] = s.brushes.sheet;
-          const strength = Math.round(a * smooth((after + 1) / 3));
-          drawBrush(fb, base, x - (base.w >> 1), floor - 5, strength, s.foamLut, false);
-          drawBrush(fb, splash, x + 2 - (splash.w >> 1), floor - plumeHeight + 2, strength, s.foamLut, true, plumeHeight);
-          for (let drop = 0; drop < 4; drop++) {
-            const angle = (fall.offset + 19 * drop) % 11;
-            const scatterX = x + Math.round(after * (.16 * angle - .3));
-            const scatterY = floor - Math.round(plumeHeight * (.67 + .16 * drop) + angle);
-            putA(fb, scatterX, scatterY, FOAM_CREST, strength >> 1);
+        const a = Math.min(256, Math.round(248 * power * fade));
+        if (fall.splashHeight > 0 && after < 10) {
+          // Crisp 90s-arcade impact eruption anchored tightly to the lip hit
+          // point (no floating grey smoke puffs drifting over the distant sea).
+          const burst = smooth(after / 2.2) * (1 - smooth((after - 3) / 7));
+          const lift = Math.round(2 + fall.splashHeight * 0.36 * burst);
+          const impactX = Math.round(fall.hitX + after * 0.85);
+          const impactY = Math.round(fall.hitY);
+          const strength = Math.min(255, Math.round(250 * power * burst));
+          const base = s.brushes.sheet[0];
+          drawBrush(fb, base, impactX - (base.w >> 1), impactY - 5, strength, s.foamLut, false);
+          for (let drop = 0; drop < 8; drop++) {
+            const spread = ((fall.offset * 7 + drop * 17) % 15) - 7;
+            const arcY = Math.round(lift * (0.55 + 0.16 * (drop % 4)) + (drop & 3) * 1.6);
+            const px = impactX + Math.round(spread * (0.45 + after * 0.14));
+            const py = impactY - arcY;
+            const col = drop % 3 === 0 ? FOAM_SUN : drop % 3 === 1 ? FOAM_CREST : FOAM_COOL;
+            putA(fb, px, py, col, Math.min(248, Math.round(strength * 1.15)));
+            if (drop < 4) putA(fb, px, py + 1, FOAM_COOL, Math.min(200, strength));
           }
         }
-        putA(fb, x, floor - Math.round(after * .45), FOAM_CREST, a);
-        putA(fb, x + 3, floor + 1, FOAM_COOL, a >> 1);
-        putA(fb, x + 8, floor, FOAM_CREST, a >> 1);
+        // Rolling low foam collar hugging the boiling trough waterline.
+        putA(fb, x, floor - 1, FOAM_CREST, a);
+        putA(fb, x - 1, floor, FOAM_SUN, a >> 1);
+        putA(fb, x + 2, floor + 1, FOAM_COOL, Math.round(a * 0.72));
+        putA(fb, x + 6, floor, FOAM_CREST, a >> 1);
+        putA(fb, x + 3, floor + 2, FOAM_SHADE, a >> 1);
       }
     }
   }
   function drawParticles(s, world) {
-    const { fb } = s, foam = s.foamLut[30], mist = s.foamLut[18], cream = hexPack('#ffe9c4');
+    const { fb } = s, foam = s.foamLut[30], mist = s.foamLut[18], cream = hexPack('#ffe49e'), gold = hexPack('#fff4c8');
     for (const q of world.particles) {
       const a = Math.round(256 * (1 - q.age / q.life));
       const x = Math.round(q.x), y = Math.round(q.y);
-      putA(fb, x, y, q.big || q.warm ? cream : foam, a);
-      if (q.big) putA(fb, x + 1, y, mist, a >> 1);
+      putA(fb, x, y, q.big ? gold : q.warm ? cream : foam, a);
+      if (q.big) putA(fb, x + 1, y, q.warm ? cream : mist, a >> 1);
     }
     for (const rp of world.ripples) {
       if (rp.age < 0) continue;
@@ -1760,12 +1790,22 @@
       put(fb, q.x, q.y, hexPack('#ffffff')); for (let a = 1; a <= arm; a++) { put(fb, q.x - a, q.y, c); put(fb, q.x + a, q.y, c); put(fb, q.x, q.y - a, c); put(fb, q.x, q.y + a, c); }
     }
   }
-  /** The glow around the sun breathes: a thin lighter ring a few pixels outside its disc fades in and out. */
+  /** The glow around the sun breathes: thin golden rings fade in and out, and a coastal beacon pulses softly on the headland. */
   function drawSunGlow(s, world) {
-    const { fb, back } = s, sun = back.geom.sun, glow = hexPack('#ffd890'), k = 0.5 + 0.5 * Math.sin(world.time * 0.9);
-    for (const [rad, a0] of [[sun.r + 5, 46], [sun.r + 11, 28]]) {
-      const a = Math.round(a0 * (rad > sun.r + 8 ? 1 - k : k));
-      for (let q = 0; q < 140; q++) { const ang = q / 140 * 6.2832, x = Math.round(sun.x + Math.cos(ang) * rad), y = Math.round(sun.y + Math.sin(ang) * rad); if (x >= 0 && x < W && y >= 0 && y < LIM && back.cls[y * W + x] === CLS.SKY) putA(fb, x, y, glow, a); }
+    const { fb, back } = s, sun = back.geom.sun, glow = hexPack('#ffda88'), outer = hexPack('#ff9c68'), k = 0.5 + 0.5 * Math.sin(world.time * 0.9);
+    for (const [rad, a0, col] of [[sun.r + 3, 62, glow], [sun.r + 8, 40, glow], [sun.r + 15, 24, outer]]) {
+      const a = Math.round(a0 * (rad > sun.r + 10 ? 1 - k : k));
+      for (let q = 0; q < 140; q++) { const ang = q / 140 * 6.2832, x = Math.round(sun.x + Math.cos(ang) * rad), y = Math.round(sun.y + Math.sin(ang) * rad); if (x >= 0 && x < W && y >= 0 && y < LIM && back.cls[y * W + x] === CLS.SKY) putA(fb, x, y, col, a); }
+    }
+    if (!back.builtin && LIM > 134) {
+      const pulse = Math.max(0, Math.sin(world.time * 1.45) ** 4);
+      const bx = 9, by = 124;
+      if (pulse > 0.08 && back.cls[(by + 2) * W + bx] === CLS.STILL) {
+        putA(fb, bx, by, hexPack('#fff6cc'), Math.round(230 * pulse));
+        putA(fb, bx - 1, by, hexPack('#ffb864'), Math.round(135 * pulse));
+        putA(fb, bx + 1, by, hexPack('#ffb864'), Math.round(135 * pulse));
+        putA(fb, bx, by - 1, hexPack('#ffb864'), Math.round(120 * pulse));
+      }
     }
   }
   /** A soft darkening behind the page's date and clock (the dock's `eased` 0-1): the sun's path would drown the white digits. */
@@ -1816,7 +1856,7 @@
   }
   /** Sun rays: wide pale wedges that fan out of the sun over the sky, fading with distance; baked once into the backdrop's sky pixels (the wave and the sea are untouched). */
   function bakeRays(back) {
-    const sun = back.geom.sun, ray = rgb('#ffe2a8'), N = 12, R = 105;
+    const sun = back.geom.sun, ray = rgb('#ffdc96'), N = 12, R = 112;
     for (let y = Math.max(0, Math.floor(sun.y - R)); y < Math.min(H, sun.y + R); y++) {
       for (let x = Math.max(0, Math.floor(sun.x - R)); x < Math.min(W, sun.x + R); x++) {
         const i = y * W + x;
@@ -1825,7 +1865,7 @@
         if (d < sun.r + 4 || d > R) continue;
         const wedge = Math.floor((Math.atan2(dy, dx) + PI) / (2 * PI) * N * 2 + 0.5) & 1;
         if (wedge) continue;
-        const k = 0.17 * smooth(1 - (d - sun.r) / (R - sun.r)) * smooth((d - sun.r - 4) / 10);
+        const k = 0.20 * smooth(1 - (d - sun.r) / (R - sun.r)) * smooth((d - sun.r - 4) / 10);
         back.rgb[i] = pack(mixRgb(unpack(back.rgb[i]), ray, k));
       }
     }
@@ -2077,6 +2117,8 @@
       if (dd < 3) c = wet[1]; else if (dd < 6) c = wet[0]; else if (dd < 10) c = sand[2];
       else c = depth < 0.25 ? sand[0] : depth < 0.5 ? sand[1] : depth < 0.75 ? sand[2] : depth < 0.9 ? sand[3] : sand[4];
       if (speck && dd > 8) c = depth < 0.5 ? sand[2] : sand[4];
+      const td = Math.hypot((lx - 48) * 0.85, (y + y0 - 296) * 1.1);
+      if (dd >= 6 && td < 26) c = mixPx(c, hexPack('#ffb44e'), Math.round(92 * (1 - td / 26) ** 1.5));
       set(lx, y, c);
     }
     const board = (cx, top, bottom, body, light, dark, cream) => {                                       // a surfboard stuck upright in the sand: a long oval with a stripe, lit on its left edge
@@ -2101,14 +2143,28 @@
     const lim = LIM * W;
     for (let n = 0, L = b.sandL; n < L.idx.length && L.idx[n] < lim; n++) fb[L.idx[n]] = L.col[n];                                                  // the sand
     const t = world.steps, foam = s.foamLut, run = Math.sin(t * 0.045) * 3.4 + Math.sin(t * 0.11) * 0.8;                 // the wash runs up the sand and back
+    const fx = W - 1 - 48, pulse = 0.82 + 0.18 * Math.sin(t * 0.34) + 0.10 * Math.sin(t * 0.71);
+    const fire = hexPack('#ffad48');
     for (let lx = 0; lx < b.w; lx++) {
       const yy = Math.round(beachLocal(lx) + run - 1), broken = ((lx * 7 + (t >> 2)) % 11) < 2, px = W - 1 - lx;
       if (broken) continue;
       putA(fb, px, yy, foam[28], 230); putA(fb, px, yy - 1, foam[22], 150); if (run > 1) putA(fb, px, yy + 1, foam[16], 110);
+      if (lx % 6 === ((t >> 3) % 6)) putA(fb, px, yy - 1, hexPack('#ffe4a8'), 120);
+    }
+    for (let r = 4; r <= 10; r += 2) {
+      const ha = Math.round((r === 4 ? 58 : r === 6 ? 36 : r === 8 ? 22 : 12) * pulse);
+      for (let q = 0; q < 28; q++) {
+        const ang = q / 28 * 6.2832, gx = Math.round(fx + Math.cos(ang) * r), gy = Math.round(265 + Math.sin(ang) * r);
+        const lx = gx - b.x0, ly = gy - b.y0;
+        if (lx >= 0 && lx < b.w && ly >= 0 && ly < b.h && b.mask[ly * b.w + lx]) continue;
+        putA(fb, gx, gy, fire, ha);
+      }
     }
     for (let n = 0, L = b.propL; n < L.idx.length && L.idx[n] < lim; n++) fb[L.idx[n]] = L.col[n];                                                  // the props over the wash: nothing shows through them
-    const flick = (t >> 1) % 3, flame = ['#ffe070', '#ffa030', '#ff6a20'].map(hexPack), fx = W - 1 - 48;                  // the torch's flame
+    const flick = (t >> 1) % 3, flame = ['#fff6a8', '#ffa834', '#ff6420'].map(hexPack);                                   // the torch's flame + rising ember
     for (let k = 0; k < 7; k++) { const half = k < 2 ? 2 : k < 5 ? 1 : 0, sway = flick === 0 ? 0 : flick === 1 ? 1 : -1; for (let dx = -half; dx <= half; dx++) put(fb, fx + dx + (k > 3 ? sway : 0), 268 - k, k < 2 ? flame[2] : k < 5 ? flame[1] : flame[0]); }
+    const ember = t % 28;
+    if (ember < 14) putA(fb, fx + ((ember >> 2) % 2 ? 1 : -1), 261 - ember, flame[0], Math.round(210 * (1 - ember / 14)));
   }
 
   /* ---- one frame */

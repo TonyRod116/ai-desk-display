@@ -23,6 +23,10 @@ ANSI = re.compile(r'\x1b(?:\[[0-?]*[ -/]*[@-~]|\][^\x07]*?(?:\x07|\x1b\\)|[78])'
 # and every other marker in read() must still match. A new series gets no command.
 SERIES = (2, 1)
 BANNER = re.compile(r'Claude Code v(\d+)\.(\d+)\.\d+(?![\d.])')
+# The client's own words for safe mode on its start screen. 2.1.296 and earlier say "disabled"; 2.1.328 (seen 2026-11-19) says "off". With only the
+# old words the reader never recognised the screen, never sent /usage and Claude's quota stayed unknown on every display until a Claude session
+# happened to refresh the status line. Both are the same fact (no CLAUDE.md, skills, plugins, hooks or MCP); any other wording is still not ready.
+SAFE_MODE_WORDS = ('all customizations are disabled', 'all customizations are off')
 # The client reuses its own usage cache when something else (another Claude session) fetched it a moment ago, and then writes
 # no newer date. Such a reading is as good as a new one while it is young: after waiting REUSE_AFTER seconds for a fresh fetch to
 # land, a native cache no older than REUSE_SECONDS is accepted with its real fetch date (the monitor still expires it at 180 s).
@@ -270,7 +274,7 @@ class ClaudeUsageReader:
                     location = (str(self.workspace) in screen or
                                 self.workspace.is_relative_to(Path.home()) and str(self.workspace.relative_to(Path.home())) in screen)
                     ready = (banners and 'manual mode on' in lower
-                             and 'all customizations are disabled' in lower
+                             and any(words in lower for words in SAFE_MODE_WORDS)
                              and location
                              and re.search(r'[$]{1,3}\s*$', screen))
                     if ready and not cancelled():
