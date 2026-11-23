@@ -1251,6 +1251,19 @@ test('the paddling hands stay outside the visible board while alternating', () =
   }
 });
 
+test('both paddling arms pull low through the water from nose to tail and lift high over the water on forward recovery', () => {
+  const r = surf.makeRaster(128, 112);
+  for (const pitch of [-15, 0, 15]) {
+    // At phase = PI/2: front arm is mid-pull (nose -> tail, v = +1), back arm is mid-recovery (tail -> nose).
+    // At phase = 3*PI/2: front arm is mid-recovery (tail -> nose, v = -1), back arm is mid-pull (nose -> tail).
+    r.clear(); const pullF_recB = surf.drawPaddler(r, 64, 84, Math.PI / 2, 0, pitch);
+    r.clear(); const recF_pullB = surf.drawPaddler(r, 64, 84, 3 * Math.PI / 2, 0, pitch);
+    // In screen coordinates smaller y is higher in the air, larger y is deeper in the water.
+    assert.ok(pullF_recB.handF[1] > recF_pullB.handF[1] + 2, `front arm pulls lower than recovery at ${pitch}°`);
+    assert.ok(recF_pullB.handB[1] > pullF_recB.handB[1] + 2, `back arm pulls lower than recovery at ${pitch}°`);
+  }
+});
+
 
 test('the faster wake remains connected throughout the ride', () => {
   const w=world();let segments=0;
