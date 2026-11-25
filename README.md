@@ -64,9 +64,16 @@ Stand an old tablet upright on your desk, open the page (or install the optional
 <p align="center"><b>Token Run · Blue Lightning</b></p>
 
 <p align="center">
+  <a href="docs/images/tablet-picture-underwater.gif"><img src="docs/images/tablet-picture-underwater.gif" width="46%" alt="Deep Blue, a 16-bit sunken temple reef with real water-refraction caustics, scuba diver, dolphin, sea turtle and hidden illuminated chambers"></a>
+  <a href="docs/images/tablet-picture-versus.gif"><img src="docs/images/tablet-picture-versus.gif" width="46%" alt="Versus, an arcade pixel-art fighting stage driven by live quota bars"></a>
+</p>
+<p align="center"><b>Deep Blue · Versus</b></p>
+
+<p align="center">
   <a href="docs/images/tablet-background-picker.png"><img src="docs/images/tablet-background-picker.png" width="540" alt="The active scenes picker showing demo tiles and which scenes are enabled"></a>
 </p>
-<p align="center"><sub>Swipe between scenes, park on your favorite, rotate automatically, or let the time of day pick the vibe.</sub></p>
+<p align="center"><sub>Swipe between scenes, park on your favorite, rotate automatically, or let the time of day pick the vibe.<br>
+<b>Tip:</b> try tapping the scenes too — they react! Poke the reef props, tap inside dark ruins to send the diver exploring, or see if you can actually tap one of the tiny fish (the little school scatters like you just interrupted their meeting).</sub></p>
 
 ---
 
@@ -105,7 +112,7 @@ Use just the tablet, just the tiny screen, or run both together — the tablet e
 
 ## Try it in 60 seconds
 
-**No hardware, no login, no account needed.** Spin up three live animated scenes (**Isometric City**, **Blue Lightning**, and **Tidal Rush**) with sample data right in your browser. Requires Git and Python 3.10+ (on Windows, run inside Ubuntu/WSL).
+**No hardware, no login, no account needed.** Spin up four live animated scenes (**Isometric City**, **Blue Lightning**, **Tidal Rush**, and **Deep Blue**) with sample data right in your browser. Requires Git and Python 3.10+ (on Windows, run inside Ubuntu/WSL).
 
 ```bash
 git clone https://github.com/TonyRod116/ai-desk-display.git
@@ -117,6 +124,7 @@ pip install -e .
 python scripts/prepare_game_city_iso.py --out preview/scenes --manifest
 python scripts/prepare_game_blue_lightning_demo.py --out preview/scenes
 python scripts/prepare_tidal_rush_dusk.py --out preview/scenes
+python scripts/prepare_game_underwater.py --out preview/scenes --manifest
 python scripts/sample_tablet.py --scenes preview/scenes
 ```
 
