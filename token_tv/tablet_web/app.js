@@ -2,7 +2,7 @@
   'use strict';
   const words = {
     en: { connecting:'CONNECTING', online:'LOCAL · LIVE', partial:'PARTIAL DATA', offline:'RECONNECTING', scene:'SCENE', choose_scene:'Choose a background', close:'Close',
-      usage:'YOUR AI USAGE · WEEKLY REMAINING', weekly_left:'WEEKLY LEFT', left:'left', reset_in:'RESET IN', five_hour:'5-HOUR LIMIT', credits:'CREDITS', computer:'YOUR COMPUTER', memory_touch:'TOUCH TO FREE MEMORY', memory_scope:'Only idle Slack / OneDrive', memory_working:'Checking idle apps…', memory_done:'Optimized', memory_nothing:'No eligible idle apps found', memory_unavailable:'Unavailable; no changes made', memory_unknown:'Result unknown; wait before retrying', memory_busy:'Already checking…', memory_cooldown:'Please wait before retrying', memory_available:'Available',
+      usage:'YOUR AI USAGE · WEEKLY REMAINING', weekly_left:'WEEKLY LEFT', left:'left', reset_in:'RESETS IN', five_hour:'5-HOUR LIMIT', credits:'CREDITS', computer:'YOUR COMPUTER', memory_touch:'TOUCH TO FREE MEMORY', memory_scope:'Only idle Slack / OneDrive', memory_working:'Checking idle apps…', memory_done:'Optimized', memory_nothing:'No eligible idle apps found', memory_unavailable:'Unavailable; no changes made', memory_unknown:'Result unknown; wait before retrying', memory_busy:'Already checking…', memory_cooldown:'Please wait before retrying', memory_available:'Available',
       memory:'MEMORY', free:'free', of:'of', cloud_unavailable:'Cloud quota unavailable', manual:'Manual', full_screen:'Enter full screen', exit_full_screen:'Exit full screen',
       full_screen_failed:'Full screen is not available in this browser.', unavailable:'Unavailable', remaining:'remaining', resets:'saved resets', old:'last known',
       awake_on:'SCREEN ON', awake_blocked:'MAY SLEEP', awake_unsupported:'MAY SLEEP',
@@ -616,40 +616,59 @@
   }
   function provider(name, data) {
     const card = $('[data-provider="' + name + '"]');
+    if (!card) return;
     data = data || {};
     const week = data.weekly && timeLeft(data.weekly.resets_at) !== '—' ? data.weekly : null;
     const raw = week && valid(week.remaining) && week.remaining >= 0 && week.remaining <= 100 ? week.remaining : null;
     const left = raw === null ? null : raw > 0 && raw < 1 ? '<1' : String(Math.floor(raw));
     const credit = creditBalance(data, raw), value = credit;
+    const aged = Boolean(data.aged) && raw !== null;
     card.dataset.level = raw === null ? 'unknown' : quotaLevel(raw);
     card.dataset.mode = credit === null ? 'quota' : 'credits';
     card.dataset.creditSize = credit === null ? 'normal' : creditSize(value);
+    card.dataset.aged = String(aged);
     $('.amount-number',card).textContent = credit === null ? (left === null ? '—' : left) : value;
     $('.amount-unit',card).textContent = credit === null && raw !== null ? '%' : '';
-    $('.card-bottom .caption',card).textContent = words[language][credit === null ? 'weekly_left' : 'credits'];
+    const cap = $('.reset .caption', card);
+    if (cap) cap.textContent = words[language][credit === null ? 'reset_in' : 'credits'];
     $('.reset-time',card).textContent = week ? timeLeft(week.resets_at) : '—';
-    meter($('.meter span',card),raw);
-    $('.meter',card).setAttribute('aria-label',left === null ? words[language].unavailable : left + '% ' + words[language].remaining);
-    const hearts = $('.hearts',card), resets = data.resets || {};
-    const count = Number.isInteger(resets.count) && resets.count >= 0 ? resets.count : null;
-    hearts.replaceChildren();
-    if (count === null || resets.old) {
-      const dot = document.createElement('span'); dot.className = 'unknown-dot'; dot.textContent = '•'; hearts.append(dot);
+    meter($('.quota-main .meter span',card),raw);
+    $('.quota-main .meter',card).setAttribute('aria-label',left === null ? words[language].unavailable : left + '% ' + words[language].remaining + (aged ? ' · ' + words[language].old : ''));
+    const agedDot = $('.aged-dot', card);
+    if (agedDot) { agedDot.hidden = !aged; agedDot.title = aged ? words[language].old : ''; }
+    const hearts = $('.hearts',card);
+    if (hearts) {
+      const resets = data.resets || {};
+      const count = Number.isInteger(resets.count) && resets.count >= 0 ? resets.count : null;
+      hearts.replaceChildren();
+      if (count === null || resets.old) {
+        const dot = document.createElement('span'); dot.className = 'unknown-dot'; dot.textContent = '•'; hearts.append(dot);
+      }
+      for (let n = 0; n < 3; n++) {
+        const heart = document.createElement(count !== null && n < count ? 'b' : 'i'); heart.textContent = '♥'; hearts.append(heart);
+      }
+      if (count !== null && count > 3) { const plus = document.createElement('b'); plus.textContent = '+'; hearts.append(plus); }
+      hearts.setAttribute('aria-label',count === null ? words[language].unavailable : count + ' ' + words[language].resets + (resets.old ? ' · ' + words[language].old : ''));
     }
-    for (let n = 0; n < 3; n++) {
-      const heart = document.createElement(count !== null && n < count ? 'b' : 'i'); heart.textContent = '♥'; hearts.append(heart);
-    }
-    if (count !== null && count > 3) { const plus = document.createElement('b'); plus.textContent = '+'; hearts.append(plus); }
-    hearts.setAttribute('aria-label',count === null ? words[language].unavailable : count + ' ' + words[language].resets + (resets.old ? ' · ' + words[language].old : ''));
-    if (name === 'claude') {
-      const session = data.session && timeLeft(data.session.resets_at) !== '—' ? data.session : null;
-      const known = session && percent(session.remaining) !== null;
-      const band = $('.session-band');
-      band.dataset.level = known ? quotaLevel(session.remaining) : 'unknown';
-      $('.session-value',band).textContent = known ? showPercent(session.remaining) : '—';
-      $('.session-time',band).textContent = known ? timeLeft(session.resets_at) : '';
-      meter($('.meter span',band),known ? session.remaining : null);
-      $('.meter',band).setAttribute('aria-label',known ? showPercent(session.remaining) + ' ' + words[language].remaining : words[language].unavailable);
+    const band = $('.quota-sub[data-session="' + name + '"]', card);
+    if (band) {
+      if (name === 'codex') {
+        band.dataset.state = 'na';
+        band.dataset.level = 'healthy';
+        $('.session-value', band).textContent = 'N/A';
+        $('.session-time', band).textContent = '';
+        meter($('.meter span', band), 100);
+        $('.meter', band).setAttribute('aria-label', '5H N/A');
+      } else {
+        const session = data.session && timeLeft(data.session.resets_at) !== '—' ? data.session : null;
+        const known = Boolean(session && percent(session.remaining) !== null);
+        band.dataset.state = known ? 'live' : 'unknown';
+        band.dataset.level = known ? quotaLevel(session.remaining) : 'unknown';
+        $('.session-value',band).textContent = known ? showPercent(session.remaining) : '—';
+        $('.session-time',band).textContent = known ? timeLeft(session.resets_at) : '';
+        meter($('.meter span',band),known ? session.remaining : null);
+        $('.meter',band).setAttribute('aria-label',known ? showPercent(session.remaining) + ' ' + words[language].remaining : words[language].unavailable);
+      }
     }
   }
   function size(bytes) {
@@ -693,18 +712,26 @@
     item.setAttribute('aria-label', label + ': ' + freeText + ' ' + words[language].free + ' ' + words[language].of + ' ' + totalText);
     return item;
   }
+  function loadHeat(card, pct) {
+    if (!card) return;
+    if (!valid(pct) || pct < 60) delete card.dataset.level;
+    else card.dataset.level = pct >= 90 ? 'critical' : pct >= 75 ? 'low' : 'warning';
+  }
   function hardware(data) {
     data = data || {};
     const gpu = Array.isArray(data.gpus) ? data.gpus[0] || {} : {};
     temp('#cpu-temp',data.cpu_temp_c); temp('#gpu-temp',gpu.temp_c);
     $('#cpu-load').textContent = showPercent(data.cpu_percent); meter($('#cpu-meter'),data.cpu_percent);
+    loadHeat($('.system-card[data-metric="cpu"]'), data.cpu_percent);
     $('#gpu-load').textContent = showPercent(gpu.percent); meter($('#gpu-meter'),gpu.percent);
+    loadHeat($('.system-card[data-metric="gpu"]'), gpu.percent);
     const mem = data.memory, value = $('#memory-value');
     if (mem && valid(mem.total) && mem.total > 0 && valid(mem.free) && mem.free >= 0 && mem.free <= mem.total) {
-      const used = mem.total - mem.free;
+      const used = mem.total - mem.free, memPct = 100 * used / mem.total;
       value.replaceChildren(document.createTextNode(size(used).replace(/ (GB|TB)$/, '')), el('span', '', size(used).slice(-2)), el('span', 'of', '/ ' + size(mem.total)));
-      $('#memory-load').textContent = showPercent(100 * used / mem.total); meter($('#memory-meter'),100 * used / mem.total);
-    } else { value.textContent = '—'; $('#memory-load').textContent = ''; meter($('#memory-meter'),null); }
+      $('#memory-load').textContent = showPercent(memPct); meter($('#memory-meter'),memPct);
+      loadHeat($('.system-card[data-metric="memory"]'), memPct);
+    } else { value.textContent = '—'; $('#memory-load').textContent = ''; meter($('#memory-meter'),null); loadHeat($('.system-card[data-metric="memory"]'), null); }
     const disks = $('#disks'); disks.replaceChildren();
     const list = Array.isArray(data.disks) ? data.disks : [];
     list.forEach((disk) => {
@@ -756,7 +783,7 @@
     clearTimeout(toastTimer); toastTimer = setTimeout(() => { toast.hidden = true; }, 9000);
   }
   function flash(level) {
-    const node = $('#flash'); node.style.setProperty('--flash', level === 'critical' ? '#ff7278' : level === 'warning' ? '#ffab62' : '#7fe0b2');
+    const node = $('#flash'); node.style.setProperty('--flash', level === 'critical' ? '#ff334b' : level === 'warning' ? '#ff781f' : '#10e882');
     node.classList.remove('on'); void node.offsetWidth; node.classList.add('on');
   }
   function raise(list) {
@@ -892,26 +919,44 @@
 
   /* Picture mode keeps the same remaining quotas as the cards. Unknown stays a dash, never zero. */
   function pictureQuota() {
-    const lines = [['codex', 'weekly'], ['claude', 'weekly'], ['session', 'session']];
-    for (const [name, which] of lines) {
-      const box = $('[data-pq="' + name + '"]'); if (!box) continue;
-      const data = latest?.providers?.[name === 'session' ? 'claude' : name] || {}, part = data[which];
+    const lines = [
+      ['codex', 'codex', 'weekly'],
+      ['codex-session', 'codex', 'session'],
+      ['claude', 'claude', 'weekly'],
+      ['session', 'claude', 'session'],
+      ['gemini', 'gemini', 'weekly'],
+      ['gemini-session', 'gemini', 'session'],
+    ];
+    for (const [slotName, provName, which] of lines) {
+      const box = $('[data-pq="' + slotName + '"]'); if (!box) continue;
+      if (slotName === 'codex-session') {
+        box.dataset.state = 'na';
+        box.dataset.level = 'healthy';
+        $('strong', box).textContent = 'N/A';
+        $('em', box).style.width = '100%';
+        $('small', box).textContent = '';
+        continue;
+      }
+      const data = latest?.providers?.[provName] || {}, part = data[which];
       const live = part && timeLeft(part.resets_at) !== '—' ? part : null;
       const raw = live && valid(live.remaining) && live.remaining >= 0 && live.remaining <= 100 ? live.remaining : null;
-      const credit = name === 'session' ? null : creditBalance(data, raw), value = credit;
+      const isSession = which === 'session';
+      const credit = isSession ? null : creditBalance(data, raw), value = credit;
       box.dataset.level = raw === null ? 'unknown' : quotaLevel(raw);
       box.dataset.mode = credit === null ? 'quota' : 'credits';
       box.dataset.creditSize = credit === null ? 'normal' : creditSize(value);
-      $('strong', box).textContent = credit !== null ? value : raw === null ? '—' : name === 'session' ? showPercent(raw) : raw > 0 && raw < 1 ? '<1%' : Math.floor(raw) + '%';
+      const aged = !isSession && Boolean(data.aged) && raw !== null;
+      const agedDot = $('.pq-aged', box); if (agedDot) agedDot.hidden = !aged;
+      $('strong', box).textContent = credit !== null ? value : raw === null ? '—' : isSession ? showPercent(raw) : raw > 0 && raw < 1 ? '<1%' : Math.floor(raw) + '%';
       const label = $('.pq-credit-label', box); if (label) label.textContent = credit === null ? '' : words[language].credits;
       $('em', box).style.width = (raw === null ? 0 : percent(raw)) + '%';
-      $('small', box).textContent = raw === null ? (name === 'session' ? '' : '—') : timeLeft(live.resets_at);
+      $('small', box).textContent = raw === null ? (isSession ? '' : '—') : timeLeft(live.resets_at);
     }
   }
   function render() {
     const chip = $('#connection'); chip.dataset.state = connection === 'online' ? 'ok' : 'error';
     $('.chip-text', chip).textContent = words[language][connection];
-    provider('codex',latest?.providers?.codex); provider('claude',latest?.providers?.claude); pictureQuota();
+    provider('codex',latest?.providers?.codex); provider('claude',latest?.providers?.claude); provider('gemini',latest?.providers?.gemini); pictureQuota();
     hardware(latest?.metrics);
     if (window.TabletPanels) TabletPanels.renderComputer();
     fit();

@@ -269,6 +269,17 @@ test('real ray-refraction caustics render pure translucent white bands + focused
   assert.ok(diff > 1000, `expected caustics to continuously merge, defocus & refocus over time (diff=${diff})`);
 });
 
+test('dawn, dusk and night dramatically darken the reef while boosting headlamp and bioluminescence', () => {
+  assert.equal(uw.PALETTES.day.veilMid, null, 'day keeps full sunlit clarity with zero dark veil');
+  assert.ok(uw.PALETTES.dawn.veilMid, 'dawn adds golden-blue atmospheric wash');
+  assert.ok(uw.PALETTES.dusk.veilMid && uw.PALETTES.dusk.bioCoral && uw.PALETTES.dusk.bioRipple, 'dusk darkens reef and wakes bioluminescence');
+  assert.ok(uw.PALETTES.night.veilMid && uw.PALETTES.night.bioCoral && uw.PALETTES.night.bioRipple, 'night applies midnight veil + full bioluminescence');
+  assert.ok(uw.PALETTES.night.causticAlphaMax < uw.PALETTES.dusk.causticAlphaMax && uw.PALETTES.dusk.causticAlphaMax < uw.PALETTES.day.causticAlphaMax,
+    'caustic intensity steps down from bright sunlit day to dusk and gentle silver moon-caustics at night');
+  assert.ok(uw.PALETTES.night.torchGain > uw.PALETTES.dusk.torchGain && uw.PALETTES.dusk.torchGain > uw.PALETTES.day.torchGain,
+    'diver headlamp steps up dramatically from day to dusk and night');
+});
+
 test('scene lifecycle init, step, poke and draw never throw', () => {
   const scene = uw.scene;
   const api = {

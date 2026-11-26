@@ -84,71 +84,91 @@
       caustic: '#ffffff',
       causticMid: '#f6fbff',
       causticSoft: '#eef6fc',
+      causticScale: 1.0,
       moteBright: '#eefffa',
       moteDim: '#4eb2c6',
-      torchGain: 0.25,
-      bioGlow: 0.32,
+      veilTop: null,
+      veilMid: null,
+      veilBot: null,
+      torchGain: 0.22,
+      bioGlow: 0.28,
       bioCoral: false,
+      bioRipple: false,
     },
     dawn: {
-      surf: ['#f2fffc', '#8ce8de', '#44aea9', '#278292', '#175e79', '#104968'],
-      water: [[17, 90, 120], [14, 74, 108], [10, 60, 92], [8, 46, 76], [16, 74, 102], [28, 104, 126]],
-      rayOuter: 'rgba(136, 236, 228, ',
-      rayInner: 'rgba(224, 255, 246, ',
-      rayGain: 0.94,
-      caustic: '#ffffff',
-      causticMid: '#f4faff',
-      causticSoft: '#eaf4fa',
-      moteBright: '#ecfff8',
-      moteDim: '#4aa8be',
-      torchGain: 0.35,
+      // Warm golden-amber sunrise breaking through cool dawn seafoam-blue water
+      surf: ['#fff7d4', '#ffc870', '#6fd0c4', '#28869d', '#145a7c', '#0b3a5c'],
+      water: [[30, 86, 114], [20, 68, 104], [13, 50, 88], [9, 34, 70], [16, 62, 94], [28, 92, 114]],
+      rayOuter: 'rgba(255, 196, 98, ',
+      rayInner: 'rgba(255, 244, 192, ',
+      rayGain: 0.92,
+      caustic: '#fff8e8',
+      causticMid: '#f8eed8',
+      causticSoft: '#ece2cc',
+      causticScale: 0.78,
+      moteBright: '#fff2be',
+      moteDim: '#62a0b4',
+      veilTop: 'rgba(255, 158, 62, 0.22)',
+      veilMid: 'rgba(20, 36, 70, 0.16)',
+      veilBot: 'rgba(8, 20, 50, 0.30)',
+      torchGain: 0.42,
       bioGlow: 0.45,
       bioCoral: false,
+      bioRipple: false,
     },
     dusk: {
-      surf: ['#eafffc', '#7cdcd8', '#3a9ca2', '#21748b', '#145271', '#0e3f5f'],
-      water: [[14, 78, 112], [12, 66, 100], [9, 52, 84], [8, 40, 70], [15, 66, 94], [25, 92, 116]],
-      rayOuter: 'rgba(112, 228, 228, ',
-      rayInner: 'rgba(206, 252, 248, ',
-      rayGain: 0.88,
-      caustic: '#ffffff',
-      causticMid: '#f0f8ff',
-      causticSoft: '#e4f0f8',
-      moteBright: '#e2fffc',
-      moteDim: '#429ab8',
-      torchGain: 0.56,
-      bioGlow: 0.68,
+      // Dramatic deep twilight indigo with warm sunset rim overhead, darkening reef & awakening bioluminescence
+      surf: ['#ffcf9c', '#d48688', '#426e9e', '#1a3f72', '#0e2854', '#081838'],
+      water: [[14, 48, 86], [10, 36, 74], [8, 26, 60], [6, 18, 46], [10, 32, 64], [14, 44, 78]],
+      rayOuter: 'rgba(255, 156, 96, ',
+      rayInner: 'rgba(255, 214, 158, ',
+      rayGain: 0.64,
+      caustic: '#f2f6ff',
+      causticMid: '#d6e4f8',
+      causticSoft: '#b8cce8',
+      causticScale: 0.46,
+      moteBright: '#98fff8',
+      moteDim: '#3488c2',
+      veilTop: 'rgba(30, 22, 64, 0.28)',
+      veilMid: 'rgba(9, 18, 54, 0.44)',
+      veilBot: 'rgba(4, 11, 36, 0.56)',
+      torchGain: 0.84,
+      bioGlow: 0.82,
       bioCoral: true,
+      bioRipple: true,
     },
     night: {
-      surf: ['#e2fcff', '#6fd0e4', '#2e8cad', '#196288', '#10436a', '#0a3052'],
-      water: [[10, 54, 90], [8, 42, 76], [7, 32, 62], [6, 24, 48], [11, 44, 72], [18, 66, 92]],
-      rayOuter: 'rgba(98, 218, 244, ',
-      rayInner: 'rgba(196, 248, 255, ',
-      rayGain: 0.72,
-      caustic: '#f4faff',
-      causticMid: '#e6f4fc',
-      causticSoft: '#d8ecf8',
-      moteBright: '#b8ffff',
-      moteDim: '#3488aa',
-      torchGain: 0.95,
+      // Deep midnight abyss night dive: silver moonbeams overhead, rich darkness over reef, vivid headlamp & bioluminescence
+      surf: ['#d2ebff', '#5286be', '#1c4276', '#0d224c', '#061230', '#03091a'],
+      water: [[5, 22, 52], [4, 16, 42], [3, 12, 34], [2, 8, 26], [4, 15, 38], [6, 22, 48]],
+      rayOuter: 'rgba(116, 180, 255, ',
+      rayInner: 'rgba(212, 238, 255, ',
+      rayGain: 0.46,
+      caustic: '#cce4ff',
+      causticMid: '#a8d0f8',
+      causticSoft: '#88b4e4',
+      causticScale: 0.26,
+      moteBright: '#72ffff',
+      moteDim: '#2296dc',
+      veilTop: 'rgba(3, 10, 28, 0.54)',
+      veilMid: 'rgba(2, 7, 24, 0.68)',
+      veilBot: 'rgba(1, 5, 18, 0.76)',
+      torchGain: 1.0,
       bioGlow: 1.0,
       bioCoral: true,
+      bioRipple: true,
     },
   };
 
   for (const p of Object.values(PALETTES)) {
     p.surfRgb = p.surf.map((hex) => hexToRgba(hex));
     p.surfU32 = p.surfRgb.map(([r, g, b]) => packU32(r, g, b, 255));
-    // Realistic Beer-Lambert underwater caustic 3-stop optical ramp:
-    // rich ocean azure halo -> luminous electric sky-blue ribbon -> crisp ice-white ONLY in sunlit focal peaks!
     p.causticDeepRgb = hexToRgba(p.causticSoft);
     p.causticMidRgb = hexToRgba(p.causticMid);
     p.causticPeakRgb = hexToRgba(p.caustic);
-    // Keep legacy aliases populated for fallback helper
     p.causticSandRgb = p.causticMidRgb;
     p.causticWallRgb = p.causticDeepRgb;
-    p.causticAlphaMax = Math.round(204 * (0.62 + p.rayGain * 0.38));
+    p.causticAlphaMax = Math.round(204 * (p.causticScale || 1.0));
   }
 
   /* ---- natural underwater ceiling swell + Snell's-window lookup tables (full 267 x 114 1px sharpness, ZERO trig/exp in loop!) */
@@ -1709,22 +1729,120 @@
     drawPlateAt(g, s, spec.occPlate, spec.occPos[0], spec.occPos[1], 1);
   }
 
+  // Curated bioluminescent coral, sea-fan & ruin-moss glow nodes anchored strictly ON reef corals & stonework
+  const BIO_NODES = [
+    [48, 30, 7, 'rgba(255,104,218,'],   [50, 86, 8, 'rgba(255,104,218,'],
+    [22, 188, 7, 'rgba(56,248,255,'],   [44, 192, 8, 'rgba(255,104,218,'],
+    [62, 196, 7, 'rgba(40,255,196,'],   [216, 224, 9, 'rgba(255,104,218,'],
+    [238, 234, 7, 'rgba(56,248,255,'],  [24, 304, 8, 'rgba(255,104,218,'],
+    [36, 336, 7, 'rgba(40,255,196,'],   [76, 354, 8, 'rgba(56,248,255,'],
+    [116, 342, 7, 'rgba(40,255,196,'],  [208, 346, 9, 'rgba(255,104,218,'],
+    [248, 354, 8, 'rgba(40,255,196,'],  [254, 320, 8, 'rgba(74,168,255,'],
+  ];
+
+  function drawSoftGlow(g, cx, cy, r, rgbaPrefix, alpha) {
+    if (alpha <= 0.01) return;
+    if (typeof g.createRadialGradient === 'function') {
+      const grad = g.createRadialGradient(cx, cy, 0, cx, cy, r);
+      grad.addColorStop(0.0, rgbaPrefix + alpha.toFixed(3) + ')');
+      grad.addColorStop(0.45, rgbaPrefix + (alpha * 0.42).toFixed(3) + ')');
+      grad.addColorStop(1.0, rgbaPrefix + '0)');
+      g.fillStyle = grad;
+      g.fillRect(Math.floor(cx - r), Math.floor(cy - r), Math.ceil(r * 2), Math.ceil(r * 2));
+    } else {
+      g.fillStyle = rgbaPrefix + (alpha * 0.5).toFixed(3) + ')';
+      drawInkBlob(g, Math.round(cx), Math.round(cy), Math.round(r * 0.65), Math.round(r * 0.55));
+    }
+  }
+
+  function drawAtmosphereVeil(g, pal) {
+    if (!pal.veilMid) return;
+    if (typeof g.createLinearGradient === 'function') {
+      const grad = g.createLinearGradient(0, 0, 0, H);
+      grad.addColorStop(0.0, pal.veilTop);
+      grad.addColorStop(0.45, pal.veilMid);
+      grad.addColorStop(1.0, pal.veilBot);
+      g.fillStyle = grad;
+      g.fillRect(0, 0, W, H);
+    } else {
+      g.fillStyle = pal.veilTop; g.fillRect(0, 0, W, 120);
+      g.fillStyle = pal.veilMid; g.fillRect(0, 120, W, 160);
+      g.fillStyle = pal.veilBot; g.fillRect(0, 280, W, H - 280);
+    }
+  }
+
+  function drawBioluminescentCorals(g, pal, t, low) {
+    if (!pal.bioCoral) return;
+    const step = low ? 2 : 1;
+    const canAdd = typeof g.save === 'function' && typeof g.restore === 'function';
+    if (canAdd) { g.save(); g.globalCompositeOperation = 'lighter'; }
+    for (let i = 0; i < BIO_NODES.length; i += step) {
+      const [bx, by, br, col] = BIO_NODES[i];
+      const pulse = 0.52 + 0.48 * Math.sin(t * (2.1 + (i % 4) * 0.45) + i * 1.37);
+      const a = pulse * pal.bioGlow;
+      drawSoftGlow(g, bx, by, br + 3, col, a * 0.42);
+      // Tiny crisp 1px glowing coral polyp spark
+      g.fillStyle = col + (a * 0.85).toFixed(3) + ')';
+      g.fillRect(bx, by, 1, 1);
+    }
+    if (canAdd) g.restore();
+  }
+
   function drawDiverEffects(g, d, pal, t) {
     const flip = d.face < 0, x0 = Math.round(d.x), y0 = Math.round(d.y);
     const pitch = clamp(d.pitch, -0.38, 0.38);
-    const torchAlpha = Math.max(pal.torchGain, d.inRoom ? 0.78 : 0) * (0.8 + 0.2 * Math.sin(t * 2.4));
+    const torchAlpha = Math.max(pal.torchGain, d.inRoom ? 0.82 : 0) * (0.88 + 0.12 * Math.sin(t * 2.4));
     if (torchAlpha > 0.14) {
       const dir = flip ? -1 : 1, hx = x0 + dir * 20, hy = y0 + 2 + Math.round(pitch * 15);
+      const strong = torchAlpha >= 0.6;
+      const outerLen = strong ? 102 : 54, innerLen = strong ? 74 : 38;
+      const outerSpread = strong ? 28 : 11, innerSpread = strong ? 12 : 5;
+      const canAdd = strong && typeof g.save === 'function' && typeof g.restore === 'function';
+      if (canAdd) { g.save(); g.globalCompositeOperation = 'lighter'; }
       if (typeof g.beginPath === 'function' && typeof g.fill === 'function') {
-        g.fillStyle = 'rgba(196, 255, 248, ' + (torchAlpha * 0.16).toFixed(3) + ')';
+        const endX = hx + dir * outerLen, endY = hy + Math.round(pitch * outerLen);
+        if (typeof g.createLinearGradient === 'function') {
+          const og = g.createLinearGradient(hx, hy, endX, endY);
+          og.addColorStop(0.0, 'rgba(154, 240, 255, ' + (torchAlpha * (strong ? 0.34 : 0.16)).toFixed(3) + ')');
+          og.addColorStop(0.45, 'rgba(116, 224, 255, ' + (torchAlpha * (strong ? 0.18 : 0.08)).toFixed(3) + ')');
+          og.addColorStop(1.0, 'rgba(92, 200, 255, 0)');
+          g.fillStyle = og;
+        } else {
+          g.fillStyle = 'rgba(132, 232, 255, ' + (torchAlpha * (strong ? 0.22 : 0.14)).toFixed(3) + ')';
+        }
         g.beginPath();
-        g.moveTo(hx, hy - 2); g.lineTo(hx + dir * 52, hy - 10 + Math.round(pitch * 52));
-        g.lineTo(hx + dir * 52, hy + 10 + Math.round(pitch * 52)); g.lineTo(hx, hy + 2);
+        g.moveTo(hx, hy - 2);
+        g.lineTo(endX, endY - outerSpread);
+        g.lineTo(endX, endY + outerSpread);
+        g.lineTo(hx, hy + 2);
         g.closePath(); g.fill();
+        if (strong) {
+          const iEndX = hx + dir * innerLen, iEndY = hy + Math.round(pitch * innerLen);
+          if (typeof g.createLinearGradient === 'function') {
+            const ig = g.createLinearGradient(hx, hy, iEndX, iEndY);
+            ig.addColorStop(0.0, 'rgba(236, 255, 254, ' + (torchAlpha * 0.46).toFixed(3) + ')');
+            ig.addColorStop(0.55, 'rgba(182, 250, 255, ' + (torchAlpha * 0.18).toFixed(3) + ')');
+            ig.addColorStop(1.0, 'rgba(140, 232, 255, 0)');
+            g.fillStyle = ig;
+          } else {
+            g.fillStyle = 'rgba(222, 255, 252, ' + (torchAlpha * 0.26).toFixed(3) + ')';
+          }
+          g.beginPath();
+          g.moveTo(hx, hy - 1);
+          g.lineTo(iEndX, iEndY - innerSpread);
+          g.lineTo(iEndX, iEndY + innerSpread);
+          g.lineTo(hx, hy + 1);
+          g.closePath(); g.fill();
+          // Smooth headlamp lens halo right at the torch tip
+          drawSoftGlow(g, hx + dir * 2, hy, 8, 'rgba(224,255,255,', torchAlpha * 0.65);
+          g.fillStyle = 'rgba(255, 255, 255, ' + (torchAlpha * 0.92).toFixed(3) + ')';
+          g.fillRect(hx, hy, 2, 2);
+        }
       } else {
-        g.fillStyle = 'rgba(196, 255, 248, ' + (torchAlpha * 0.14).toFixed(3) + ')';
-        g.fillRect(dir > 0 ? hx : hx - 44, hy - 5, 44, 10);
+        g.fillStyle = 'rgba(196, 255, 248, ' + (torchAlpha * 0.18).toFixed(3) + ')';
+        g.fillRect(dir > 0 ? hx : hx - outerLen, hy - 6, outerLen, 12);
       }
+      if (canAdd) g.restore();
     }
     if (d.flash > 0) {
       const fx = x0 + (flip ? -21 : 21), fy = y0 + 2, r = Math.round(6 + (1 - d.flash) * 14);
@@ -1791,15 +1909,7 @@
     // 7. Baked foreground multi-tiered Atlantis temple, shipwreck bow, fluted columns, statues & living coral gardens
     drawPlate(g, s, 'fg');
 
-    // 7b. TRUE 3D ANCIENT CHAMBERS:
-    //     Back cave murals & whole-room light -> Diver (when inside!) -> Front fluted columns/cornices/moss (`occ_*`) OVER the diver!
-    drawRoomInterior(g, s, w.rooms.left, w.t);
-    drawRoomInterior(g, s, w.rooms.right, w.t);
-    if (w.diver.inRoom) drawDiverEntity(g, s, w.diver, pal, w.t);
-    drawRoomOcclude(g, s, w.rooms.left, w.diver.inRoom);
-    drawRoomOcclude(g, s, w.rooms.right, w.diver.inRoom);
-
-    // 8. TRUE PHYSICAL RAY-REFRACTION CAUSTICS (pure translucent white merging, widening/defocusing & sharpening at 15 Hz!)
+    // 8. TRUE PHYSICAL RAY-REFRACTION CAUSTICS (crisp white sunlight by day, gentle silver moon-caustics at night!)
     if (s.causticBuf) {
       const stride = low ? 4 : 2;
       if (s.causticPhase !== s.phase || s.causticTick < 0 || (w.steps - s.causticTick) >= stride) {
@@ -1811,54 +1921,23 @@
       drawCausticsFallback(g, pal, w.t, s.causticMask);
     }
 
-    // 9. Subtle bioluminescent coral sparkles at dusk & night
-    if (pal.bioCoral && !low) {
-      const spots = [[54, 24], [52, 86], [24, 190], [60, 192], [220, 224], [246, 322]];
-      for (let i = 0; i < spots.length; i++) {
-        const a = (0.18 + 0.18 * Math.sin(w.t * 3.1 + i * 1.4)) * pal.bioGlow;
-        g.fillStyle = (i % 2 ? 'rgba(92,255,248,' : 'rgba(255,112,212,') + a.toFixed(2) + ')';
-        g.fillRect(spots[i][0] - 4, spots[i][1] - 3, 9, 6);
-      }
-    }
-
-    // 10. Interactive reef props: 5-stage Giant Pearl Clam, 5-stage Treasure Chest, Anemone & 10-frame Cheeky Octopus!
-    if (w.clam.open > 0.35) {
-      g.fillStyle = 'rgba(180, 255, 252, ' + ((0.14 + pal.bioGlow * 0.22) * w.clam.open).toFixed(3) + ')';
-      g.fillRect(CLAM.x - 10, CLAM.y - 12, 20, 14);
-    }
+    // 9. Non-luminous reef props & sea creatures (darkened naturally by the dawn/dusk/night veil below!)
     const clamStage = Math.min(4, Math.max(0, Math.floor(clamp(w.clam.open, 0, 1) * 4.99)));
     if (!drawAnimSprite(g, s, 'clam', clamStage, '', CLAM.x, CLAM.y - 2)) {
       drawGiantClam(g, w.clam, pal, w.t);
-    }
-    if (w.chest.open > 0.28) {
-      const a = (w.chest.open * (0.20 + 0.06 * Math.sin(w.t * 6))).toFixed(3);
-      g.fillStyle = 'rgba(255, 224, 96, ' + a + ')';
-      g.fillRect(CHEST.x - 12, CHEST.y - 24, 24, 18);
     }
     g.fillStyle = 'rgba(12, 32, 42, 0.40)'; g.fillRect(CHEST.x - 14, CHEST.y + 8, 28, 3);
     const chestStage = Math.min(4, Math.max(0, Math.floor(clamp(w.chest.open, 0, 1) * 4.99)));
     if (!drawAnimSprite(g, s, 'chest', chestStage, '', CHEST.x, CHEST.y - 2)) {
       drawTreasureChest(g, w.chest, w.t);
     }
-    for (const c of w.coins) drawCoin(g, c, w.t);
     drawAnemone(g, w.t);
-    // Cheeky Octopus billowing organic ink clouds + 10-frame undulating multi-arm sprite!
     const oc = w.octopus;
     if (oc.inks.length) drawOctopusInks(g, oc.inks, w.t);
     const ocFrm = phaseIdx(oc.animPh, 10);
     if (!drawAnimSprite(g, s, 'octo', ocFrm, '', oc.x, oc.y + Math.sin(w.t * 2.5) * 1.4)) {
       drawOctopus(g, oc, w.t);
     }
-
-    // 11. Sunlit marine snow motes
-    if (!low) {
-      for (const mo of w.motes) {
-        g.fillStyle = inSunbeam(mo.x, mo.y, w.t) > 0.22 ? pal.moteBright : pal.moteDim;
-        g.fillRect(Math.round(mo.x), Math.round(mo.y), 1, 1);
-      }
-    }
-
-    // 12. 10-frame Dolphin, 10-frame Sea Turtle, 8-frame Translucent Jellyfish, 6-frame Reef Fish & 12-frame HERO SCUBA DIVER!
     if (w.dolphin.cooldown <= 0) {
       const dl = w.dolphin, df = phaseIdx(dl.animPh, 10), dd = dl.vx >= 0 ? 'r' : 'l';
       if (!drawAnimSprite(g, s, 'dolphin', df, dd, dl.x, dl.y)) drawDolphin(g, dl, w.t);
@@ -1867,38 +1946,84 @@
       const tu = w.turtle, tf = phaseIdx(tu.animPh, 10), td = tu.vx >= 0 ? 'r' : 'l';
       if (!drawAnimSprite(g, s, 'turtle', tf, td, tu.x, tu.y)) drawTurtle(g, tu, w.t);
     }
-    for (const jf of w.jellies) {
-      const jfrm = phaseIdx(jf.animPh, 8);
-      const jpref = jf.pink ? 'jelly_pink' : 'jelly_cyan';
-      if (pal.bioGlow > 0.45) {
-        g.fillStyle = (jf.pink ? 'rgba(255,142,226,' : 'rgba(84,248,255,') + (0.07 + pal.bioGlow * 0.10).toFixed(2) + ')';
-        g.fillRect(Math.round(jf.x - 9), Math.round(jf.y - 10), 18, 12);
-      }
-      if (!drawAnimSprite(g, s, jpref, jfrm, '', jf.x, jf.y + 6)) drawJellyfish(g, jf, pal, w.t);
-    }
     for (const f of w.fish) {
       const ff = phaseIdx(f.animPh, 6), fd = f.vx >= 0 ? 'r' : 'l';
       if (!drawAnimSprite(g, s, 'fish_' + f.kind, ff, fd, f.x, f.y)) drawFish(g, f, w.t);
+    }
+    drawKelp(g, w.t);
+
+    // 10. DRAMATIC PHASE ATMOSPHERE VEIL (zero cost in day; warm golden tint at dawn; deep twilight indigo at dusk;
+    //     true midnight ocean darkness at night so bioluminescence, rooms & the diver's headlamp blaze to life!)
+    drawAtmosphereVeil(g, pal);
+
+    // 11. TRUE 3D ANCIENT CHAMBERS (blazing warmly out of the dark ruins at dusk & night, with columns cleanly in front!)
+    drawRoomInterior(g, s, w.rooms.left, w.t);
+    drawRoomInterior(g, s, w.rooms.right, w.t);
+    if (w.diver.inRoom) drawDiverEntity(g, s, w.diver, pal, w.t);
+    drawRoomOcclude(g, s, w.rooms.left, w.diver.inRoom);
+    drawRoomOcclude(g, s, w.rooms.right, w.diver.inRoom);
+
+    // 12. LUMINOUS REEF MAGIC ABOVE THE DARKNESS: smooth radial bioluminescent corals, pearl clam glow, treasure gold,
+    //     glowing jellyfish lanterns, dinoflagellate marine snow & hero diver's smooth cutting headlamp!
+    drawBioluminescentCorals(g, pal, w.t, low);
+    if (w.clam.open > 0.35) {
+      const ca = (0.22 + pal.bioGlow * 0.42) * w.clam.open;
+      drawSoftGlow(g, CLAM.x, CLAM.y - 5, pal.bioCoral ? 20 : 13, 'rgba(128,255,252,', ca);
+    }
+    if (w.chest.open > 0.28) {
+      const a = w.chest.open * (0.28 + pal.bioGlow * 0.28 + 0.06 * Math.sin(w.t * 6));
+      drawSoftGlow(g, CHEST.x, CHEST.y - 10, pal.bioCoral ? 24 : 16, 'rgba(255,220,96,', a);
+    }
+    for (const c of w.coins) drawCoin(g, c, w.t);
+
+    if (!low) {
+      for (const mo of w.motes) {
+        const bright = pal.bioCoral || inSunbeam(mo.x, mo.y, w.t) > 0.22;
+        const mx = Math.round(mo.x), my = Math.round(mo.y);
+        if (pal.bioCoral && (mo.ph > 3.2)) {
+          const glow = 0.20 + 0.22 * Math.sin(w.t * 2.8 + mo.ph * 2.1);
+          g.fillStyle = 'rgba(72, 248, 255, ' + (glow * pal.bioGlow).toFixed(3) + ')';
+          g.fillRect(mx - 1, my - 1, 3, 3);
+        }
+        g.fillStyle = bright ? pal.moteBright : pal.moteDim;
+        g.fillRect(mx, my, 1, 1);
+      }
+    }
+
+    for (const jf of w.jellies) {
+      const jfrm = phaseIdx(jf.animPh, 8);
+      const jpref = jf.pink ? 'jelly_pink' : 'jelly_cyan';
+      if (pal.bioGlow > 0.40) {
+        const jCol = jf.pink ? 'rgba(255,112,222,' : 'rgba(64,248,255,';
+        const jPulse = 0.8 + 0.2 * Math.sin(w.t * 3.0 + jf.ph);
+        drawSoftGlow(g, jf.x, jf.y - 1, pal.bioCoral ? 20 : 13, jCol, (0.22 + pal.bioGlow * 0.26) * jPulse);
+      }
+      if (!drawAnimSprite(g, s, jpref, jfrm, '', jf.x, jf.y + 6)) drawJellyfish(g, jf, pal, w.t);
     }
     if (!w.diver.inRoom) {
       drawDiverEntity(g, s, w.diver, pal, w.t);
     }
 
-    // 13. Shimmering bubbles, rising Scuba Bubble Rings & touch ripples
+    // 13. Shimmering bubbles, rising Scuba Bubble Rings & bioluminescent touch ripples
     for (const b of w.bubbles) drawBubble(g, b);
     for (const br of w.bubbleRings) drawBubbleRing(g, br);
     for (const rp of w.ripples) {
-      if (rp.age > 1.2) continue;
-      const rad = Math.round(4 + rp.age * 20);
-      g.fillStyle = 'rgba(206, 255, 252, ' + ((1 - rp.age / 1.2) * 0.70).toFixed(2) + ')';
+      if (rp.age > 1.3) continue;
+      const rad = Math.round(4 + rp.age * 22);
+      const fade = 1 - rp.age / 1.3;
+      if (pal.bioRipple) {
+        g.fillStyle = 'rgba(56, 248, 255, ' + (fade * 0.34).toFixed(3) + ')';
+        for (let ang = 0; ang < 12; ang++) {
+          const th = (ang / 12) * Math.PI * 2;
+          g.fillRect(Math.round(rp.x + Math.cos(th) * rad) - 1, Math.round(rp.y + Math.sin(th) * rad * 0.6) - 1, 4, 3);
+        }
+      }
+      g.fillStyle = (pal.bioRipple ? 'rgba(180, 255, 255, ' : 'rgba(206, 255, 252, ') + (fade * 0.82).toFixed(2) + ')';
       for (let ang = 0; ang < 12; ang++) {
         const th = (ang / 12) * Math.PI * 2;
         g.fillRect(Math.round(rp.x + Math.cos(th) * rad), Math.round(rp.y + Math.sin(th) * rad * 0.6), 2, 1);
       }
     }
-
-    // 14. Swaying foreground kelp
-    drawKelp(g, w.t);
   }
 
   function makeImageBuf(w, h) {

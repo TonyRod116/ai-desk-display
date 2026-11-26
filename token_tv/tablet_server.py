@@ -472,7 +472,8 @@ def local_snapshot():
             body = response.read(DATA_LIMIT + 1)
         if len(body) > DATA_LIMIT:
             return None
-        return tablet_snapshot(json.loads(body))
+        from token_tv.gemini_usage import read_gemini_record
+        return tablet_snapshot(json.loads(body), gemini_record=read_gemini_record())
     except (OSError, ValueError, TypeError, urllib.error.URLError):
         return None
 

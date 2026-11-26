@@ -84,6 +84,17 @@ class TabletSnapshotTests(unittest.TestCase):
         data = {'accounts': {'one': row('claude', 20), 'other': row('claude', 50)}}
         self.assertIsNone(tablet_snapshot(data, NOW)['providers']['claude']['weekly'])
 
+    def test_gemini_local_record_attaches_and_expires_after_reset(self):
+        gemini = {
+            'fetched_at': NOW - 300,
+            'source': 'gemini_agy_statusline',
+            'windows': [{'label': 'WEEK', 'used_percent': 12, 'resets_at': NOW + 9000, 'duration_minutes': 10080}],
+        }
+        result = tablet_snapshot({'accounts': {}}, NOW, gemini_record=gemini)['providers']['gemini']
+        self.assertEqual(result['weekly']['remaining'], 88)
+        self.assertTrue(result['aged'])
+        self.assertIsNone(tablet_snapshot({'accounts': {}}, NOW + 9000, gemini_record=gemini)['providers']['gemini']['weekly'])
+
 
 if __name__ == '__main__':
     unittest.main()

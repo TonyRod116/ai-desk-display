@@ -74,8 +74,10 @@
   }
 
   /* ---- the Computer page */
-  function gauge(title, big, unit, percent, history, extra) {
-    const card = el('article', 'gauge'); if (valid(percent)) card.dataset.level = level(percent);
+  function gauge(title, big, unit, percent, history, extra, metric) {
+    const card = el('article', 'gauge');
+    if (metric) card.dataset.metric = metric;
+    if (valid(percent)) card.dataset.level = level(percent);
     const head = el('div', 'gauge-title'); head.append(el('span', '', title), el('b', '', valid(percent) ? Math.round(percent) + '%' : '—'));
     const value = el('div', 'gauge-value', big); if (unit) value.append(el('small', '', unit));
     const track = el('div', 'system-meter'); const fill = el('span'); track.append(fill); fill.style.width = (valid(percent) ? Math.max(0, Math.min(100, percent)) : 0) + '%';
@@ -83,8 +85,9 @@
     if (extra) card.append(el('div', 'gauge-extra', extra));
     return card;
   }
-  function usingList(title, rows, format, max) {
+  function usingList(title, rows, format, max, metric) {
     const box = el('div', 'using');
+    if (metric) box.dataset.metric = metric;
     box.append(el('h3', '', title));
     const list = el('ol');
     rows.slice(0, 5).forEach((row) => {
@@ -111,7 +114,7 @@
     const gpu = Array.isArray(m.gpus) ? m.gpus[0] || {} : {};
     const used = m.memory && valid(m.memory.total) && m.memory.total > 0 && valid(m.memory.free) ? m.memory.total - m.memory.free : null;
     const grid = el('div', 'gauges');
-    const memoryCard = gauge(t('memory'), used === null ? '—' : ctx.size(used).replace(/ (GB|TB)$/, ''), used === null ? '' : ctx.size(used).slice(-2) + ' / ' + ctx.size(m.memory.total), used === null ? null : 100 * used / m.memory.total, history.memory);
+    const memoryCard = gauge(t('memory'), used === null ? '—' : ctx.size(used).replace(/ (GB|TB)$/, ''), used === null ? '' : ctx.size(used).slice(-2) + ' / ' + ctx.size(m.memory.total), used === null ? null : 100 * used / m.memory.total, history.memory, null, 'memory');
     memoryCard.classList.add('gauge-action'); memoryCard.dataset.memoryAction = 'true';
     memoryCard.setAttribute('role', 'button'); memoryCard.setAttribute('tabindex', '0');
     memoryCard.setAttribute('aria-label', t('memory_touch') + '. ' + t('memory_scope'));
@@ -124,8 +127,8 @@
     memoryCard.addEventListener('click', () => { if (pcAvailable) releaseMemory(); });
     memoryCard.addEventListener('keydown', (event) => { if (pcAvailable && !event.repeat && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); releaseMemory(); } });
     grid.append(
-      gauge('CPU', valid(m.cpu_temp_c) ? String(Math.round(m.cpu_temp_c)) : '—', '°C', m.cpu_percent, history.cpu),
-      gauge('GPU', valid(gpu.temp_c) ? String(Math.round(gpu.temp_c)) : '—', '°C', gpu.percent, history.gpu),
+      gauge('CPU', valid(m.cpu_temp_c) ? String(Math.round(m.cpu_temp_c)) : '—', '°C', m.cpu_percent, history.cpu, null, 'cpu'),
+      gauge('GPU', valid(gpu.temp_c) ? String(Math.round(gpu.temp_c)) : '—', '°C', gpu.percent, history.gpu, null, 'gpu'),
       memoryCard);
     root.append(grid);
     if (restoreMemoryFocus) memoryCard.focus({ preventScroll: true });
@@ -136,17 +139,17 @@
       const columns = el('div', 'using-columns');
       const cpu = (procs.cpu || []).filter((p) => valid(p.percent)), memory = (procs.memory || []).filter((p) => valid(p.mem_mb));
       const gpus = Array.isArray(procs.gpu) ? procs.gpu.filter((p) => valid(p.percent)) : null;
-      columns.append(usingList('CPU', cpu.map((p) => ({ name: p.name, value: p.percent })), (r) => Math.round(r.value * 10) / 10 + '%', Math.max(10, ...cpu.map((p) => p.percent))));
-      columns.append(usingList(t('memory'), memory.map((p) => ({ name: p.name, value: p.mem_mb })), (r) => (r.value >= 1024 ? (r.value / 1024).toFixed(1) + ' GB' : Math.round(r.value) + ' MB'), Math.max(1, ...memory.map((p) => p.mem_mb))));
-      if (gpus && gpus.length) columns.append(usingList('GPU', gpus.map((p) => ({ name: p.name, value: p.percent })), (r) => Math.round(r.value) + '%', Math.max(10, ...gpus.map((p) => p.percent))));
+      columns.append(usingList('CPU', cpu.map((p) => ({ name: p.name, value: p.percent })), (r) => Math.round(r.value * 10) / 10 + '%', Math.max(10, ...cpu.map((p) => p.percent)), 'cpu'));
+      columns.append(usingList(t('memory'), memory.map((p) => ({ name: p.name, value: p.mem_mb })), (r) => (r.value >= 1024 ? (r.value / 1024).toFixed(1) + ' GB' : Math.round(r.value) + ' MB'), Math.max(1, ...memory.map((p) => p.mem_mb)), 'memory'));
+      if (gpus && gpus.length) columns.append(usingList('GPU', gpus.map((p) => ({ name: p.name, value: p.percent })), (r) => Math.round(r.value) + '%', Math.max(10, ...gpus.map((p) => p.percent)), 'gpu'));
       block.append(columns); root.append(block);
     }
     if (m.network && (valid(m.network.down_bps) || valid(m.network.up_bps))) {
       const net = el('section', 'network');
       net.append(el('h3', 'block-title', t('network')));
       const row = el('div', 'net-row');
-      const down = el('div', 'net'); down.append(el('span', '', '↓ ' + t('down')), el('b', '', rate(m.network.down_bps)), sparkline(history.down));
-      const up = el('div', 'net'); up.append(el('span', '', '↑ ' + t('up')), el('b', '', rate(m.network.up_bps)), sparkline(history.up));
+      const down = el('div', 'net'); down.dataset.metric = 'down'; down.append(el('span', '', '↓ ' + t('down')), el('b', '', rate(m.network.down_bps)), sparkline(history.down));
+      const up = el('div', 'net'); up.dataset.metric = 'up'; up.append(el('span', '', '↑ ' + t('up')), el('b', '', rate(m.network.up_bps)), sparkline(history.up));
       row.append(down, up); net.append(row); root.append(net);
     }
     const disks = el('section', 'disks-block'); disks.append(el('h3', 'block-title', t('disks')));

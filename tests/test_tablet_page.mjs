@@ -110,7 +110,11 @@ test('the page starts from the same settings the server does (the PC keeps the r
 
 test('the pages, the dots and the details row are in the markup, and the bars carry their parts', () => {
   for (const page of ['home', 'computer', 'remote']) { assert.match(html, new RegExp('id="page-' + page + '"')); assert.match(html, new RegExp('data-page="' + page + '"')); }
-  assert.deepEqual([...html.matchAll(/class="meter" data-parts="(\d)"/g)].map(m => m[1]), ['7', '7', '5']);
+  assert.deepEqual([...html.matchAll(/class="meter(?: sub-meter)?" data-parts="(\d)"/g)].map(m => m[1]), ['7', '5', '7', '5', '7', '5']);
+  for (const prov of ['codex', 'claude', 'gemini']) {
+    assert.match(html, new RegExp('data-provider="' + prov + '"'), prov);
+    assert.match(html, new RegExp('data-pq="' + prov + '"'), prov);
+  }
   for (const id of ['settings-dialog', 'settings-body', 'update', 'toast', 'flash', 'night-shade', 'busy', 'machine', 'intro']) assert.match(html, new RegExp('id="' + id + '"'), id);
   const css = read('style.css');
   assert.match(css, /scroll-snap-type: x mandatory/);

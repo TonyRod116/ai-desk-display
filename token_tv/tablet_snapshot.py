@@ -3,6 +3,7 @@ import math
 import time
 
 from token_tv.credits import exhausted_credits, format_balance
+from token_tv.gemini_usage import gemini_tablet_provider
 from token_tv.local_usage import CLAUDE_OFFICIAL, expire_official_quota
 
 
@@ -77,7 +78,7 @@ def _provider(source, provider, now):
     return result
 
 
-def tablet_snapshot(snapshot, now=None):
+def tablet_snapshot(snapshot, now=None, gemini_record=None):
     now = time.time() if now is None else now
     accounts = snapshot.get('accounts', {}) if isinstance(snapshot, dict) else {}
     accounts = accounts if isinstance(accounts, dict) else {}
@@ -85,4 +86,5 @@ def tablet_snapshot(snapshot, now=None):
     for provider in ('codex', 'claude'):
         rows = [row for row in accounts.values() if isinstance(row, dict) and row.get('provider') == provider]
         result[provider] = _provider(rows[0] if len(rows) == 1 else None, provider, now)
+    result['gemini'] = gemini_tablet_provider(gemini_record, now)
     return {'providers': result}

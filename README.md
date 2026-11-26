@@ -1,14 +1,14 @@
 <h1 align="center">AI Desk Display</h1>
 
 <p align="center">
-  <strong>100% free, open-source desk display for your Claude &amp; Codex quotas — plus live PC vitals.</strong><br>
+  <strong>100% free, open-source desk display for your Claude, Codex &amp; Gemini quotas — plus live PC vitals.</strong><br>
   Give an old tablet or a tiny ESP32 touchscreen a far better job than collecting dust.
 </p>
 
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/price-$0_(MIT_License)-2ea44f?style=flat-square" alt="Free, MIT License"></a>
   <img src="https://img.shields.io/badge/runs-100%25_local-1f6feb?style=flat-square" alt="100% local">
-  <img src="https://img.shields.io/badge/tracks-Claude_%2B_Codex_%2B_PC-f59e0b?style=flat-square" alt="Tracks Claude, Codex and PC">
+  <img src="https://img.shields.io/badge/tracks-Claude_%2B_Codex_%2B_Gemini_%2B_PC-f59e0b?style=flat-square" alt="Tracks Claude, Codex, Gemini and PC">
   <img src="https://img.shields.io/badge/displays-Tablet_%2B_ESP32-8b5cf6?style=flat-square" alt="Tablet and ESP32 displays">
 </p>
 
@@ -32,12 +32,12 @@
 
 | What you get | Why it’s actually useful |
 | :--- | :--- |
-| **Live AI quotas at a glance** | Weekly remaining **%** & reset countdowns for **Claude** and **Codex**, Claude’s **5-hour window**, **saved resets** when reported, and Codex **extra credits** when your week hits zero. No more tab-switching mid-flow. |
+| **Live AI quotas at a glance** | Weekly remaining **%** & reset countdowns for **Claude**, **Codex**, and **Gemini** (via Google Antigravity `agy` on the tablet), **5-hour limits**, **saved resets** when reported, and Codex **extra credits** when your week hits zero. No more tab-switching mid-flow. |
 | **Live PC vitals on the dock** | CPU & GPU load and temps, RAM usage, free disk space, and top active apps — without sacrificing a monitor. |
 | **One project, two desk toys** | Run it on any **old tablet** (browser or offline-ready Android app), a **NerdMiner V2 / ESP32 touchscreen**, or **both at once**. Also supports **GeekMagic SmallTV Ultra**. |
-| **90s–2000s arcade & cozy worlds** | Tap the clock to enter **Picture Mode**, swipe scenes, sync lighting to sunrise/sunset & real weather, dim automatically at night, and get optional low-quota chimes. |
+| **90s–2000s arcade & cozy worlds** | Tap the clock to enter **Picture Mode**, swipe scenes, sync lighting to sunrise/sunset & real weather (including bioluminescent night dives in **Deep Blue**), dim automatically at night, and get optional low-quota chimes. |
 | **Built for real Wi-Fi** | Holds steady across brief hiccups instead of flashing blanks, and shows honest dashes if data is actually missing (unknown is *never* faked as `0%`). |
-| **Actually free & 100% local** | **MIT-licensed**, zero subscriptions, zero cloud relay, zero extra API keys. Uses the Claude Code / Codex CLI logins already on your machine. |
+| **Actually free & 100% local** | **MIT-licensed**, zero subscriptions, zero cloud relay, zero extra API keys. Uses the Claude Code / Codex CLI / Antigravity (`agy`) logins already on your machine. |
 
 ---
 
@@ -136,9 +136,9 @@ Want a contact sheet of all tiny-screen scenes? Run `python scripts/render_galle
 
 ## Put it on your desk
 
-AI Desk Display is **completely free** — no paywalls, no accounts to create. Live numbers come directly from the Claude Code or Codex CLI you’re already signed into.
+AI Desk Display is **completely free** — no paywalls, no accounts to create. Live numbers come directly from the Claude Code, Codex CLI, or Antigravity (`agy`) logins you’re already signed into.
 
-1. **Connect your PC** — Sign in to Claude Code, the Codex CLI, or both, and follow the [computer setup guide](docs/setup.md) to start the local monitor and readers.
+1. **Connect your PC** — Sign in to Claude Code, the Codex CLI, or both, and follow the [computer setup guide](docs/setup.md) to start the local monitor and readers. For **Gemini** quotas on the tablet, run `python scripts/install_gemini_statusline.py` once to hook into Antigravity’s local `statusLine` metadata (read-only, zero credentials stored).
 2. **Pick your display:**
    - **Tablet:** follow the [tablet guide](docs/tablet.md) to connect over Wi-Fi, plus the optional [Android app](docs/tablet-app.md) if you want full-screen offline scene caching.
    - **ESP32 / NerdMiner V2:** check your exact board in the [hardware guide](docs/hardware.md) and flash via the [firmware guide](firmware/board/README.md) *(note: flashing replaces whatever was on the board, including the miner)*.

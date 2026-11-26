@@ -39,6 +39,7 @@ def readings(scenario, now):
     week = lambda remaining, hours: {'remaining': remaining, 'resets_at': now + hours * 3600}
     codex = {'weekly': week(68, 122), 'session': None, 'aged': False, 'resets': {'count': 2, 'old': False}, 'credits': None}
     claude = {'weekly': week(38, 76), 'session': week(72, 2.2), 'aged': False, 'resets': {'count': 0, 'old': False}, 'credits': None}
+    gemini = {'weekly': week(84, 140), 'session': week(64, 3.4), 'aged': False, 'resets': {'count': None, 'old': False}, 'credits': None}
     metrics = {'cpu_percent': 26, 'cpu_temp_c': 48, 'memory': {'total': 32 * GB, 'free': 22.2 * GB}, 'gpus': [{'temp_c': 55, 'percent': 18}],
                'disks': [disk('C:', 931 * GB, 130 * GB), disk('D:', 1.8 * TB, 1.1 * TB), disk('E:', 1.8 * TB, 190 * GB),
                          disk('F:', 3.6 * TB, 2.4 * TB)]}
@@ -52,7 +53,7 @@ def readings(scenario, now):
                             'memory': [28 + 4 * math.sin(i / 17) for i in range(120)], 'down': [1e6 + 1e6 * abs(math.sin(i / 5)) for i in range(120)], 'up': [1e5 + 8e4 * abs(math.cos(i / 6)) for i in range(120)]})
     connected = True
     if scenario == 'unknown':
-        codex = claude = {'weekly': None, 'session': None, 'aged': False, 'resets': {'count': None, 'old': False}, 'credits': None}
+        codex = claude = gemini = {'weekly': None, 'session': None, 'aged': False, 'resets': {'count': None, 'old': False}, 'credits': None}
         metrics = {'cpu_percent': None, 'cpu_temp_c': None, 'memory': None, 'disks': [], 'gpus': [], 'processes': None, 'network': None, 'battery': None, 'uptime_s': None}
         connected = False
     elif scenario == 'many-disks':
@@ -64,13 +65,14 @@ def readings(scenario, now):
     elif scenario == 'critical':
         codex.update(weekly=week(4, 20), credits=None)
         claude.update(weekly=week(8.5, 9), session=week(0.6, .4))
+        gemini.update(weekly=week(9, 14))
         metrics['disks'] = [disk('C:', 931 * GB, 20 * GB), disk('D:', 1.8 * TB, 150 * GB), disk('E:', 1.8 * TB, 300 * GB),
                             disk('F:', 3.6 * TB, 0.2 * TB)]
         metrics.update(cpu_percent=93, cpu_temp_c=88, gpus=[{'temp_c': 79, 'percent': 97}])
     elif scenario == 'aged':
-        codex['aged'] = claude['aged'] = True
+        codex['aged'] = claude['aged'] = gemini['aged'] = True
         codex['resets'] = {'count': 1, 'old': True}
-    return {'providers': {'codex': codex, 'claude': claude}, 'quota_connected': connected, 'metrics': metrics}
+    return {'providers': {'codex': codex, 'claude': claude, 'gemini': gemini}, 'quota_connected': connected, 'metrics': metrics}
 
 
 class FictionalFeeds:

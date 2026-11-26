@@ -58,16 +58,23 @@
             <div class="weather" id="weather" role="img" hidden><span class="wx-icon" id="wx-icon" aria-hidden="true"></span><span class="wx-body"><b class="wx-temp" id="wx-temp"></b><span class="wx-text" id="wx-text"></span></span></div>
           </div>
           <div class="picture-quota" id="picture-quota" aria-hidden="true">
-            <div class="pq-week" data-pq="codex">
-              <div class="pq-heading"><b>CODEX</b><span class="pq-value"><strong>—</strong><span class="pq-credit-label"></span></span></div>
+            <div class="pq-week codex" data-pq="codex">
+              <div class="pq-heading"><span class="pq-name"><span class="provider-icon" aria-hidden="true">✳</span><b>CODEX</b></span><span class="pq-value"><span class="pq-aged" hidden>•</span><strong>—</strong><span class="pq-credit-label"></span></span></div>
               <i class="pq-meter"><em></em></i>
-              <div class="pq-reset"><span data-i18n="reset_in">RESET IN</span><small>—</small></div>
+              <div class="pq-reset"><span data-i18n="reset_in">RESETS IN</span><small>—</small></div>
+              <div class="pq-session" data-pq="codex-session" data-state="na"><b>5H</b><i class="pq-meter"><em></em></i><strong>N/A</strong><small></small></div>
             </div>
-            <div class="pq-week" data-pq="claude">
-              <div class="pq-heading"><b>CLAUDE</b><span class="pq-value"><strong>—</strong><span class="pq-credit-label"></span></span></div>
+            <div class="pq-week claude" data-pq="claude">
+              <div class="pq-heading"><span class="pq-name"><span class="provider-icon" aria-hidden="true">✳</span><b>CLAUDE</b></span><span class="pq-value"><span class="pq-aged" hidden>•</span><strong>—</strong><span class="pq-credit-label"></span></span></div>
               <i class="pq-meter"><em></em></i>
-              <div class="pq-reset"><span data-i18n="reset_in">RESET IN</span><small>—</small></div>
+              <div class="pq-reset"><span data-i18n="reset_in">RESETS IN</span><small>—</small></div>
               <div class="pq-session" data-pq="session"><b>5H</b><i class="pq-meter"><em></em></i><strong>—</strong><small></small></div>
+            </div>
+            <div class="pq-week gemini" data-pq="gemini">
+              <div class="pq-heading"><span class="pq-name"><span class="provider-icon" aria-hidden="true">✦</span><b>GEMINI</b></span><span class="pq-value"><span class="pq-aged" hidden>•</span><strong>—</strong><span class="pq-credit-label"></span></span></div>
+              <i class="pq-meter"><em></em></i>
+              <div class="pq-reset"><span data-i18n="reset_in">RESETS IN</span><small>—</small></div>
+              <div class="pq-session" data-pq="gemini-session"><b>5H</b><i class="pq-meter"><em></em></i><strong>—</strong><small></small></div>
             </div>
           </div>
         </section>
@@ -76,27 +83,65 @@
             <h1 id="usage-heading" class="sr-only" data-i18n="usage">YOUR AI USAGE · WEEKLY REMAINING</h1>
             <div class="quota-grid">
               <article class="quota-card codex" data-provider="codex">
-                <div class="card-top"><span class="provider"><span class="provider-icon" aria-hidden="true">✳</span>CODEX</span><span class="hearts" aria-label="Reset balance unavailable"><i>♥</i><i>♥</i><i>♥</i><span class="unknown-dot">•</span></span></div>
-                <div class="amount"><span class="amount-number">—</span><span class="amount-unit"></span></div>
-                <div class="meter" data-parts="7" role="img" aria-label="Remaining usage unavailable"><span></span></div>
-                <div class="card-bottom"><span class="caption" data-i18n="weekly_left">WEEKLY LEFT</span><span class="reset"><small data-i18n="reset_in">RESET IN</small><strong class="reset-time">—</strong></span></div>
+                <div class="quota-main">
+                  <div class="card-id">
+                    <span class="provider"><span class="provider-icon" aria-hidden="true">✳</span>CODEX</span>
+                    <span class="hearts" aria-label="Reset balance unavailable"><i>♥</i><i>♥</i><i>♥</i><span class="unknown-dot">•</span></span>
+                  </div>
+                  <div class="meter" data-parts="7" role="img" aria-label="Remaining usage unavailable"><span></span></div>
+                  <div class="amount"><span class="amount-number">—</span><span class="amount-unit"></span></div>
+                  <div class="reset"><small class="caption" data-i18n="reset_in">RESETS IN</small><strong class="reset-time">—</strong></div>
+                </div>
+                <div class="quota-sub" data-session="codex" data-state="na" data-level="healthy">
+                  <span class="sub-label">5H</span>
+                  <div class="meter sub-meter" data-parts="5" role="img" aria-label="5-hour limit not applicable"><span></span></div>
+                  <strong class="session-value">N/A</strong>
+                  <span class="session-time"></span>
+                </div>
               </article>
               <article class="quota-card claude" data-provider="claude">
-                <div class="card-top"><span class="provider"><span class="provider-icon" aria-hidden="true">✳</span>CLAUDE</span><span class="hearts" aria-label="Reset balance unavailable"><i>♥</i><i>♥</i><i>♥</i><span class="unknown-dot">•</span></span></div>
-                <div class="amount"><span class="amount-number">—</span><span class="amount-unit"></span></div>
-                <div class="meter" data-parts="7" role="img" aria-label="Remaining usage unavailable"><span></span></div>
-                <div class="card-bottom"><span class="caption" data-i18n="weekly_left">WEEKLY LEFT</span><span class="reset"><small data-i18n="reset_in">RESET IN</small><strong class="reset-time">—</strong></span></div>
+                <div class="quota-main">
+                  <div class="card-id">
+                    <span class="provider"><span class="provider-icon" aria-hidden="true">✳</span>CLAUDE</span>
+                    <span class="hearts" aria-label="Reset balance unavailable"><i>♥</i><i>♥</i><i>♥</i><span class="unknown-dot">•</span></span>
+                  </div>
+                  <div class="meter" data-parts="7" role="img" aria-label="Remaining usage unavailable"><span></span></div>
+                  <div class="amount"><span class="amount-number">—</span><span class="amount-unit"></span></div>
+                  <div class="reset"><small class="caption" data-i18n="reset_in">RESETS IN</small><strong class="reset-time">—</strong></div>
+                </div>
+                <div class="quota-sub" data-session="claude" data-level="unknown">
+                  <span class="sub-label">5H</span>
+                  <div class="meter sub-meter" data-parts="5" role="img" aria-label="Remaining usage unavailable"><span></span></div>
+                  <strong class="session-value">—</strong>
+                  <span class="session-time"></span>
+                </div>
+              </article>
+              <article class="quota-card gemini" data-provider="gemini">
+                <div class="quota-main">
+                  <div class="card-id">
+                    <span class="provider"><span class="provider-icon" aria-hidden="true">✦</span>GEMINI</span>
+                    <span class="aged-dot" aria-hidden="true" hidden>•</span>
+                  </div>
+                  <div class="meter" data-parts="7" role="img" aria-label="Remaining usage unavailable"><span></span></div>
+                  <div class="amount"><span class="amount-number">—</span><span class="amount-unit"></span></div>
+                  <div class="reset"><small class="caption" data-i18n="reset_in">RESETS IN</small><strong class="reset-time">—</strong></div>
+                </div>
+                <div class="quota-sub" data-session="gemini" data-level="unknown">
+                  <span class="sub-label">5H</span>
+                  <div class="meter sub-meter" data-parts="5" role="img" aria-label="Remaining usage unavailable"><span></span></div>
+                  <strong class="session-value">—</strong>
+                  <span class="session-time"></span>
+                </div>
               </article>
             </div>
-            <div class="session-band" data-level="unknown"><span class="caption"><span class="session-who">CLAUDE</span> <span data-i18n="five_hour">5-HOUR LIMIT</span></span><div class="meter" data-parts="5" role="img" aria-label="Remaining usage unavailable"><span></span></div><strong class="session-value">—</strong><span class="session-time"></span></div>
           </section>
           <section class="system-section" aria-labelledby="system-heading">
             <h2 id="system-heading" class="sr-only" data-i18n="computer">YOUR COMPUTER</h2>
             <div class="machine" id="machine" role="button" tabindex="0">
               <div class="system-grid">
-                <article class="system-card"><div class="system-title"><span>CPU</span><b id="cpu-load">—</b></div><div class="system-value" id="cpu-temp">—<span>°C</span></div><div class="system-meter"><span id="cpu-meter"></span></div></article>
-                <article class="system-card"><div class="system-title"><span>GPU</span><b id="gpu-load">—</b></div><div class="system-value" id="gpu-temp">—<span>°C</span></div><div class="system-meter"><span id="gpu-meter"></span></div></article>
-                <article class="system-card"><div class="system-title"><span data-i18n="memory">MEMORY</span><b id="memory-load"></b></div><div class="system-value" id="memory-value">—</div><div class="system-meter"><span id="memory-meter"></span></div></article>
+                <article class="system-card" data-metric="cpu"><div class="system-title"><span>CPU</span><b id="cpu-load">—</b></div><div class="system-value" id="cpu-temp">—<span>°C</span></div><div class="system-meter"><span id="cpu-meter"></span></div></article>
+                <article class="system-card" data-metric="gpu"><div class="system-title"><span>GPU</span><b id="gpu-load">—</b></div><div class="system-value" id="gpu-temp">—<span>°C</span></div><div class="system-meter"><span id="gpu-meter"></span></div></article>
+                <article class="system-card" data-metric="memory"><div class="system-title"><span data-i18n="memory">MEMORY</span><b id="memory-load"></b></div><div class="system-value" id="memory-value">—</div><div class="system-meter"><span id="memory-meter"></span></div></article>
               </div>
               <div class="busy"><span class="busy-text" id="busy"></span><span class="more"><span data-i18n="more">DETAILS</span> ›</span></div>
               <div class="storage-card"><div class="disks" id="disks"><span class="disk-empty">—</span></div></div>
